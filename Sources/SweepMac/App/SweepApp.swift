@@ -12,21 +12,32 @@ struct SweepApp: App {
             ContentView()
                 .environmentObject(store)
                 .frame(minWidth: 820, minHeight: 500)
+                .onOpenURL { url in
+                    store.beginAdding(url: url)
+                }
         }
         .windowStyle(.titleBar)
 
         Settings {
-            SettingsView(
-                engineName: store.engineName,
-                downloadDirectory: store.downloadDirectory
-            )
+            SettingsView()
+                .environmentObject(store)
         }
         .commands {
             CommandGroup(replacing: .newItem) {
-                Button("Add Magnet Link...") {
-                    store.showingAddSheet = true
+                Button("Open Torrent...") {
+                    openTorrent()
                 }
                 .keyboardShortcut("o", modifiers: [.command])
+
+                Button("Open Location...") {
+                    store.beginAddingMagnet(magnetFromPasteboard() ?? "")
+                }
+                .keyboardShortcut("u", modifiers: [.command])
+
+                Button("Add from Clipboard") {
+                    addFromClipboard()
+                }
+                .disabled(!canAddFromClipboard)
             }
 
             CommandMenu("Transfers") {
@@ -80,6 +91,23 @@ struct SweepApp: App {
         NSWorkspace.shared.activateFileViewerSelecting([
             URL(filePath: directory, directoryHint: .isDirectory)
         ])
+    }
+
+    private var canAddFromClipboard: Bool {
+        magnetFromPasteboard() != nil || torrentFileURLFromPasteboard() != nil
+    }
+
+    private func openTorrent() {
+        guard let url = chooseTorrentFileURL() else { return }
+        store.beginAdding(url: url)
+    }
+
+    private func addFromClipboard() {
+        if let magnet = magnetFromPasteboard() {
+            store.beginAddingMagnet(magnet)
+        } else if let url = torrentFileURLFromPasteboard() {
+            store.beginAdding(url: url)
+        }
     }
 }
 

@@ -5,7 +5,6 @@ public final class RqbitEngine: TorrentEngine, @unchecked Sendable {
     public let name = "rqbit"
 
     private let engine: SweepEngine
-    private let downloadDirectory: String
 
     public static func makeDefault(downloadDirectory: String) -> RqbitEngine? {
         do {
@@ -18,7 +17,6 @@ public final class RqbitEngine: TorrentEngine, @unchecked Sendable {
     public init(downloadDirectory: String) throws {
         do {
             self.engine = try SweepEngine(downloadDir: downloadDirectory)
-            self.downloadDirectory = downloadDirectory
         } catch SweepError.Message(message: let message) {
             throw RqbitEngineError(message: message)
         }
@@ -28,26 +26,38 @@ public final class RqbitEngine: TorrentEngine, @unchecked Sendable {
         try await mapRqbitError {
             let snapshots = try await engine.listTorrents()
             return snapshots.map {
-                Torrent(snapshot: $0, downloadDirectory: downloadDirectory)
+                Torrent(snapshot: $0, downloadDirectory: nil)
             }
         }
     }
 
-    public func addMagnet(_ magnet: String) async throws -> Torrent {
+    public func addTorrent(
+        _ source: TorrentAddSource,
+        downloadDirectory: String,
+        startPaused: Bool
+    ) async throws -> Torrent {
         try await mapRqbitError {
-            let snapshot = try await engine.addMagnet(magnet: magnet, startPaused: false)
-            return Torrent(snapshot: snapshot, downloadDirectory: downloadDirectory)
-        }
-    }
+            let snapshot: TorrentSnapshot
+            switch source {
+            case .magnet(let magnet):
+                snapshot = try await engine.addMagnet(
+                    magnet: magnet,
+                    downloadDir: downloadDirectory,
+                    startPaused: startPaused
+                )
 
-    public func addMagnet(_ magnet: String, startPaused: Bool) async throws -> Torrent {
-        try await mapRqbitError {
-            let snapshot = try await engine.addMagnet(magnet: magnet, startPaused: startPaused)
+            case .torrentFile(let file):
+                snapshot = try await engine.addTorrentFile(
+                    torrentBytes: Data(file.bytes),
+                    downloadDir: downloadDirectory,
+                    startPaused: startPaused
+                )
+            }
             return Torrent(
                 snapshot: snapshot,
                 downloadDirectory: downloadDirectory,
                 desiredState: startPaused ? .paused : .running
-            )
+            ).withAddSource(source)
         }
     }
 
@@ -56,7 +66,7 @@ public final class RqbitEngine: TorrentEngine, @unchecked Sendable {
             let snapshot = try await engine.pauseTorrent(id: id)
             return Torrent(
                 snapshot: snapshot,
-                downloadDirectory: downloadDirectory,
+                downloadDirectory: nil,
                 desiredState: .paused
             )
         }
@@ -67,7 +77,7 @@ public final class RqbitEngine: TorrentEngine, @unchecked Sendable {
             let snapshot = try await engine.resumeTorrent(id: id)
             return Torrent(
                 snapshot: snapshot,
-                downloadDirectory: downloadDirectory,
+                downloadDirectory: nil,
                 desiredState: .running
             )
         }
@@ -99,7 +109,7 @@ private func mapRqbitError<T>(_ operation: () async throws -> T) async throws ->
 private extension Torrent {
     init(
         snapshot: TorrentSnapshot,
-        downloadDirectory: String,
+        downloadDirectory: String?,
         desiredState: TorrentDesiredState? = nil
     ) {
         self.init(

@@ -9,6 +9,7 @@ public final class TorrentStore: ObservableObject {
         }
     }
     @Published public var showingAddSheet = false
+    @Published public var pendingAddSource: TorrentAddSource?
     @Published public var lastError: String?
     @Published public var downloadDirectory: String
 
@@ -59,26 +60,75 @@ public final class TorrentStore: ObservableObject {
         selectedTorrent?.desiredState == .paused
     }
 
-    public func addMagnet(_ magnet: String) {
-        let magnet = magnet.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !magnet.isEmpty else { return }
+    public func beginAddingMagnet(_ magnet: String = "") {
+        pendingAddSource = .magnet(magnet)
+        showingAddSheet = true
+    }
 
-        Task {
-            do {
-                let torrent = try await engine
-                    .addMagnet(magnet, startPaused: false)
-                    .updating(
-                        magnet: magnet,
-                        downloadDirectory: downloadDirectory,
-                        desiredState: .running
-                    )
-                upsert(torrent)
-                try await persistence?.save(torrent: torrent)
-                selection = torrent.id
-                lastError = nil
-            } catch {
-                lastError = error.localizedDescription
+    public func beginAddingTorrentFile(_ file: TorrentFileSource) {
+        pendingAddSource = .torrentFile(file)
+        showingAddSheet = true
+    }
+
+    public func beginAddingTorrentFile(at url: URL) {
+        do {
+            beginAddingTorrentFile(try TorrentFileSource(contentsOf: url))
+        } catch {
+            lastError = error.localizedDescription
+        }
+    }
+
+    public func beginAdding(url: URL) {
+        if url.isFileURL {
+            beginAddingTorrentFile(at: url)
+            return
+        }
+
+        if url.scheme?.lowercased() == "magnet" {
+            beginAddingMagnet(url.absoluteString)
+            return
+        }
+
+        lastError = "Sweep can open magnet links and .torrent files."
+    }
+
+    @discardableResult
+    public func addTorrent(
+        _ source: TorrentAddSource,
+        downloadDirectory: String,
+        startPaused: Bool
+    ) async -> Torrent? {
+        do {
+            try createDownloadDirectory(at: downloadDirectory)
+            let torrent = try await engine
+                .addTorrent(source, downloadDirectory: downloadDirectory, startPaused: startPaused)
+                .withAddSource(source)
+                .updating(
+                    downloadDirectory: downloadDirectory,
+                    desiredState: startPaused ? .paused : .running
+                )
+            upsert(torrent)
+            try await persistence?.save(torrent: torrent)
+            selection = torrent.id
+            lastError = nil
+            return torrent
+        } catch {
+            lastError = error.localizedDescription
+            return nil
+        }
+    }
+
+    public func setDownloadDirectory(_ downloadDirectory: String) {
+        let downloadDirectory = (downloadDirectory as NSString).expandingTildeInPath
+        do {
+            try createDownloadDirectory(at: downloadDirectory)
+            self.downloadDirectory = downloadDirectory
+            Task {
+                try? await persistence?.saveSetting(.downloadDirectory, value: downloadDirectory)
             }
+            lastError = nil
+        } catch {
+            lastError = error.localizedDescription
         }
     }
 
@@ -148,9 +198,7 @@ public final class TorrentStore: ObservableObject {
 
     private func upsert(liveTorrent torrent: Torrent) {
         if let index = torrents.firstIndex(where: { $0.id == torrent.id }) {
-            torrents[index] = torrent
-                .updating(downloadDirectory: downloadDirectory)
-                .mergingCachedMetadata(from: torrents[index])
+            torrents[index] = torrent.mergingCachedMetadata(from: torrents[index])
         } else {
             torrents.append(torrent.updating(downloadDirectory: downloadDirectory))
         }
@@ -191,14 +239,19 @@ public final class TorrentStore: ObservableObject {
 
             let liveTorrentIDs = Set(liveTorrents.map(\.id))
             let missingCachedTorrents = cachedTorrents.filter { torrent in
-                !liveTorrentIDs.contains(torrent.id) && torrent.magnet != nil
+                !liveTorrentIDs.contains(torrent.id) && torrent.addSource != nil
             }
 
             for cachedTorrent in missingCachedTorrents {
-                guard let magnet = cachedTorrent.magnet else { continue }
+                guard let source = cachedTorrent.addSource else { continue }
                 do {
                     let restoredTorrent = try await engine
-                        .addMagnet(magnet, startPaused: cachedTorrent.desiredState == .paused)
+                        .addTorrent(
+                            source,
+                            downloadDirectory: cachedTorrent.downloadDirectory ?? downloadDirectory,
+                            startPaused: cachedTorrent.desiredState == .paused
+                        )
+                        .withAddSource(source)
                         .mergingCachedMetadata(from: cachedTorrent)
                     upsert(restoredTorrent)
                 } catch {
@@ -318,5 +371,39 @@ public final class TorrentStore: ObservableObject {
                 return torrent
             }
             .sorted { $0.addedAt < $1.addedAt }
+    }
+
+    private func createDownloadDirectory(at path: String) throws {
+        try FileManager.default.createDirectory(
+            at: URL(filePath: path, directoryHint: .isDirectory),
+            withIntermediateDirectories: true
+        )
+    }
+}
+
+public extension TorrentFileSource {
+    init(contentsOf url: URL) throws {
+        let values = try url.resourceValues(forKeys: [.isRegularFileKey])
+        guard values.isRegularFile == true else {
+            throw TorrentFileSourceError(message: "\(url.lastPathComponent) is not a file.")
+        }
+        guard url.pathExtension.lowercased() == "torrent" else {
+            throw TorrentFileSourceError(message: "Choose a .torrent file.")
+        }
+
+        let data = try Data(contentsOf: url)
+        guard !data.isEmpty else {
+            throw TorrentFileSourceError(message: "\(url.lastPathComponent) is empty.")
+        }
+
+        self.init(fileName: url.lastPathComponent, bytes: Array(data))
+    }
+}
+
+private struct TorrentFileSourceError: LocalizedError, Sendable {
+    let message: String
+
+    var errorDescription: String? {
+        message
     }
 }

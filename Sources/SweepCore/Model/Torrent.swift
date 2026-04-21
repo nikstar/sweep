@@ -5,12 +5,56 @@ public enum TorrentDesiredState: String, Codable, Hashable, Sendable {
     case paused
 }
 
+public struct TorrentFileSource: Hashable, Codable, Sendable {
+    public let fileName: String?
+    public let bytes: [UInt8]
+
+    public init(fileName: String?, bytes: [UInt8]) {
+        self.fileName = fileName
+        self.bytes = bytes
+    }
+}
+
+public enum TorrentAddSource: Hashable, Sendable {
+    case magnet(String)
+    case torrentFile(TorrentFileSource)
+
+    public var displayName: String {
+        switch self {
+        case .magnet(let magnet):
+            magnetName(from: magnet) ?? "Magnet Link"
+
+        case .torrentFile(let file):
+            file.fileName ?? "Torrent File"
+        }
+    }
+
+    public var magnet: String? {
+        guard case .magnet(let magnet) = self else { return nil }
+        return magnet
+    }
+
+    public var torrentFile: TorrentFileSource? {
+        guard case .torrentFile(let file) = self else { return nil }
+        return file
+    }
+
+    private func magnetName(from magnet: String) -> String? {
+        URLComponents(string: magnet)?
+            .queryItems?
+            .first { $0.name == "dn" }?
+            .value
+    }
+}
+
 public struct Torrent: Identifiable, Hashable, Codable, Sendable {
     public let id: String
     public let engineID: Int?
     public let name: String
     public let infoHash: String
     public let magnet: String?
+    public let torrentFileName: String?
+    public let torrentFileBytes: [UInt8]?
     public let downloadDirectory: String?
     public let desiredState: TorrentDesiredState
     public let state: String
@@ -29,6 +73,8 @@ public struct Torrent: Identifiable, Hashable, Codable, Sendable {
         name: String,
         infoHash: String,
         magnet: String? = nil,
+        torrentFileName: String? = nil,
+        torrentFileBytes: [UInt8]? = nil,
         downloadDirectory: String? = nil,
         desiredState: TorrentDesiredState = .running,
         state: String,
@@ -47,6 +93,8 @@ public struct Torrent: Identifiable, Hashable, Codable, Sendable {
         self.name = name
         self.infoHash = normalizedInfoHash
         self.magnet = magnet
+        self.torrentFileName = torrentFileName
+        self.torrentFileBytes = torrentFileBytes
         self.downloadDirectory = downloadDirectory
         self.desiredState = desiredState
         self.state = state
@@ -66,6 +114,8 @@ public struct Torrent: Identifiable, Hashable, Codable, Sendable {
         case name
         case infoHash = "info_hash"
         case magnet
+        case torrentFileName = "torrent_file_name"
+        case torrentFileBytes = "torrent_file_bytes"
         case downloadDirectory = "download_directory"
         case desiredState = "desired_state"
         case state
@@ -104,10 +154,24 @@ public struct Torrent: Identifiable, Hashable, Codable, Sendable {
         state.lowercased() == "paused"
     }
 
+    public var addSource: TorrentAddSource? {
+        if let magnet {
+            return .magnet(magnet)
+        }
+        if let torrentFileBytes {
+            return .torrentFile(
+                TorrentFileSource(fileName: torrentFileName, bytes: torrentFileBytes)
+            )
+        }
+        return nil
+    }
+
     public func updating(
         engineID: Int? = nil,
         name: String? = nil,
         magnet: String? = nil,
+        torrentFileName: String? = nil,
+        torrentFileBytes: [UInt8]? = nil,
         downloadDirectory: String? = nil,
         desiredState: TorrentDesiredState? = nil,
         state: String? = nil,
@@ -126,6 +190,8 @@ public struct Torrent: Identifiable, Hashable, Codable, Sendable {
             name: name ?? self.name,
             infoHash: infoHash,
             magnet: magnet ?? self.magnet,
+            torrentFileName: torrentFileName ?? self.torrentFileName,
+            torrentFileBytes: torrentFileBytes ?? self.torrentFileBytes,
             downloadDirectory: downloadDirectory ?? self.downloadDirectory,
             desiredState: desiredState ?? self.desiredState,
             state: state ?? self.state,
@@ -140,13 +206,56 @@ public struct Torrent: Identifiable, Hashable, Codable, Sendable {
         )
     }
 
-    public func withMagnet(_ magnet: String?) -> Torrent {
-        updating(magnet: magnet)
+    public func withAddSource(_ source: TorrentAddSource) -> Torrent {
+        switch source {
+        case .magnet(let magnet):
+            Torrent(
+                id: id,
+                engineID: engineID,
+                name: name,
+                infoHash: infoHash,
+                magnet: magnet,
+                downloadDirectory: downloadDirectory,
+                desiredState: desiredState,
+                state: state,
+                progressBytes: progressBytes,
+                totalBytes: totalBytes,
+                uploadedBytes: uploadedBytes,
+                downloadBps: downloadBps,
+                uploadBps: uploadBps,
+                error: error,
+                addedAt: addedAt,
+                updatedAt: updatedAt
+            )
+
+        case .torrentFile(let file):
+            Torrent(
+                id: id,
+                engineID: engineID,
+                name: name,
+                infoHash: infoHash,
+                torrentFileName: file.fileName,
+                torrentFileBytes: file.bytes,
+                downloadDirectory: downloadDirectory,
+                desiredState: desiredState,
+                state: state,
+                progressBytes: progressBytes,
+                totalBytes: totalBytes,
+                uploadedBytes: uploadedBytes,
+                downloadBps: downloadBps,
+                uploadBps: uploadBps,
+                error: error,
+                addedAt: addedAt,
+                updatedAt: updatedAt
+            )
+        }
     }
 
     public func mergingCachedMetadata(from cached: Torrent) -> Torrent {
         updating(
             magnet: magnet ?? cached.magnet,
+            torrentFileName: torrentFileName ?? cached.torrentFileName,
+            torrentFileBytes: torrentFileBytes ?? cached.torrentFileBytes,
             downloadDirectory: downloadDirectory ?? cached.downloadDirectory,
             desiredState: cached.desiredState,
             addedAt: cached.addedAt

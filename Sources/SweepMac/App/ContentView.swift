@@ -13,7 +13,7 @@ struct ContentView: View {
         .toolbar {
             ToolbarItemGroup {
                 Button {
-                    store.showingAddSheet = true
+                    store.beginAddingMagnet(magnetFromPasteboard() ?? "")
                 } label: {
                     Label("Add", systemImage: "plus")
                 }
@@ -47,8 +47,23 @@ struct ContentView: View {
             }
         }
         .sheet(isPresented: $store.showingAddSheet) {
-            AddTorrentView()
+            AddTorrentView(
+                source: store.pendingAddSource,
+                downloadDirectory: store.downloadDirectory
+            )
                 .environmentObject(store)
+        }
+        .dropDestination(for: URL.self) { urls, _ in
+            guard let url = urls.first else { return false }
+            store.beginAdding(url: url)
+            return true
+        }
+        .dropDestination(for: String.self) { strings, _ in
+            guard let magnet = strings.compactMap(firstMagnet(in:)).first else {
+                return false
+            }
+            store.beginAddingMagnet(magnet)
+            return true
         }
         .task {
             store.startPolling()

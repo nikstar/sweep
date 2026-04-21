@@ -28,13 +28,20 @@ public actor DemoTorrentEngine: TorrentEngine {
         torrents
     }
 
-    public func addMagnet(_ magnet: String, startPaused: Bool) async throws -> Torrent {
-        let infoHash = infoHash(from: magnet) ?? UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased()
+    public func addTorrent(
+        _ source: TorrentAddSource,
+        downloadDirectory: String,
+        startPaused: Bool
+    ) async throws -> Torrent {
+        let infoHash = infoHash(from: source)
+            ?? UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased()
         let torrent = Torrent(
             engineID: (torrents.compactMap(\.engineID).max() ?? 0) + 1,
-            name: magnetName(from: magnet) ?? "Magnet Torrent",
+            name: source.displayName,
             infoHash: infoHash,
-            magnet: magnet,
+            magnet: source.magnet,
+            torrentFileName: source.torrentFile?.fileName,
+            torrentFileBytes: source.torrentFile?.bytes,
             downloadDirectory: downloadDirectory,
             desiredState: startPaused ? .paused : .running,
             state: startPaused ? "paused" : "live",
@@ -74,21 +81,15 @@ public actor DemoTorrentEngine: TorrentEngine {
         return torrent
     }
 
-    private func infoHash(from magnet: String) -> String? {
-        URLComponents(string: magnet)?
+    private func infoHash(from source: TorrentAddSource) -> String? {
+        guard let magnet = source.magnet else { return nil }
+        return URLComponents(string: magnet)?
             .queryItems?
             .first { $0.name == "xt" }?
             .value?
             .split(separator: ":")
             .last
             .map(String.init)
-    }
-
-    private func magnetName(from magnet: String) -> String? {
-        URLComponents(string: magnet)?
-            .queryItems?
-            .first { $0.name == "dn" }?
-            .value
     }
 }
 

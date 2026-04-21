@@ -22,6 +22,8 @@ struct AppPersistenceTests {
             name: "Ubuntu Desktop ISO",
             infoHash: "cab507494d02ebb1178b38f2e9d7be299c86b862",
             magnet: "magnet:?xt=urn:btih:cab507494d02ebb1178b38f2e9d7be299c86b862",
+            torrentFileName: "ubuntu.torrent",
+            torrentFileBytes: [0x64, 0x38, 0x3a, 0x61],
             downloadDirectory: "/tmp/Sweep",
             desiredState: .paused,
             state: "live",

@@ -2,22 +2,36 @@ import SwiftUI
 import SweepCore
 
 struct SettingsView: View {
-    let engineName: String
-    let downloadDirectory: String
+    @EnvironmentObject private var store: TorrentStore
 
     var body: some View {
         Form {
             Section("Downloads") {
-                LabeledContent("Engine", value: engineName)
-                LabeledContent("Default Location", value: abbreviatedPath(downloadDirectory))
+                LabeledContent("Engine", value: store.engineName)
+
+                LabeledContent("Default Location") {
+                    HStack(spacing: 8) {
+                        Text(abbreviatedPath(store.downloadDirectory))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+
+                        Button("Choose...") {
+                            chooseDefaultLocation()
+                        }
+                    }
+                }
             }
         }
         .formStyle(.grouped)
         .padding(20)
-        .frame(width: 420)
+        .frame(width: 500)
     }
 
-    private func abbreviatedPath(_ path: String) -> String {
-        (path as NSString).abbreviatingWithTildeInPath
+    private func chooseDefaultLocation() {
+        guard let directory = chooseDownloadDirectory(initialPath: store.downloadDirectory) else {
+            return
+        }
+        store.setDownloadDirectory(directory)
     }
 }

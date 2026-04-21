@@ -102,6 +102,8 @@ private struct PersistedTorrent: Equatable, Identifiable, Sendable {
     var name: String
     var infoHash: String
     var magnet: String?
+    var torrentFileName: String?
+    var torrentFileBytes: [UInt8]?
     var downloadDirectory: String?
     var desiredState: String
     var state: String
@@ -120,6 +122,8 @@ private struct PersistedTorrent: Equatable, Identifiable, Sendable {
         self.name = torrent.name
         self.infoHash = torrent.infoHash
         self.magnet = torrent.magnet
+        self.torrentFileName = torrent.torrentFileName
+        self.torrentFileBytes = torrent.torrentFileBytes
         self.downloadDirectory = torrent.downloadDirectory
         self.desiredState = torrent.desiredState.rawValue
         self.state = torrent.state
@@ -140,6 +144,8 @@ private struct PersistedTorrent: Equatable, Identifiable, Sendable {
             name: name,
             infoHash: infoHash,
             magnet: magnet,
+            torrentFileName: torrentFileName,
+            torrentFileBytes: torrentFileBytes,
             downloadDirectory: downloadDirectory,
             desiredState: TorrentDesiredState(rawValue: desiredState) ?? .running,
             state: state,

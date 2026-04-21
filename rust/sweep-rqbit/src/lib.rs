@@ -68,6 +68,7 @@ impl SweepEngine {
     pub async fn add_magnet(
         &self,
         magnet: String,
+        download_dir: String,
         start_paused: bool,
     ) -> Result<TorrentSnapshot, SweepError> {
         let session = self.session.clone();
@@ -75,7 +76,37 @@ impl SweepEngine {
         let (tx, rx) = oneshot::channel();
 
         runtime.spawn(async move {
-            let result = add_magnet_to_session(session, magnet, start_paused).await;
+            let result = add_torrent_to_session(
+                session,
+                AddTorrent::from_url(magnet),
+                download_dir,
+                start_paused,
+            )
+            .await;
+            let _ = tx.send(result);
+        });
+
+        rx.await?
+    }
+
+    pub async fn add_torrent_file(
+        &self,
+        torrent_bytes: Vec<u8>,
+        download_dir: String,
+        start_paused: bool,
+    ) -> Result<TorrentSnapshot, SweepError> {
+        let session = self.session.clone();
+        let runtime = self.runtime.handle().clone();
+        let (tx, rx) = oneshot::channel();
+
+        runtime.spawn(async move {
+            let result = add_torrent_to_session(
+                session,
+                AddTorrent::from_bytes(torrent_bytes),
+                download_dir,
+                start_paused,
+            )
+            .await;
             let _ = tx.send(result);
         });
 
@@ -131,16 +162,18 @@ impl SweepEngine {
     }
 }
 
-async fn add_magnet_to_session(
+async fn add_torrent_to_session(
     session: Arc<Session>,
-    magnet: String,
+    add_torrent: AddTorrent<'static>,
+    download_dir: String,
     start_paused: bool,
 ) -> Result<TorrentSnapshot, SweepError> {
     let response = session
         .add_torrent(
-            AddTorrent::from_url(&magnet),
+            add_torrent,
             Some(AddTorrentOptions {
                 overwrite: true,
+                output_folder: Some(download_dir),
                 paused: start_paused,
                 ..Default::default()
             }),

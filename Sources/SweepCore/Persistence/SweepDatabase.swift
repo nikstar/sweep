@@ -114,6 +114,12 @@ public enum SweepDatabase {
             try #sql("ALTER TABLE \"new_torrents\" RENAME TO \"torrents\"")
                 .execute(db)
         }
+        migrator.registerMigration("Store torrent file sources") { db in
+            try #sql("ALTER TABLE \"torrents\" ADD COLUMN \"torrentFileName\" TEXT")
+                .execute(db)
+            try #sql("ALTER TABLE \"torrents\" ADD COLUMN \"torrentFileBytes\" BLOB")
+                .execute(db)
+        }
         try migrator.migrate(database)
         return database
     }
