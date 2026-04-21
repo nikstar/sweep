@@ -3,7 +3,7 @@ name: Sweep
 options:
   bundleIdPrefix: com.nikstar
   deploymentTarget:
-    macOS: "14.0"
+    macOS: "15.0"
   createIntermediateGroups: true
   generateEmptyDirectories: true
 
@@ -17,7 +17,7 @@ settings:
     SWIFT_VERSION: "6.0"
     CLANG_ENABLE_MODULES: YES
     GENERATE_INFOPLIST_FILE: YES
-    MACOSX_DEPLOYMENT_TARGET: "14.0"
+    MACOSX_DEPLOYMENT_TARGET: "15.0"
     LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/../Frameworks"
 
 targets:
