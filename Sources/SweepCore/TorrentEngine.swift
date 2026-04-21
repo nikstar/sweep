@@ -1,7 +1,7 @@
 import Foundation
 
-public protocol TorrentEngine {
+public protocol TorrentEngine: Sendable {
     var name: String { get }
-    func list() throws -> [Torrent]
-    func addMagnet(_ magnet: String) throws -> Torrent
+    func list() async throws -> [Torrent]
+    func addMagnet(_ magnet: String) async throws -> Torrent
 }

@@ -15,6 +15,10 @@ public final class TorrentStore: ObservableObject {
         refresh()
     }
 
+    deinit {
+        pollingTask?.cancel()
+    }
+
     public var engineName: String {
         engine.name
     }
@@ -25,19 +29,30 @@ public final class TorrentStore: ObservableObject {
     }
 
     public func addMagnet(_ magnet: String) {
-        do {
-            let torrent = try engine.addMagnet(magnet.trimmingCharacters(in: .whitespacesAndNewlines))
-            upsert(torrent)
-            selection = torrent.id
-            lastError = nil
-        } catch {
-            lastError = error.localizedDescription
+        let magnet = magnet.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !magnet.isEmpty else { return }
+
+        Task {
+            do {
+                let torrent = try await engine.addMagnet(magnet)
+                upsert(torrent)
+                selection = torrent.id
+                lastError = nil
+            } catch {
+                lastError = error.localizedDescription
+            }
         }
     }
 
     public func refresh() {
+        Task {
+            await refreshNow()
+        }
+    }
+
+    public func refreshNow() async {
         do {
-            torrents = try engine.list()
+            torrents = try await engine.list()
             lastError = nil
         } catch {
             lastError = error.localizedDescription
@@ -48,8 +63,12 @@ public final class TorrentStore: ObservableObject {
         guard pollingTask == nil else { return }
         pollingTask = Task { [weak self] in
             while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(1))
-                self?.refresh()
+                await self?.refreshNow()
+                do {
+                    try await Task.sleep(for: .seconds(1))
+                } catch {
+                    break
+                }
             }
         }
     }

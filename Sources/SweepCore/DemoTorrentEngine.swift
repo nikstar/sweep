@@ -1,7 +1,7 @@
 import Foundation
 
-public final class DemoTorrentEngine: TorrentEngine {
-    public let name = "Demo engine - build rust/sweep-rqbit to enable rqbit"
+public actor DemoTorrentEngine: TorrentEngine {
+    public nonisolated let name = "Demo engine - build rust/sweep-rqbit to enable rqbit"
     private var torrents: [Torrent] = [
         Torrent(
             id: 1,
@@ -19,11 +19,11 @@ public final class DemoTorrentEngine: TorrentEngine {
 
     public init() {}
 
-    public func list() throws -> [Torrent] {
+    public func list() async throws -> [Torrent] {
         torrents
     }
 
-    public func addMagnet(_ magnet: String) throws -> Torrent {
+    public func addMagnet(_ magnet: String) async throws -> Torrent {
         let torrent = Torrent(
             id: (torrents.map(\.id).max() ?? 0) + 1,
             name: magnetName(from: magnet) ?? "Magnet Torrent",

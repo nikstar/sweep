@@ -1,6 +1,6 @@
 import Foundation
 
-public struct Torrent: Identifiable, Hashable, Codable {
+public struct Torrent: Identifiable, Hashable, Codable, Sendable {
     public let id: Int
     public let name: String
     public let infoHash: String
@@ -63,8 +63,4 @@ public struct Torrent: Identifiable, Hashable, Codable {
         }
         return state.capitalized
     }
-}
-
-public struct AddTorrentResponse: Decodable {
-    public let torrent: Torrent
 }

@@ -18,10 +18,45 @@ else
   exit 127
 fi
 
-MANIFEST_PATH="${SRCROOT:-$(pwd)}/rust/sweep-rqbit/Cargo.toml"
+ROOT_DIR="${SRCROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
+MANIFEST_PATH="$ROOT_DIR/rust/sweep-rqbit/Cargo.toml"
+CRATE_DIR="$ROOT_DIR/rust/sweep-rqbit"
+GENERATED_DIR="$ROOT_DIR/Sources/SweepRQBitBridge/Generated"
 
 if [ "${CONFIGURATION:-Debug}" = "Release" ]; then
+  RUST_PROFILE="release"
   "$CARGO" build --release --manifest-path "$MANIFEST_PATH"
+  CARGO_RUN_PROFILE="--release"
 else
+  RUST_PROFILE="debug"
   "$CARGO" build --manifest-path "$MANIFEST_PATH"
+  CARGO_RUN_PROFILE=""
+fi
+
+BRIDGE_PATH="$ROOT_DIR/rust/target/$RUST_PROFILE/libsweep_rqbit.dylib"
+
+if command -v install_name_tool >/dev/null 2>&1; then
+  install_name_tool -id "@rpath/libsweep_rqbit.dylib" "$BRIDGE_PATH"
+fi
+
+rm -rf "$GENERATED_DIR"
+mkdir -p "$GENERATED_DIR"
+
+cd "$CRATE_DIR"
+if [ -n "$CARGO_RUN_PROFILE" ]; then
+  "$CARGO" run --quiet "$CARGO_RUN_PROFILE" --manifest-path "$MANIFEST_PATH" --bin uniffi-bindgen-swift -- \
+    "$BRIDGE_PATH" "$GENERATED_DIR" \
+    --swift-sources \
+    --headers \
+    --modulemap \
+    --module-name sweep_rqbitFFI \
+    --modulemap-filename module.modulemap
+else
+  "$CARGO" run --quiet --manifest-path "$MANIFEST_PATH" --bin uniffi-bindgen-swift -- \
+    "$BRIDGE_PATH" "$GENERATED_DIR" \
+    --swift-sources \
+    --headers \
+    --modulemap \
+    --module-name sweep_rqbitFFI \
+    --modulemap-filename module.modulemap
 fi

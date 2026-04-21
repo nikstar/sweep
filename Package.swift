@@ -21,13 +21,33 @@ let package = Package(
         .target(
             name: "SweepRQBitBridge",
             dependencies: ["SweepCore"],
-            path: "Sources/SweepRQBitBridge"
+            path: "Sources/SweepRQBitBridge",
+            swiftSettings: [
+                .unsafeFlags([
+                    "-I", "Sources/SweepRQBitBridge/Generated",
+                    "-Xcc", "-fmodule-map-file=Sources/SweepRQBitBridge/Generated/module.modulemap"
+                ])
+            ],
+            linkerSettings: [
+                .unsafeFlags([
+                    "-L", "rust/target/debug",
+                    "-lsweep_rqbit",
+                    "-Xlinker", "-rpath",
+                    "-Xlinker", "@executable_path/../../../rust/target/debug"
+                ])
+            ]
         ),
         .executableTarget(
             name: "Sweep",
             dependencies: ["SweepCore", "SweepRQBitBridge"],
             path: "Sources/SweepMac",
-            exclude: ["Resources"]
+            exclude: ["Resources"],
+            swiftSettings: [
+                .unsafeFlags([
+                    "-I", "Sources/SweepRQBitBridge/Generated",
+                    "-Xcc", "-fmodule-map-file=Sources/SweepRQBitBridge/Generated/module.modulemap"
+                ])
+            ]
         )
     ]
 )

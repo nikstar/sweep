@@ -1,42 +1,75 @@
 import Foundation
 import SweepCore
 
-public final class RqbitEngine: TorrentEngine {
+public final class RqbitEngine: TorrentEngine, @unchecked Sendable {
     public let name = "rqbit"
 
-    private let bridge: RqbitBridge
-    private let client: OpaquePointer
+    private let engine: SweepEngine
 
     public static func makeDefault() -> RqbitEngine? {
-        guard let bridge = RqbitBridge.loadDefault() else {
-            return nil
-        }
-
         let downloads = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask)[0]
             .appending(path: "Sweep")
         try? FileManager.default.createDirectory(at: downloads, withIntermediateDirectories: true)
 
         do {
-            return try RqbitEngine(bridge: bridge, downloadDirectory: downloads.path)
+            return try RqbitEngine(downloadDirectory: downloads.path)
         } catch {
             return nil
         }
     }
 
-    init(bridge: RqbitBridge, downloadDirectory: String) throws {
-        self.bridge = bridge
-        self.client = try bridge.createClient(downloadDirectory: downloadDirectory)
+    public init(downloadDirectory: String) throws {
+        do {
+            self.engine = try SweepEngine(downloadDir: downloadDirectory)
+        } catch SweepError.Message(message: let message) {
+            throw RqbitEngineError(message: message)
+        }
     }
 
-    deinit {
-        bridge.destroyClient(client)
+    public func list() async throws -> [Torrent] {
+        try await mapRqbitError {
+            let snapshots = try await engine.listTorrents()
+            return snapshots.map(Torrent.init(snapshot:))
+        }
     }
 
-    public func list() throws -> [Torrent] {
-        try bridge.list(client: client)
+    public func addMagnet(_ magnet: String) async throws -> Torrent {
+        try await mapRqbitError {
+            let snapshot = try await engine.addMagnet(magnet: magnet)
+            return Torrent(snapshot: snapshot)
+        }
     }
+}
 
-    public func addMagnet(_ magnet: String) throws -> Torrent {
-        try bridge.addMagnet(client: client, magnet: magnet).torrent
+private struct RqbitEngineError: LocalizedError, Sendable {
+    let message: String
+
+    var errorDescription: String? {
+        message
+    }
+}
+
+private func mapRqbitError<T>(_ operation: () async throws -> T) async throws -> T {
+    do {
+        return try await operation()
+    } catch SweepError.Message(message: let message) {
+        throw RqbitEngineError(message: message)
+    }
+}
+
+private extension Torrent {
+    init(snapshot: TorrentSnapshot) {
+        self.init(
+            id: Int(snapshot.id),
+            name: snapshot.name,
+            infoHash: snapshot.infoHash,
+            state: snapshot.state,
+            progressBytes: snapshot.progressBytes,
+            totalBytes: snapshot.totalBytes,
+            uploadedBytes: snapshot.uploadedBytes,
+            downloadBps: snapshot.downloadBps,
+            uploadBps: snapshot.uploadBps,
+            error: snapshot.error
+        )
     }
 }
