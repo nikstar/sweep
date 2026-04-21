@@ -1,0 +1,706 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		0A5CF109E208B258BA056A8B /* TorrentListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2170D7D5E1DE9A57C6877DE6 /* TorrentListView.swift */; };
+		0E22E6DCFE894119DBDDB914 /* DemoTorrentEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBCF7F63A1752C2A9AF65A00 /* DemoTorrentEngine.swift */; };
+		13399D2ABC6290FB61C6C36E /* AddTorrentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F80B63B37D4FE59E26F637E /* AddTorrentView.swift */; };
+		31F807EE66CEA8022DB12BB2 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83C54817B7513419209B220D /* ContentView.swift */; };
+		44B81FDD13EECE27D08B7561 /* TorrentEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31CD22163BB8E95C32B2566C /* TorrentEngine.swift */; };
+		475FF5DEBDDE594449F9CCBA /* ByteFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F8FD96678BCF122632A91E1 /* ByteFormatter.swift */; };
+		4AD705AA9C1BA0DD05569D7A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 1C768342A0B00653E1909911 /* Assets.xcassets */; };
+		5BEEBDF749B069C5F2DE40C3 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4796DCD769973A3113B4295E /* SettingsView.swift */; };
+		91FB5C1EA7AFBB44AE919D28 /* SweepCore.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 0BC96D1162EF3968BDF0D2F5 /* SweepCore.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		9F268F25F6A3DEFC1785149E /* SweepCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 0BC96D1162EF3968BDF0D2F5 /* SweepCore.framework */; };
+		A285317CB7BC0F23A4972A09 /* SweepRQBitBridge.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = BFC5C2F202CC8BD9FBD5B831 /* SweepRQBitBridge.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		BC833C032ACF39F018605ABB /* RqbitBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3BA09E84A49D5F263A26B39 /* RqbitBridge.swift */; };
+		C2D7225637D9139E1C759DCA /* SweepRQBitBridge.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = BFC5C2F202CC8BD9FBD5B831 /* SweepRQBitBridge.framework */; };
+		CFB32C3551B95A669DE7FB79 /* RqbitEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0AB33B659911EDE481BF26F8 /* RqbitEngine.swift */; };
+		D33156DA48B9F94BC3CAC7E0 /* SidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 355358F31328B8379E3605C8 /* SidebarView.swift */; };
+		D9B1E1B909C9EB9465DB5F7C /* SweepApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 775FB611A4949E814D2C806F /* SweepApp.swift */; };
+		DE050633E576ECEA3E537274 /* Torrent.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2CC8AE1906D477CFAEAE167 /* Torrent.swift */; };
+		E5B3FA407523443A24A586D2 /* SweepCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 0BC96D1162EF3968BDF0D2F5 /* SweepCore.framework */; };
+		F3ABB474988418B58AF7FA96 /* TorrentStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1325158D6B5505635C6C8553 /* TorrentStore.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		0073D7321CD806E7500BFD7F /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A7E8E02F07F97E64774A4AF5 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A75BE122044CD45C65BB3523;
+			remoteInfo = SweepCore;
+		};
+		4751F8083AD27069C6D74E78 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A7E8E02F07F97E64774A4AF5 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = EF6E4661B3BFE3C7F06AA236;
+			remoteInfo = SweepRQBitBridge;
+		};
+		FD614A667DA415A3F5362588 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A7E8E02F07F97E64774A4AF5 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A75BE122044CD45C65BB3523;
+			remoteInfo = SweepCore;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		12B4A9E42053F07A93B0CCE1 /* Embed Frameworks */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+				91FB5C1EA7AFBB44AE919D28 /* SweepCore.framework in Embed Frameworks */,
+				A285317CB7BC0F23A4972A09 /* SweepRQBitBridge.framework in Embed Frameworks */,
+			);
+			name = "Embed Frameworks";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		0AB33B659911EDE481BF26F8 /* RqbitEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RqbitEngine.swift; sourceTree = "<group>"; };
+		0BC96D1162EF3968BDF0D2F5 /* SweepCore.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = SweepCore.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		1325158D6B5505635C6C8553 /* TorrentStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TorrentStore.swift; sourceTree = "<group>"; };
+		1C768342A0B00653E1909911 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		1E715F02C8E5279E2C7A6E15 /* Sweep.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Sweep.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		2170D7D5E1DE9A57C6877DE6 /* TorrentListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TorrentListView.swift; sourceTree = "<group>"; };
+		31CD22163BB8E95C32B2566C /* TorrentEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TorrentEngine.swift; sourceTree = "<group>"; };
+		355358F31328B8379E3605C8 /* SidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarView.swift; sourceTree = "<group>"; };
+		4796DCD769973A3113B4295E /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		5F8FD96678BCF122632A91E1 /* ByteFormatter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ByteFormatter.swift; sourceTree = "<group>"; };
+		775FB611A4949E814D2C806F /* SweepApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SweepApp.swift; sourceTree = "<group>"; };
+		7F80B63B37D4FE59E26F637E /* AddTorrentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddTorrentView.swift; sourceTree = "<group>"; };
+		83C54817B7513419209B220D /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		BFC5C2F202CC8BD9FBD5B831 /* SweepRQBitBridge.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = SweepRQBitBridge.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		C2CC8AE1906D477CFAEAE167 /* Torrent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Torrent.swift; sourceTree = "<group>"; };
+		E3BA09E84A49D5F263A26B39 /* RqbitBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RqbitBridge.swift; sourceTree = "<group>"; };
+		EBCF7F63A1752C2A9AF65A00 /* DemoTorrentEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoTorrentEngine.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		427E34911CD824ED0D6D9805 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				9F268F25F6A3DEFC1785149E /* SweepCore.framework in Frameworks */,
+				C2D7225637D9139E1C759DCA /* SweepRQBitBridge.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F7CC144EE97B507D182E3A18 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E5B3FA407523443A24A586D2 /* SweepCore.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		15A8F15A4730E1B41666382A = {
+			isa = PBXGroup;
+			children = (
+				9C78CCC06C2E82366D9F8126 /* Sources */,
+				998FD1C8BAF561312301DCA7 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		2970D2188FBB939EBC8EDEDE /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				1C768342A0B00653E1909911 /* Assets.xcassets */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		3541A2A4626E5FDB80621663 /* Model */ = {
+			isa = PBXGroup;
+			children = (
+				5F8FD96678BCF122632A91E1 /* ByteFormatter.swift */,
+				C2CC8AE1906D477CFAEAE167 /* Torrent.swift */,
+			);
+			path = Model;
+			sourceTree = "<group>";
+		};
+		8867D3C7852A4CC5B3FE156D /* App */ = {
+			isa = PBXGroup;
+			children = (
+				7F80B63B37D4FE59E26F637E /* AddTorrentView.swift */,
+				83C54817B7513419209B220D /* ContentView.swift */,
+				4796DCD769973A3113B4295E /* SettingsView.swift */,
+				355358F31328B8379E3605C8 /* SidebarView.swift */,
+				775FB611A4949E814D2C806F /* SweepApp.swift */,
+				2170D7D5E1DE9A57C6877DE6 /* TorrentListView.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		998FD1C8BAF561312301DCA7 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				1E715F02C8E5279E2C7A6E15 /* Sweep.app */,
+				0BC96D1162EF3968BDF0D2F5 /* SweepCore.framework */,
+				BFC5C2F202CC8BD9FBD5B831 /* SweepRQBitBridge.framework */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		9C78CCC06C2E82366D9F8126 /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				C19E2214D939061E8B8ECCEB /* SweepCore */,
+				B661D399E8C06CE461F27CA7 /* SweepMac */,
+				ECB16E2FD9B69FA3BAB8D424 /* SweepRQBitBridge */,
+			);
+			path = Sources;
+			sourceTree = "<group>";
+		};
+		B661D399E8C06CE461F27CA7 /* SweepMac */ = {
+			isa = PBXGroup;
+			children = (
+				8867D3C7852A4CC5B3FE156D /* App */,
+				2970D2188FBB939EBC8EDEDE /* Resources */,
+			);
+			path = SweepMac;
+			sourceTree = "<group>";
+		};
+		C19E2214D939061E8B8ECCEB /* SweepCore */ = {
+			isa = PBXGroup;
+			children = (
+				EBCF7F63A1752C2A9AF65A00 /* DemoTorrentEngine.swift */,
+				31CD22163BB8E95C32B2566C /* TorrentEngine.swift */,
+				1325158D6B5505635C6C8553 /* TorrentStore.swift */,
+				3541A2A4626E5FDB80621663 /* Model */,
+			);
+			path = SweepCore;
+			sourceTree = "<group>";
+		};
+		ECB16E2FD9B69FA3BAB8D424 /* SweepRQBitBridge */ = {
+			isa = PBXGroup;
+			children = (
+				E3BA09E84A49D5F263A26B39 /* RqbitBridge.swift */,
+				0AB33B659911EDE481BF26F8 /* RqbitEngine.swift */,
+			);
+			path = SweepRQBitBridge;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		171DEA5DD3E9A0D3CC068E28 /* Sweep */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 63C05DC3B3154716EB1958BB /* Build configuration list for PBXNativeTarget "Sweep" */;
+			buildPhases = (
+				2B109A1F10882D6F02CF3EE5 /* Build Rust rqbit Bridge */,
+				612393840B724F368378D0AF /* Sources */,
+				8D1668B031E02F044FEE94CE /* Resources */,
+				427E34911CD824ED0D6D9805 /* Frameworks */,
+				12B4A9E42053F07A93B0CCE1 /* Embed Frameworks */,
+				0787A9656D0A5DEC956B6CA5 /* Embed Rust rqbit Bridge */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				818D0D91F1D8A6E68E1D4CB6 /* PBXTargetDependency */,
+				2FE15EE40AD9B61A4DA87815 /* PBXTargetDependency */,
+			);
+			name = Sweep;
+			packageProductDependencies = (
+			);
+			productName = Sweep;
+			productReference = 1E715F02C8E5279E2C7A6E15 /* Sweep.app */;
+			productType = "com.apple.product-type.application";
+		};
+		A75BE122044CD45C65BB3523 /* SweepCore */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 4ACDBDBFA854C06CAE1D81D6 /* Build configuration list for PBXNativeTarget "SweepCore" */;
+			buildPhases = (
+				AA99D944416D17EE845E8D88 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = SweepCore;
+			packageProductDependencies = (
+			);
+			productName = SweepCore;
+			productReference = 0BC96D1162EF3968BDF0D2F5 /* SweepCore.framework */;
+			productType = "com.apple.product-type.framework";
+		};
+		EF6E4661B3BFE3C7F06AA236 /* SweepRQBitBridge */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 7FEC932B852507FD73483B9F /* Build configuration list for PBXNativeTarget "SweepRQBitBridge" */;
+			buildPhases = (
+				8D24299F37ECC4C85F1CD65F /* Sources */,
+				F7CC144EE97B507D182E3A18 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				DBE9E96BD8B3E5196C2B438A /* PBXTargetDependency */,
+			);
+			name = SweepRQBitBridge;
+			packageProductDependencies = (
+			);
+			productName = SweepRQBitBridge;
+			productReference = BFC5C2F202CC8BD9FBD5B831 /* SweepRQBitBridge.framework */;
+			productType = "com.apple.product-type.framework";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		A7E8E02F07F97E64774A4AF5 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					171DEA5DD3E9A0D3CC068E28 = {
+						DevelopmentTeam = "";
+						ProvisioningStyle = Manual;
+					};
+				};
+			};
+			buildConfigurationList = 2C2DAA764C75297F79121678 /* Build configuration list for PBXProject "Sweep" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 15A8F15A4730E1B41666382A;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 998FD1C8BAF561312301DCA7 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				171DEA5DD3E9A0D3CC068E28 /* Sweep */,
+				A75BE122044CD45C65BB3523 /* SweepCore */,
+				EF6E4661B3BFE3C7F06AA236 /* SweepRQBitBridge */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		8D1668B031E02F044FEE94CE /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				4AD705AA9C1BA0DD05569D7A /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		0787A9656D0A5DEC956B6CA5 /* Embed Rust rqbit Bridge */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Embed Rust rqbit Bridge";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -euo pipefail\n\nif [ \"${CONFIGURATION}\" = \"Release\" ]; then\n  RUST_PROFILE=\"release\"\nelse\n  RUST_PROFILE=\"debug\"\nfi\n\nBRIDGE_PATH=\"${SRCROOT}/rust/target/${RUST_PROFILE}/libsweep_rqbit.dylib\"\nDESTINATION=\"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}\"\n\nmkdir -p \"${DESTINATION}\"\ncp \"${BRIDGE_PATH}\" \"${DESTINATION}/libsweep_rqbit.dylib\"\n\nif [ \"${CODE_SIGNING_ALLOWED:-NO}\" = \"YES\" ]; then\n  SIGN_IDENTITY=\"${EXPANDED_CODE_SIGN_IDENTITY:-}\"\n  if [ -z \"${SIGN_IDENTITY}\" ]; then\n    SIGN_IDENTITY=\"-\"\n  fi\n  codesign --force --sign \"${SIGN_IDENTITY}\" \"${DESTINATION}/libsweep_rqbit.dylib\"\nfi\n";
+		};
+		2B109A1F10882D6F02CF3EE5 /* Build Rust rqbit Bridge */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Build Rust rqbit Bridge";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -euo pipefail\n\n\"${SRCROOT}/Scripts/build_rust_bridge.sh\"\n";
+		};
+/* End PBXShellScriptBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		612393840B724F368378D0AF /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				13399D2ABC6290FB61C6C36E /* AddTorrentView.swift in Sources */,
+				31F807EE66CEA8022DB12BB2 /* ContentView.swift in Sources */,
+				5BEEBDF749B069C5F2DE40C3 /* SettingsView.swift in Sources */,
+				D33156DA48B9F94BC3CAC7E0 /* SidebarView.swift in Sources */,
+				D9B1E1B909C9EB9465DB5F7C /* SweepApp.swift in Sources */,
+				0A5CF109E208B258BA056A8B /* TorrentListView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		8D24299F37ECC4C85F1CD65F /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				BC833C032ACF39F018605ABB /* RqbitBridge.swift in Sources */,
+				CFB32C3551B95A669DE7FB79 /* RqbitEngine.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		AA99D944416D17EE845E8D88 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				475FF5DEBDDE594449F9CCBA /* ByteFormatter.swift in Sources */,
+				0E22E6DCFE894119DBDDB914 /* DemoTorrentEngine.swift in Sources */,
+				DE050633E576ECEA3E537274 /* Torrent.swift in Sources */,
+				44B81FDD13EECE27D08B7561 /* TorrentEngine.swift in Sources */,
+				F3ABB474988418B58AF7FA96 /* TorrentStore.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		2FE15EE40AD9B61A4DA87815 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = EF6E4661B3BFE3C7F06AA236 /* SweepRQBitBridge */;
+			targetProxy = 4751F8083AD27069C6D74E78 /* PBXContainerItemProxy */;
+		};
+		818D0D91F1D8A6E68E1D4CB6 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = A75BE122044CD45C65BB3523 /* SweepCore */;
+			targetProxy = 0073D7321CD806E7500BFD7F /* PBXContainerItemProxy */;
+		};
+		DBE9E96BD8B3E5196C2B438A /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = A75BE122044CD45C65BB3523 /* SweepCore */;
+			targetProxy = FD614A667DA415A3F5362588 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		1EE92F4CEAEC1E298187FD88 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Manual;
+				COMBINE_HIDPI_IMAGES = YES;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_HARDENED_RUNTIME = NO;
+				INFOPLIST_KEY_CFBundleDisplayName = Sweep;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright (c) 2026";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.nikstar.sweep;
+				PRODUCT_NAME = Sweep;
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+		2409A795CD00A6FC931AB50A /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Manual;
+				COMBINE_HIDPI_IMAGES = YES;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_HARDENED_RUNTIME = NO;
+				INFOPLIST_KEY_CFBundleDisplayName = Sweep;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright (c) 2026";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.nikstar.sweep;
+				PRODUCT_NAME = Sweep;
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+		4AB7E87237452E623745BC73 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_IDENTITY = "";
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEFINES_MODULE = YES;
+				DYLIB_COMPATIBILITY_VERSION = 1;
+				DYLIB_CURRENT_VERSION = 1;
+				DYLIB_INSTALL_NAME_BASE = "@rpath";
+				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.nikstar.sweep.core;
+				PRODUCT_NAME = SweepCore;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+				VERSIONING_SYSTEM = "apple-generic";
+			};
+			name = Debug;
+		};
+		5A0A8C4DB082987AE9C1F159 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		6035AD27721561F14B636F45 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_IDENTITY = "";
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEFINES_MODULE = YES;
+				DYLIB_COMPATIBILITY_VERSION = 1;
+				DYLIB_CURRENT_VERSION = 1;
+				DYLIB_INSTALL_NAME_BASE = "@rpath";
+				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.nikstar.sweep.rqbitbridge;
+				PRODUCT_NAME = SweepRQBitBridge;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+				VERSIONING_SYSTEM = "apple-generic";
+			};
+			name = Debug;
+		};
+		B46AB00D6692FD0D2C0CAE2E /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_IDENTITY = "";
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEFINES_MODULE = YES;
+				DYLIB_COMPATIBILITY_VERSION = 1;
+				DYLIB_CURRENT_VERSION = 1;
+				DYLIB_INSTALL_NAME_BASE = "@rpath";
+				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.nikstar.sweep.core;
+				PRODUCT_NAME = SweepCore;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+				VERSIONING_SYSTEM = "apple-generic";
+			};
+			name = Release;
+		};
+		B912E647A2488F43493C762E /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+		E5DFA68810327E1E00B192FA /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_IDENTITY = "";
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEFINES_MODULE = YES;
+				DYLIB_COMPATIBILITY_VERSION = 1;
+				DYLIB_CURRENT_VERSION = 1;
+				DYLIB_INSTALL_NAME_BASE = "@rpath";
+				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.nikstar.sweep.rqbitbridge;
+				PRODUCT_NAME = SweepRQBitBridge;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+				VERSIONING_SYSTEM = "apple-generic";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		2C2DAA764C75297F79121678 /* Build configuration list for PBXProject "Sweep" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				5A0A8C4DB082987AE9C1F159 /* Debug */,
+				B912E647A2488F43493C762E /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		4ACDBDBFA854C06CAE1D81D6 /* Build configuration list for PBXNativeTarget "SweepCore" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				4AB7E87237452E623745BC73 /* Debug */,
+				B46AB00D6692FD0D2C0CAE2E /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		63C05DC3B3154716EB1958BB /* Build configuration list for PBXNativeTarget "Sweep" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				1EE92F4CEAEC1E298187FD88 /* Debug */,
+				2409A795CD00A6FC931AB50A /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		7FEC932B852507FD73483B9F /* Build configuration list for PBXNativeTarget "SweepRQBitBridge" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				6035AD27721561F14B636F45 /* Debug */,
+				E5DFA68810327E1E00B192FA /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = A7E8E02F07F97E64774A4AF5 /* Project object */;
+}

@@ -1,0 +1,105 @@
+name: Sweep
+
+options:
+  bundleIdPrefix: com.nikstar
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: true
+  generateEmptyDirectories: true
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    CLANG_ENABLE_MODULES: YES
+    GENERATE_INFOPLIST_FILE: YES
+    MACOSX_DEPLOYMENT_TARGET: "14.0"
+    LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/../Frameworks"
+
+targets:
+  SweepCore:
+    type: framework
+    platform: macOS
+    sources:
+      - Sources/SweepCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.nikstar.sweep.core
+        PRODUCT_NAME: SweepCore
+
+  SweepRQBitBridge:
+    type: framework
+    platform: macOS
+    sources:
+      - Sources/SweepRQBitBridge
+    dependencies:
+      - target: SweepCore
+        embed: false
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.nikstar.sweep.rqbitbridge
+        PRODUCT_NAME: SweepRQBitBridge
+
+  Sweep:
+    type: application
+    platform: macOS
+    sources:
+      - Sources/SweepMac
+    dependencies:
+      - target: SweepCore
+        embed: true
+      - target: SweepRQBitBridge
+        embed: true
+    preBuildScripts:
+      - name: Build Rust rqbit Bridge
+        basedOnDependencyAnalysis: false
+        script: |
+          set -euo pipefail
+
+          "${SRCROOT}/Scripts/build_rust_bridge.sh"
+    postBuildScripts:
+      - name: Embed Rust rqbit Bridge
+        basedOnDependencyAnalysis: false
+        script: |
+          set -euo pipefail
+
+          if [ "${CONFIGURATION}" = "Release" ]; then
+            RUST_PROFILE="release"
+          else
+            RUST_PROFILE="debug"
+          fi
+
+          BRIDGE_PATH="${SRCROOT}/rust/target/${RUST_PROFILE}/libsweep_rqbit.dylib"
+          DESTINATION="${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}"
+
+          mkdir -p "${DESTINATION}"
+          cp "${BRIDGE_PATH}" "${DESTINATION}/libsweep_rqbit.dylib"
+
+          if [ "${CODE_SIGNING_ALLOWED:-NO}" = "YES" ]; then
+            SIGN_IDENTITY="${EXPANDED_CODE_SIGN_IDENTITY:-}"
+            if [ -z "${SIGN_IDENTITY}" ]; then
+              SIGN_IDENTITY="-"
+            fi
+            codesign --force --sign "${SIGN_IDENTITY}" "${DESTINATION}/libsweep_rqbit.dylib"
+          fi
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.nikstar.sweep
+        PRODUCT_NAME: Sweep
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        INFOPLIST_KEY_CFBundleDisplayName: Sweep
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.utilities
+        INFOPLIST_KEY_NSHumanReadableCopyright: "Copyright (c) 2026"
+        ENABLE_HARDENED_RUNTIME: NO
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGN_IDENTITY: "-"
+        DEVELOPMENT_TEAM: ""
+
+schemes:
+  Sweep:
+    build:
+      targets:
+        Sweep: all
+    run:
+      config: Debug
+      commandLineArguments:
+        "-ApplePersistenceIgnoreState YES": true
