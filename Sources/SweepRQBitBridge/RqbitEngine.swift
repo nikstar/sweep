@@ -6,13 +6,9 @@ public final class RqbitEngine: TorrentEngine, @unchecked Sendable {
 
     private let engine: SweepEngine
 
-    public static func makeDefault() -> RqbitEngine? {
-        let downloads = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask)[0]
-            .appending(path: "Sweep")
-        try? FileManager.default.createDirectory(at: downloads, withIntermediateDirectories: true)
-
+    public static func makeDefault(downloadDirectory: String) -> RqbitEngine? {
         do {
-            return try RqbitEngine(downloadDirectory: downloads.path)
+            return try RqbitEngine(downloadDirectory: downloadDirectory)
         } catch {
             return nil
         }

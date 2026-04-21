@@ -7,6 +7,11 @@ options:
   createIntermediateGroups: true
   generateEmptyDirectories: true
 
+packages:
+  SQLiteData:
+    url: https://github.com/pointfreeco/sqlite-data
+    from: "1.6.1"
+
 settings:
   base:
     SWIFT_VERSION: "6.0"
@@ -21,6 +26,9 @@ targets:
     platform: macOS
     sources:
       - Sources/SweepCore
+    dependencies:
+      - package: SQLiteData
+        product: SQLiteData
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.nikstar.sweep.core
@@ -105,11 +113,27 @@ targets:
         CODE_SIGN_IDENTITY: "-"
         DEVELOPMENT_TEAM: ""
 
+  SweepCoreTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - Tests/SweepCoreTests
+    dependencies:
+      - target: SweepCore
+        embed: false
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.nikstar.sweep.core.tests
+        PRODUCT_NAME: SweepCoreTests
+
 schemes:
   Sweep:
     build:
       targets:
         Sweep: all
+    test:
+      targets:
+        - SweepCoreTests
     run:
       config: Debug
       commandLineArguments:

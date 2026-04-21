@@ -9,12 +9,16 @@
 /* Begin PBXBuildFile section */
 		0A5CF109E208B258BA056A8B /* TorrentListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2170D7D5E1DE9A57C6877DE6 /* TorrentListView.swift */; };
 		0E22E6DCFE894119DBDDB914 /* DemoTorrentEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBCF7F63A1752C2A9AF65A00 /* DemoTorrentEngine.swift */; };
+		0E6DB3E8DDF2947642AF5DAD /* SQLiteData in Frameworks */ = {isa = PBXBuildFile; productRef = F60DF72F4094A7A79C99A03B /* SQLiteData */; };
 		13399D2ABC6290FB61C6C36E /* AddTorrentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F80B63B37D4FE59E26F637E /* AddTorrentView.swift */; };
+		2DF7D77E49DFA89C75A39CB8 /* SweepDatabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CD31BD1767BAE4A0835981A /* SweepDatabase.swift */; };
 		31F807EE66CEA8022DB12BB2 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83C54817B7513419209B220D /* ContentView.swift */; };
+		4494CC40E2124D1174A4ADAB /* SweepCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 0BC96D1162EF3968BDF0D2F5 /* SweepCore.framework */; };
 		44B81FDD13EECE27D08B7561 /* TorrentEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31CD22163BB8E95C32B2566C /* TorrentEngine.swift */; };
 		475FF5DEBDDE594449F9CCBA /* ByteFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F8FD96678BCF122632A91E1 /* ByteFormatter.swift */; };
 		4AD705AA9C1BA0DD05569D7A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 1C768342A0B00653E1909911 /* Assets.xcassets */; };
 		5BEEBDF749B069C5F2DE40C3 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4796DCD769973A3113B4295E /* SettingsView.swift */; };
+		6E9A69FC2AF509B868419216 /* AppPersistence.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8502601AC92AD223E2C71A06 /* AppPersistence.swift */; };
 		91FB5C1EA7AFBB44AE919D28 /* SweepCore.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 0BC96D1162EF3968BDF0D2F5 /* SweepCore.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		98FD4D7AEDF1DA86ACA28499 /* sweep_rqbit.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CE4A9D1BFE35B1723754F52 /* sweep_rqbit.swift */; };
 		9F268F25F6A3DEFC1785149E /* SweepCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 0BC96D1162EF3968BDF0D2F5 /* SweepCore.framework */; };
@@ -26,11 +30,19 @@
 		D9B1E1B909C9EB9465DB5F7C /* SweepApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 775FB611A4949E814D2C806F /* SweepApp.swift */; };
 		DE050633E576ECEA3E537274 /* Torrent.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2CC8AE1906D477CFAEAE167 /* Torrent.swift */; };
 		E5B3FA407523443A24A586D2 /* SweepCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 0BC96D1162EF3968BDF0D2F5 /* SweepCore.framework */; };
+		E7FAA83BB751263F4BAE4172 /* AppPersistenceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 034F76CBDB7DC7E5278B203E /* AppPersistenceTests.swift */; };
 		F3ABB474988418B58AF7FA96 /* TorrentStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1325158D6B5505635C6C8553 /* TorrentStore.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
 		0073D7321CD806E7500BFD7F /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A7E8E02F07F97E64774A4AF5 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A75BE122044CD45C65BB3523;
+			remoteInfo = SweepCore;
+		};
+		19821C96D36AD9E091ABE38E /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = A7E8E02F07F97E64774A4AF5 /* Project object */;
 			proxyType = 1;
@@ -69,6 +81,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		034F76CBDB7DC7E5278B203E /* AppPersistenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppPersistenceTests.swift; sourceTree = "<group>"; };
 		0AB33B659911EDE481BF26F8 /* RqbitEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RqbitEngine.swift; sourceTree = "<group>"; };
 		0BC96D1162EF3968BDF0D2F5 /* SweepCore.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = SweepCore.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		1325158D6B5505635C6C8553 /* TorrentStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TorrentStore.swift; sourceTree = "<group>"; };
@@ -79,10 +92,13 @@
 		355358F31328B8379E3605C8 /* SidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarView.swift; sourceTree = "<group>"; };
 		4796DCD769973A3113B4295E /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		5F8FD96678BCF122632A91E1 /* ByteFormatter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ByteFormatter.swift; sourceTree = "<group>"; };
+		5FD102098775082BC04F9CF9 /* SweepCoreTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SweepCoreTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		775FB611A4949E814D2C806F /* SweepApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SweepApp.swift; sourceTree = "<group>"; };
 		7CE4A9D1BFE35B1723754F52 /* sweep_rqbit.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = sweep_rqbit.swift; sourceTree = "<group>"; };
 		7F80B63B37D4FE59E26F637E /* AddTorrentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddTorrentView.swift; sourceTree = "<group>"; };
 		83C54817B7513419209B220D /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		8502601AC92AD223E2C71A06 /* AppPersistence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppPersistence.swift; sourceTree = "<group>"; };
+		9CD31BD1767BAE4A0835981A /* SweepDatabase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SweepDatabase.swift; sourceTree = "<group>"; };
 		AC69917A4647B84CD9A22161 /* sweep_rqbitFFI.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = sweep_rqbitFFI.h; sourceTree = "<group>"; };
 		BFC5C2F202CC8BD9FBD5B831 /* SweepRQBitBridge.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = SweepRQBitBridge.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		C2CC8AE1906D477CFAEAE167 /* Torrent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Torrent.swift; sourceTree = "<group>"; };
@@ -91,12 +107,28 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		39A1EF75387C99BBC60947EB /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				4494CC40E2124D1174A4ADAB /* SweepCore.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		427E34911CD824ED0D6D9805 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 				9F268F25F6A3DEFC1785149E /* SweepCore.framework in Frameworks */,
 				C2D7225637D9139E1C759DCA /* SweepRQBitBridge.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		5E74BCAA9D88DF5A3B385B5C /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				0E6DB3E8DDF2947642AF5DAD /* SQLiteData in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -115,6 +147,7 @@
 			isa = PBXGroup;
 			children = (
 				9C78CCC06C2E82366D9F8126 /* Sources */,
+				65439C873AE54D44ACC198F7 /* Tests */,
 				998FD1C8BAF561312301DCA7 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -146,6 +179,23 @@
 			path = Model;
 			sourceTree = "<group>";
 		};
+		58B9AC178B53A0F4C3738E42 /* Persistence */ = {
+			isa = PBXGroup;
+			children = (
+				8502601AC92AD223E2C71A06 /* AppPersistence.swift */,
+				9CD31BD1767BAE4A0835981A /* SweepDatabase.swift */,
+			);
+			path = Persistence;
+			sourceTree = "<group>";
+		};
+		65439C873AE54D44ACC198F7 /* Tests */ = {
+			isa = PBXGroup;
+			children = (
+				B5775A64EE0333B725F8F194 /* SweepCoreTests */,
+			);
+			path = Tests;
+			sourceTree = "<group>";
+		};
 		8867D3C7852A4CC5B3FE156D /* App */ = {
 			isa = PBXGroup;
 			children = (
@@ -164,6 +214,7 @@
 			children = (
 				1E715F02C8E5279E2C7A6E15 /* Sweep.app */,
 				0BC96D1162EF3968BDF0D2F5 /* SweepCore.framework */,
+				5FD102098775082BC04F9CF9 /* SweepCoreTests.xctest */,
 				BFC5C2F202CC8BD9FBD5B831 /* SweepRQBitBridge.framework */,
 			);
 			name = Products;
@@ -177,6 +228,14 @@
 				ECB16E2FD9B69FA3BAB8D424 /* SweepRQBitBridge */,
 			);
 			path = Sources;
+			sourceTree = "<group>";
+		};
+		B5775A64EE0333B725F8F194 /* SweepCoreTests */ = {
+			isa = PBXGroup;
+			children = (
+				034F76CBDB7DC7E5278B203E /* AppPersistenceTests.swift */,
+			);
+			path = SweepCoreTests;
 			sourceTree = "<group>";
 		};
 		B661D399E8C06CE461F27CA7 /* SweepMac */ = {
@@ -195,6 +254,7 @@
 				31CD22163BB8E95C32B2566C /* TorrentEngine.swift */,
 				1325158D6B5505635C6C8553 /* TorrentStore.swift */,
 				3541A2A4626E5FDB80621663 /* Model */,
+				58B9AC178B53A0F4C3738E42 /* Persistence */,
 			);
 			path = SweepCore;
 			sourceTree = "<group>";
@@ -245,11 +305,31 @@
 			productReference = 1E715F02C8E5279E2C7A6E15 /* Sweep.app */;
 			productType = "com.apple.product-type.application";
 		};
+		6F3C617DB750B34FF2F6DB21 /* SweepCoreTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 3892BFA7ACA1A1D0EB88CF20 /* Build configuration list for PBXNativeTarget "SweepCoreTests" */;
+			buildPhases = (
+				47BFE36EE1EDE10A20FC6D97 /* Sources */,
+				39A1EF75387C99BBC60947EB /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				53BB720150E1B7944DEF0EA5 /* PBXTargetDependency */,
+			);
+			name = SweepCoreTests;
+			packageProductDependencies = (
+			);
+			productName = SweepCoreTests;
+			productReference = 5FD102098775082BC04F9CF9 /* SweepCoreTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 		A75BE122044CD45C65BB3523 /* SweepCore */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 4ACDBDBFA854C06CAE1D81D6 /* Build configuration list for PBXNativeTarget "SweepCore" */;
 			buildPhases = (
 				AA99D944416D17EE845E8D88 /* Sources */,
+				5E74BCAA9D88DF5A3B385B5C /* Frameworks */,
 			);
 			buildRules = (
 			);
@@ -257,6 +337,7 @@
 			);
 			name = SweepCore;
 			packageProductDependencies = (
+				F60DF72F4094A7A79C99A03B /* SQLiteData */,
 			);
 			productName = SweepCore;
 			productReference = 0BC96D1162EF3968BDF0D2F5 /* SweepCore.framework */;
@@ -307,6 +388,9 @@
 			);
 			mainGroup = 15A8F15A4730E1B41666382A;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				0FD9138C6ED2A8AAC1E32BB4 /* XCRemoteSwiftPackageReference "sqlite-data" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 998FD1C8BAF561312301DCA7 /* Products */;
 			projectDirPath = "";
@@ -314,6 +398,7 @@
 			targets = (
 				171DEA5DD3E9A0D3CC068E28 /* Sweep */,
 				A75BE122044CD45C65BB3523 /* SweepCore */,
+				6F3C617DB750B34FF2F6DB21 /* SweepCoreTests */,
 				EF6E4661B3BFE3C7F06AA236 /* SweepRQBitBridge */,
 			);
 		};
@@ -372,6 +457,14 @@
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		47BFE36EE1EDE10A20FC6D97 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E7FAA83BB751263F4BAE4172 /* AppPersistenceTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		612393840B724F368378D0AF /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -398,8 +491,10 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				6E9A69FC2AF509B868419216 /* AppPersistence.swift in Sources */,
 				475FF5DEBDDE594449F9CCBA /* ByteFormatter.swift in Sources */,
 				0E22E6DCFE894119DBDDB914 /* DemoTorrentEngine.swift in Sources */,
+				2DF7D77E49DFA89C75A39CB8 /* SweepDatabase.swift in Sources */,
 				DE050633E576ECEA3E537274 /* Torrent.swift in Sources */,
 				44B81FDD13EECE27D08B7561 /* TorrentEngine.swift in Sources */,
 				F3ABB474988418B58AF7FA96 /* TorrentStore.swift in Sources */,
@@ -413,6 +508,11 @@
 			isa = PBXTargetDependency;
 			target = EF6E4661B3BFE3C7F06AA236 /* SweepRQBitBridge */;
 			targetProxy = 4751F8083AD27069C6D74E78 /* PBXContainerItemProxy */;
+		};
+		53BB720150E1B7944DEF0EA5 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = A75BE122044CD45C65BB3523 /* SweepCore */;
+			targetProxy = 19821C96D36AD9E091ABE38E /* PBXContainerItemProxy */;
 		};
 		818D0D91F1D8A6E68E1D4CB6 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
@@ -587,6 +687,22 @@
 			};
 			name = Debug;
 		};
+		86318BF5CA7CD3A6440AC6DE /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.nikstar.sweep.core.tests;
+				PRODUCT_NAME = SweepCoreTests;
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
 		B46AB00D6692FD0D2C0CAE2E /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -668,6 +784,22 @@
 			};
 			name = Release;
 		};
+		B9ADCDF88883E708F698C18F /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.nikstar.sweep.core.tests;
+				PRODUCT_NAME = SweepCoreTests;
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
 		E5DFA68810327E1E00B192FA /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -704,6 +836,15 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;
 		};
+		3892BFA7ACA1A1D0EB88CF20 /* Build configuration list for PBXNativeTarget "SweepCoreTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B9ADCDF88883E708F698C18F /* Debug */,
+				86318BF5CA7CD3A6440AC6DE /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
 		4ACDBDBFA854C06CAE1D81D6 /* Build configuration list for PBXNativeTarget "SweepCore" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
@@ -732,6 +873,25 @@
 			defaultConfigurationName = Debug;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		0FD9138C6ED2A8AAC1E32BB4 /* XCRemoteSwiftPackageReference "sqlite-data" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/pointfreeco/sqlite-data";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.6.1;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		F60DF72F4094A7A79C99A03B /* SQLiteData */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 0FD9138C6ED2A8AAC1E32BB4 /* XCRemoteSwiftPackageReference "sqlite-data" */;
+			productName = SQLiteData;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = A7E8E02F07F97E64774A4AF5 /* Project object */;
 }

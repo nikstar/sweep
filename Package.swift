@@ -13,9 +13,15 @@ let package = Package(
         .library(name: "SweepRQBitBridge", targets: ["SweepRQBitBridge"]),
         .executable(name: "Sweep", targets: ["Sweep"])
     ],
+    dependencies: [
+        .package(url: "https://github.com/pointfreeco/sqlite-data", from: "1.6.1")
+    ],
     targets: [
         .target(
             name: "SweepCore",
+            dependencies: [
+                .product(name: "SQLiteData", package: "sqlite-data")
+            ],
             path: "Sources/SweepCore"
         ),
         .target(
@@ -48,6 +54,11 @@ let package = Package(
                     "-Xcc", "-fmodule-map-file=Sources/SweepRQBitBridge/Generated/module.modulemap"
                 ])
             ]
+        ),
+        .testTarget(
+            name: "SweepCoreTests",
+            dependencies: ["SweepCore"],
+            path: "Tests/SweepCoreTests"
         )
     ]
 )

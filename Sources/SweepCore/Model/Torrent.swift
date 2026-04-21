@@ -4,6 +4,7 @@ public struct Torrent: Identifiable, Hashable, Codable, Sendable {
     public let id: Int
     public let name: String
     public let infoHash: String
+    public let magnet: String?
     public let state: String
     public let progressBytes: UInt64
     public let totalBytes: UInt64
@@ -16,6 +17,7 @@ public struct Torrent: Identifiable, Hashable, Codable, Sendable {
         id: Int,
         name: String,
         infoHash: String,
+        magnet: String? = nil,
         state: String,
         progressBytes: UInt64,
         totalBytes: UInt64,
@@ -27,6 +29,7 @@ public struct Torrent: Identifiable, Hashable, Codable, Sendable {
         self.id = id
         self.name = name
         self.infoHash = infoHash
+        self.magnet = magnet
         self.state = state
         self.progressBytes = progressBytes
         self.totalBytes = totalBytes
@@ -40,6 +43,7 @@ public struct Torrent: Identifiable, Hashable, Codable, Sendable {
         case id
         case name
         case infoHash = "info_hash"
+        case magnet
         case state
         case progressBytes = "progress_bytes"
         case totalBytes = "total_bytes"
@@ -62,5 +66,21 @@ public struct Torrent: Identifiable, Hashable, Codable, Sendable {
             return "Complete"
         }
         return state.capitalized
+    }
+
+    public func withMagnet(_ magnet: String?) -> Torrent {
+        Torrent(
+            id: id,
+            name: name,
+            infoHash: infoHash,
+            magnet: magnet ?? self.magnet,
+            state: state,
+            progressBytes: progressBytes,
+            totalBytes: totalBytes,
+            uploadedBytes: uploadedBytes,
+            downloadBps: downloadBps,
+            uploadBps: uploadBps,
+            error: error
+        )
     }
 }
