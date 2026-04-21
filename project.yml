@@ -4,6 +4,7 @@ options:
   bundleIdPrefix: com.nikstar
   deploymentTarget:
     macOS: "15.0"
+    iOS: "17.0"
   createIntermediateGroups: true
   generateEmptyDirectories: true
 
@@ -18,6 +19,7 @@ settings:
     CLANG_ENABLE_MODULES: YES
     GENERATE_INFOPLIST_FILE: YES
     MACOSX_DEPLOYMENT_TARGET: "15.0"
+    IPHONEOS_DEPLOYMENT_TARGET: "17.0"
     LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/../Frameworks"
 
 targets:
@@ -125,6 +127,75 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.nikstar.sweep.core.tests
         PRODUCT_NAME: SweepCoreTests
 
+  SweepCore_iOS:
+    type: framework
+    platform: iOS
+    sources:
+      - Sources/SweepCore
+    dependencies:
+      - package: SQLiteData
+        product: SQLiteData
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.nikstar.sweep.core.ios
+        PRODUCT_NAME: SweepCore
+        PRODUCT_MODULE_NAME: SweepCore
+
+  SweepRQBitBridge_iOS:
+    type: framework
+    platform: iOS
+    sources:
+      - Sources/SweepRQBitBridge
+    dependencies:
+      - target: SweepCore_iOS
+        embed: false
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.nikstar.sweep.rqbitbridge.ios
+        PRODUCT_NAME: SweepRQBitBridge
+        PRODUCT_MODULE_NAME: SweepRQBitBridge
+        SWIFT_INCLUDE_PATHS: "$(SRCROOT)/Sources/SweepRQBitBridge/Generated"
+        HEADER_SEARCH_PATHS: "$(SRCROOT)/Sources/SweepRQBitBridge/Generated"
+        OTHER_LDFLAGS: "$(inherited) -lsweep_rqbit -framework Security -framework CoreFoundation -liconv"
+      configs:
+        Debug:
+          LIBRARY_SEARCH_PATHS[sdk=iphonesimulator*]: "$(SRCROOT)/rust/target/aarch64-apple-ios-sim/debug"
+          LIBRARY_SEARCH_PATHS[sdk=iphoneos*]: "$(SRCROOT)/rust/target/aarch64-apple-ios/debug"
+        Release:
+          LIBRARY_SEARCH_PATHS[sdk=iphonesimulator*]: "$(SRCROOT)/rust/target/aarch64-apple-ios-sim/release"
+          LIBRARY_SEARCH_PATHS[sdk=iphoneos*]: "$(SRCROOT)/rust/target/aarch64-apple-ios/release"
+    preBuildScripts:
+      - name: Build Rust rqbit Bridge
+        basedOnDependencyAnalysis: false
+        script: |
+          set -euo pipefail
+
+          "${SRCROOT}/Scripts/build_rust_bridge.sh"
+
+  Sweep_iOS:
+    type: application
+    platform: iOS
+    sources:
+      - Sources/SweepIOS
+      - path: magnet.txt
+        buildPhase: resources
+    dependencies:
+      - target: SweepCore_iOS
+        embed: true
+      - target: SweepRQBitBridge_iOS
+        embed: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.nikstar.sweep.ios
+        PRODUCT_NAME: Sweep
+        INFOPLIST_KEY_CFBundleDisplayName: Sweep
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        SWIFT_INCLUDE_PATHS: "$(SRCROOT)/Sources/SweepRQBitBridge/Generated"
+        HEADER_SEARCH_PATHS: "$(SRCROOT)/Sources/SweepRQBitBridge/Generated"
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGN_IDENTITY: "-"
+        DEVELOPMENT_TEAM: ""
+
 schemes:
   Sweep:
     build:
@@ -137,3 +208,9 @@ schemes:
       config: Debug
       commandLineArguments:
         "-ApplePersistenceIgnoreState YES": true
+  Sweep-iOS:
+    build:
+      targets:
+        Sweep_iOS: all
+    run:
+      config: Debug
