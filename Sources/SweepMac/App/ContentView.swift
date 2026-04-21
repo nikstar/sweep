@@ -19,10 +19,31 @@ struct ContentView: View {
                 }
 
                 Button {
+                    store.resumeSelectedTorrent()
+                } label: {
+                    Label("Resume", systemImage: "play.fill")
+                }
+                .disabled(!store.canResumeSelectedTorrent)
+
+                Button {
+                    store.pauseSelectedTorrent()
+                } label: {
+                    Label("Pause", systemImage: "pause.fill")
+                }
+                .disabled(!store.canPauseSelectedTorrent)
+
+                Button {
                     store.refresh()
                 } label: {
                     Label("Refresh", systemImage: "arrow.clockwise")
                 }
+
+                Button {
+                    store.removeSelectedTorrent()
+                } label: {
+                    Label("Remove", systemImage: "trash")
+                }
+                .disabled(store.selectedTorrent == nil)
             }
         }
         .sheet(isPresented: $store.showingAddSheet) {

@@ -352,7 +352,7 @@ private func uniffiTraitInterfaceCallWithError<T, E>(
         callStatus.pointee.errorBuf = FfiConverterString.lower(String(describing: error))
     }
 }
-// Initial value and increment amount for handles. 
+// Initial value and increment amount for handles.
 // These ensure that SWIFT handles always have the lowest bit set
 fileprivate let UNIFFI_HANDLEMAP_INITIAL: UInt64 = 1
 fileprivate let UNIFFI_HANDLEMAP_DELTA: UInt64 = 2
@@ -451,6 +451,30 @@ fileprivate struct FfiConverterDouble: FfiConverterPrimitive {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterBool : FfiConverter {
+    typealias FfiType = Int8
+    typealias SwiftType = Bool
+
+    public static func lift(_ value: Int8) throws -> Bool {
+        return value != 0
+    }
+
+    public static func lower(_ value: Bool) -> Int8 {
+        return value ? 1 : 0
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> Bool {
+        return try lift(readInt(&buf))
+    }
+
+    public static func write(_ value: Bool, into buf: inout [UInt8]) {
+        writeInt(&buf, lower(value))
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterString: FfiConverter {
     typealias SwiftType = String
     typealias FfiType = RustBuffer
@@ -493,11 +517,17 @@ fileprivate struct FfiConverterString: FfiConverter {
 
 
 public protocol SweepEngineProtocol: AnyObject, Sendable {
-    
-    func addMagnet(magnet: String) async throws  -> TorrentSnapshot
-    
+
+    func addMagnet(magnet: String, startPaused: Bool) async throws  -> TorrentSnapshot
+
     func listTorrents() async throws  -> [TorrentSnapshot]
-    
+
+    func pauseTorrent(id: String) async throws  -> TorrentSnapshot
+
+    func removeTorrent(id: String, deleteData: Bool) async throws
+
+    func resumeTorrent(id: String) async throws  -> TorrentSnapshot
+
 }
 open class SweepEngine: SweepEngineProtocol, @unchecked Sendable {
     fileprivate let handle: UInt64
@@ -557,16 +587,16 @@ public convenience init(downloadDir: String)throws  {
         try! rustCall { uniffi_sweep_rqbit_fn_free_sweepengine(handle, $0) }
     }
 
-    
 
-    
-open func addMagnet(magnet: String)async throws  -> TorrentSnapshot  {
+
+
+open func addMagnet(magnet: String, startPaused: Bool)async throws  -> TorrentSnapshot  {
     return
         try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_sweep_rqbit_fn_method_sweepengine_add_magnet(
                     self.uniffiCloneHandle(),
-                    FfiConverterString.lower(magnet)
+                    FfiConverterString.lower(magnet),FfiConverterBool.lower(startPaused)
                 )
             },
             pollFunc: ffi_sweep_rqbit_rust_future_poll_rust_buffer,
@@ -576,14 +606,14 @@ open func addMagnet(magnet: String)async throws  -> TorrentSnapshot  {
             errorHandler: FfiConverterTypeSweepError_lift
         )
 }
-    
+
 open func listTorrents()async throws  -> [TorrentSnapshot]  {
     return
         try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_sweep_rqbit_fn_method_sweepengine_list_torrents(
                     self.uniffiCloneHandle()
-                    
+
                 )
             },
             pollFunc: ffi_sweep_rqbit_rust_future_poll_rust_buffer,
@@ -593,9 +623,60 @@ open func listTorrents()async throws  -> [TorrentSnapshot]  {
             errorHandler: FfiConverterTypeSweepError_lift
         )
 }
-    
 
-    
+open func pauseTorrent(id: String)async throws  -> TorrentSnapshot  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_sweep_rqbit_fn_method_sweepengine_pause_torrent(
+                    self.uniffiCloneHandle(),
+                    FfiConverterString.lower(id)
+                )
+            },
+            pollFunc: ffi_sweep_rqbit_rust_future_poll_rust_buffer,
+            completeFunc: ffi_sweep_rqbit_rust_future_complete_rust_buffer,
+            freeFunc: ffi_sweep_rqbit_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeTorrentSnapshot_lift,
+            errorHandler: FfiConverterTypeSweepError_lift
+        )
+}
+
+open func removeTorrent(id: String, deleteData: Bool)async throws   {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_sweep_rqbit_fn_method_sweepengine_remove_torrent(
+                    self.uniffiCloneHandle(),
+                    FfiConverterString.lower(id),FfiConverterBool.lower(deleteData)
+                )
+            },
+            pollFunc: ffi_sweep_rqbit_rust_future_poll_void,
+            completeFunc: ffi_sweep_rqbit_rust_future_complete_void,
+            freeFunc: ffi_sweep_rqbit_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: FfiConverterTypeSweepError_lift
+        )
+}
+
+open func resumeTorrent(id: String)async throws  -> TorrentSnapshot  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_sweep_rqbit_fn_method_sweepengine_resume_torrent(
+                    self.uniffiCloneHandle(),
+                    FfiConverterString.lower(id)
+                )
+            },
+            pollFunc: ffi_sweep_rqbit_rust_future_poll_rust_buffer,
+            completeFunc: ffi_sweep_rqbit_rust_future_complete_rust_buffer,
+            freeFunc: ffi_sweep_rqbit_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeTorrentSnapshot_lift,
+            errorHandler: FfiConverterTypeSweepError_lift
+        )
+}
+
+
+
 }
 
 
@@ -669,9 +750,9 @@ public struct TorrentSnapshot: Equatable, Hashable {
         self.error = error
     }
 
-    
 
-    
+
+
 }
 
 #if compiler(>=6)
@@ -685,15 +766,15 @@ public struct FfiConverterTypeTorrentSnapshot: FfiConverterRustBuffer {
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> TorrentSnapshot {
         return
             try TorrentSnapshot(
-                id: FfiConverterUInt64.read(from: &buf), 
-                name: FfiConverterString.read(from: &buf), 
-                infoHash: FfiConverterString.read(from: &buf), 
-                state: FfiConverterString.read(from: &buf), 
-                progressBytes: FfiConverterUInt64.read(from: &buf), 
-                totalBytes: FfiConverterUInt64.read(from: &buf), 
-                uploadedBytes: FfiConverterUInt64.read(from: &buf), 
-                downloadBps: FfiConverterDouble.read(from: &buf), 
-                uploadBps: FfiConverterDouble.read(from: &buf), 
+                id: FfiConverterUInt64.read(from: &buf),
+                name: FfiConverterString.read(from: &buf),
+                infoHash: FfiConverterString.read(from: &buf),
+                state: FfiConverterString.read(from: &buf),
+                progressBytes: FfiConverterUInt64.read(from: &buf),
+                totalBytes: FfiConverterUInt64.read(from: &buf),
+                uploadedBytes: FfiConverterUInt64.read(from: &buf),
+                downloadBps: FfiConverterDouble.read(from: &buf),
+                uploadBps: FfiConverterDouble.read(from: &buf),
                 error: FfiConverterOptionString.read(from: &buf)
         )
     }
@@ -730,20 +811,20 @@ public func FfiConverterTypeTorrentSnapshot_lower(_ value: TorrentSnapshot) -> R
 
 public enum SweepError: Swift.Error, Equatable, Hashable, Foundation.LocalizedError {
 
-    
-    
+
+
     case Message(message: String)
-    
 
-    
 
-    
 
-    
+
+
+
+
     public var errorDescription: String? {
         String(reflecting: self)
     }
-    
+
 }
 
 #if compiler(>=6)
@@ -760,13 +841,13 @@ public struct FfiConverterTypeSweepError: FfiConverterRustBuffer {
         let variant: Int32 = try readInt(&buf)
         switch variant {
 
-        
 
-        
+
+
         case 1: return .Message(
             message: try FfiConverterString.read(from: &buf)
         )
-        
+
 
         default: throw UniffiInternalError.unexpectedEnumCase
         }
@@ -775,13 +856,13 @@ public struct FfiConverterTypeSweepError: FfiConverterRustBuffer {
     public static func write(_ value: SweepError, into buf: inout [UInt8]) {
         switch value {
 
-        
 
-        
+
+
         case .Message(_ /* message is ignored*/):
             writeInt(&buf, Int32(1))
 
-        
+
         }
     }
 }
@@ -913,10 +994,19 @@ private let initializationResult: InitializationResult = {
     if bindings_contract_version != scaffolding_contract_version {
         return InitializationResult.contractVersionMismatch
     }
-    if (uniffi_sweep_rqbit_checksum_method_sweepengine_add_magnet() != 11384) {
+    if (uniffi_sweep_rqbit_checksum_method_sweepengine_add_magnet() != 17049) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_sweep_rqbit_checksum_method_sweepengine_list_torrents() != 57991) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_sweep_rqbit_checksum_method_sweepengine_pause_torrent() != 13709) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_sweep_rqbit_checksum_method_sweepengine_remove_torrent() != 39460) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_sweep_rqbit_checksum_method_sweepengine_resume_torrent() != 12583) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_sweep_rqbit_checksum_constructor_sweepengine_new() != 26636) {

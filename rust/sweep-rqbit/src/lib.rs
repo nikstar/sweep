@@ -1,12 +1,11 @@
-use std::{
-    collections::HashMap,
-    path::PathBuf,
-    sync::{Arc, Mutex},
-};
+use std::{path::PathBuf, sync::Arc};
 
 use anyhow::Context;
 use futures_channel::oneshot;
-use librqbit::{AddTorrent, AddTorrentOptions, AddTorrentResponse, ManagedTorrent, Session};
+use librqbit::{
+    AddTorrent, AddTorrentOptions, AddTorrentResponse, ManagedTorrent, Session,
+    api::TorrentIdOrHash,
+};
 use tokio::runtime::{Builder, Runtime};
 
 uniffi::setup_scaffolding!();
@@ -48,7 +47,6 @@ pub struct TorrentSnapshot {
 pub struct SweepEngine {
     runtime: Runtime,
     session: Arc<Session>,
-    handles: Arc<Mutex<HashMap<u64, Arc<ManagedTorrent>>>>,
 }
 
 #[uniffi::export]
@@ -64,21 +62,20 @@ impl SweepEngine {
             .block_on(Session::new(PathBuf::from(download_dir)))
             .context("failed to create rqbit session")?;
 
-        Ok(Arc::new(Self {
-            runtime,
-            session,
-            handles: Arc::new(Mutex::new(HashMap::new())),
-        }))
+        Ok(Arc::new(Self { runtime, session }))
     }
 
-    pub async fn add_magnet(&self, magnet: String) -> Result<TorrentSnapshot, SweepError> {
+    pub async fn add_magnet(
+        &self,
+        magnet: String,
+        start_paused: bool,
+    ) -> Result<TorrentSnapshot, SweepError> {
         let session = self.session.clone();
-        let handles = self.handles.clone();
         let runtime = self.runtime.handle().clone();
         let (tx, rx) = oneshot::channel();
 
         runtime.spawn(async move {
-            let result = add_magnet_to_session(session, handles, magnet).await;
+            let result = add_magnet_to_session(session, magnet, start_paused).await;
             let _ = tx.send(result);
         });
 
@@ -86,27 +83,65 @@ impl SweepEngine {
     }
 
     pub async fn list_torrents(&self) -> Result<Vec<TorrentSnapshot>, SweepError> {
-        let handles = self
-            .handles
-            .lock()
-            .expect("torrent handle lock poisoned")
-            .values()
-            .cloned()
-            .collect::<Vec<_>>();
+        let handles = self.session.with_torrents(|torrents| {
+            torrents
+                .map(|(_, handle)| handle.clone())
+                .collect::<Vec<_>>()
+        });
         Ok(handles.iter().map(snapshot).collect())
+    }
+
+    pub async fn pause_torrent(&self, id: String) -> Result<TorrentSnapshot, SweepError> {
+        let session = self.session.clone();
+        let runtime = self.runtime.handle().clone();
+        let (tx, rx) = oneshot::channel();
+
+        runtime.spawn(async move {
+            let result = pause_torrent_in_session(session, id).await;
+            let _ = tx.send(result);
+        });
+
+        rx.await?
+    }
+
+    pub async fn resume_torrent(&self, id: String) -> Result<TorrentSnapshot, SweepError> {
+        let session = self.session.clone();
+        let runtime = self.runtime.handle().clone();
+        let (tx, rx) = oneshot::channel();
+
+        runtime.spawn(async move {
+            let result = resume_torrent_in_session(session, id).await;
+            let _ = tx.send(result);
+        });
+
+        rx.await?
+    }
+
+    pub async fn remove_torrent(&self, id: String, delete_data: bool) -> Result<(), SweepError> {
+        let session = self.session.clone();
+        let runtime = self.runtime.handle().clone();
+        let (tx, rx) = oneshot::channel();
+
+        runtime.spawn(async move {
+            let result = remove_torrent_from_session(session, id, delete_data).await;
+            let _ = tx.send(result);
+        });
+
+        rx.await?
     }
 }
 
 async fn add_magnet_to_session(
     session: Arc<Session>,
-    handles: Arc<Mutex<HashMap<u64, Arc<ManagedTorrent>>>>,
     magnet: String,
+    start_paused: bool,
 ) -> Result<TorrentSnapshot, SweepError> {
     let response = session
         .add_torrent(
             AddTorrent::from_url(&magnet),
             Some(AddTorrentOptions {
                 overwrite: true,
+                paused: start_paused,
                 ..Default::default()
             }),
         )
@@ -122,13 +157,56 @@ async fn add_magnet_to_session(
         }
     };
 
-    let id = handle.id() as u64;
-    handles
-        .lock()
-        .expect("torrent handle lock poisoned")
-        .insert(id, handle.clone());
-
     Ok(snapshot(&handle))
+}
+
+async fn pause_torrent_in_session(
+    session: Arc<Session>,
+    id: String,
+) -> Result<TorrentSnapshot, SweepError> {
+    let id = parse_torrent_id(&id)?;
+    let handle = session
+        .get(id)
+        .with_context(|| format!("torrent {id} is not managed"))?;
+    if !handle.is_paused() {
+        session.pause(&handle).await?;
+    }
+    Ok(snapshot(&handle))
+}
+
+async fn resume_torrent_in_session(
+    session: Arc<Session>,
+    id: String,
+) -> Result<TorrentSnapshot, SweepError> {
+    let id = parse_torrent_id(&id)?;
+    let handle = session
+        .get(id)
+        .with_context(|| format!("torrent {id} is not managed"))?;
+    if handle.is_paused() {
+        session.unpause(&handle).await?;
+    }
+    Ok(snapshot(&handle))
+}
+
+async fn remove_torrent_from_session(
+    session: Arc<Session>,
+    id: String,
+    delete_data: bool,
+) -> Result<(), SweepError> {
+    let id = parse_torrent_id(&id)?;
+    if session.get(id).is_none() {
+        return Ok(());
+    }
+    session.delete(id, delete_data).await?;
+    Ok(())
+}
+
+fn parse_torrent_id(id: &str) -> Result<TorrentIdOrHash, SweepError> {
+    TorrentIdOrHash::parse(id).map_err(|error| {
+        SweepError::Message(format!(
+            "torrent id must be a rqbit id or 40-character info hash: {error:#}"
+        ))
+    })
 }
 
 fn snapshot(handle: &Arc<ManagedTorrent>) -> TorrentSnapshot {

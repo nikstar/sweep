@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 import SweepCore
 import SweepRQBitBridge
@@ -29,14 +30,56 @@ struct SweepApp: App {
             }
 
             CommandMenu("Transfers") {
+                Button("Resume") {
+                    store.resumeSelectedTorrent()
+                }
+                .keyboardShortcut(.space, modifiers: [])
+                .disabled(!store.canResumeSelectedTorrent)
+
+                Button("Pause") {
+                    store.pauseSelectedTorrent()
+                }
+                .keyboardShortcut(.space, modifiers: [])
+                .disabled(!store.canPauseSelectedTorrent)
+
                 Button("Refresh") {
                     store.refresh()
                 }
                 .keyboardShortcut("r", modifiers: [.command])
+
+                Divider()
+
+                Button("Reveal in Finder") {
+                    revealSelectedTorrentInFinder()
+                }
+                .keyboardShortcut("r", modifiers: [.command, .shift])
+                .disabled(store.selectedTorrent == nil)
+
+                Divider()
+
+                Button("Remove") {
+                    store.removeSelectedTorrent()
+                }
+                .keyboardShortcut(.delete, modifiers: [])
+                .disabled(store.selectedTorrent == nil)
+
+                Button("Remove and Delete Data") {
+                    store.removeSelectedTorrent(deleteData: true)
+                }
+                .keyboardShortcut(.delete, modifiers: [.command])
+                .disabled(store.selectedTorrent == nil)
             }
 
             SidebarCommands()
         }
+    }
+
+    private func revealSelectedTorrentInFinder() {
+        guard let torrent = store.selectedTorrent else { return }
+        let directory = torrent.downloadDirectory ?? store.downloadDirectory
+        NSWorkspace.shared.activateFileViewerSelecting([
+            URL(filePath: directory, directoryHint: .isDirectory)
+        ])
     }
 }
 
@@ -55,7 +98,8 @@ private enum AppEnvironment {
             return TorrentStore(
                 engine: engine,
                 persistence: persistence,
-                downloadDirectory: downloadDirectory
+                downloadDirectory: downloadDirectory,
+                initialState: persistedState
             )
         } catch {
             createDownloadDirectory(at: fallbackDownloadDirectory)
@@ -68,7 +112,7 @@ private enum AppEnvironment {
     }
 
     private static func makeTorrentEngine(downloadDirectory: String) -> TorrentEngine {
-        RqbitEngine.makeDefault(downloadDirectory: downloadDirectory) ?? DemoTorrentEngine()
+        RqbitEngine.makeDefault(downloadDirectory: downloadDirectory) ?? DemoTorrentEngine(downloadDirectory: downloadDirectory)
     }
 
     private static func defaultDownloadDirectory() -> String {

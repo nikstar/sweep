@@ -44,6 +44,76 @@ public enum SweepDatabase {
             )
             .execute(db)
         }
+        migrator.registerMigration("Use info hash torrent identity") { db in
+            try #sql(
+                """
+                CREATE TABLE "new_torrents" (
+                  "id" TEXT PRIMARY KEY NOT NULL,
+                  "engineID" INTEGER,
+                  "name" TEXT NOT NULL,
+                  "infoHash" TEXT NOT NULL,
+                  "magnet" TEXT,
+                  "downloadDirectory" TEXT,
+                  "desiredState" TEXT NOT NULL DEFAULT 'running',
+                  "state" TEXT NOT NULL,
+                  "progressBytes" INTEGER NOT NULL DEFAULT 0,
+                  "totalBytes" INTEGER NOT NULL DEFAULT 0,
+                  "uploadedBytes" INTEGER NOT NULL DEFAULT 0,
+                  "downloadBps" REAL NOT NULL DEFAULT 0,
+                  "uploadBps" REAL NOT NULL DEFAULT 0,
+                  "error" TEXT,
+                  "addedAt" REAL NOT NULL DEFAULT 0,
+                  "updatedAt" REAL NOT NULL DEFAULT 0
+                ) STRICT
+                """
+            )
+            .execute(db)
+
+            try #sql(
+                """
+                INSERT OR REPLACE INTO "new_torrents" (
+                  "id",
+                  "engineID",
+                  "name",
+                  "infoHash",
+                  "magnet",
+                  "desiredState",
+                  "state",
+                  "progressBytes",
+                  "totalBytes",
+                  "uploadedBytes",
+                  "downloadBps",
+                  "uploadBps",
+                  "error",
+                  "addedAt",
+                  "updatedAt"
+                )
+                SELECT
+                  LOWER("infoHash"),
+                  "id",
+                  "name",
+                  LOWER("infoHash"),
+                  "magnet",
+                  CASE WHEN LOWER("state") = 'paused' THEN 'paused' ELSE 'running' END,
+                  "state",
+                  "progressBytes",
+                  "totalBytes",
+                  "uploadedBytes",
+                  "downloadBps",
+                  "uploadBps",
+                  "error",
+                  CAST(strftime('%s', 'now') AS REAL),
+                  CAST(strftime('%s', 'now') AS REAL)
+                FROM "torrents"
+                """
+            )
+            .execute(db)
+
+            try #sql("DROP TABLE \"torrents\"")
+                .execute(db)
+            try #sql("ALTER TABLE \"new_torrents\" RENAME TO \"torrents\"")
+                .execute(db)
+        }
         try migrator.migrate(database)
         return database
     }

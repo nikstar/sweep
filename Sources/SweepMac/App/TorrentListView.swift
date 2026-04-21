@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 import SweepCore
 
@@ -45,10 +46,51 @@ struct TorrentListView: View {
                 }
                 .width(min: 80, ideal: 90)
             }
+            .contextMenu {
+                Button("Resume") {
+                    store.resumeSelectedTorrent()
+                }
+                .disabled(!store.canResumeSelectedTorrent)
+
+                Button("Pause") {
+                    store.pauseSelectedTorrent()
+                }
+                .disabled(!store.canPauseSelectedTorrent)
+
+                Divider()
+
+                Button("Reveal in Finder") {
+                    revealSelectedTorrentInFinder()
+                }
+                .disabled(store.selectedTorrent == nil)
+
+                Divider()
+
+                Button("Remove") {
+                    store.removeSelectedTorrent()
+                }
+                .disabled(store.selectedTorrent == nil)
+
+                Button("Remove and Delete Data") {
+                    store.removeSelectedTorrent(deleteData: true)
+                }
+                .disabled(store.selectedTorrent == nil)
+            }
+            .onDeleteCommand {
+                store.removeSelectedTorrent()
+            }
 
             InspectorBar(torrent: store.selectedTorrent)
         }
         .navigationTitle("Torrents")
+    }
+
+    private func revealSelectedTorrentInFinder() {
+        guard let torrent = store.selectedTorrent else { return }
+        let directory = torrent.downloadDirectory ?? store.downloadDirectory
+        NSWorkspace.shared.activateFileViewerSelecting([
+            URL(filePath: directory, directoryHint: .isDirectory)
+        ])
     }
 }
 

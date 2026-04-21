@@ -60,3 +60,5 @@ else
     --module-name sweep_rqbitFFI \
     --modulemap-filename module.modulemap
 fi
+
+perl -pi -e 's/[ \t]+$//' "$GENERATED_DIR/sweep_rqbit.swift" "$GENERATED_DIR/sweep_rqbitFFI.h"

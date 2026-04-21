@@ -49,6 +49,15 @@ public actor AppPersistence {
         }
     }
 
+    public func deleteTorrent(id: Torrent.ID) async throws {
+        try await database.write { db in
+            try PersistedTorrent
+                .where { $0.id.eq(id) }
+                .delete()
+                .execute(db)
+        }
+    }
+
     public func saveSetting(_ key: AppSettingKey, value: String?) async throws {
         try await database.write { db in
             if let value {
@@ -66,27 +75,35 @@ public actor AppPersistence {
 }
 
 private func readPersistedAppState(_ db: Database) throws -> PersistedAppState {
+    let torrents = try PersistedTorrent
+        .order(by: \.addedAt)
+        .fetchAll(db)
+        .map(\.torrent)
     let settings = Dictionary(
         uniqueKeysWithValues: try AppSetting
             .fetchAll(db)
             .map { ($0.id, $0.value) }
     )
+    let selectedTorrentID = settings[AppSettingKey.selectedTorrentID.rawValue]
+    let validSelection = selectedTorrentID.flatMap { selectedTorrentID in
+        torrents.contains { $0.id == selectedTorrentID } ? selectedTorrentID : nil
+    }
     return PersistedAppState(
-        torrents: try PersistedTorrent
-            .order(by: \.id)
-            .fetchAll(db)
-            .map(\.torrent),
-        selectedTorrentID: settings[AppSettingKey.selectedTorrentID.rawValue].flatMap(Int.init),
+        torrents: torrents,
+        selectedTorrentID: validSelection,
         downloadDirectory: settings[AppSettingKey.downloadDirectory.rawValue]
     )
 }
 
 @Table("torrents")
 private struct PersistedTorrent: Equatable, Identifiable, Sendable {
-    let id: Int
+    let id: String
+    var engineID: Int?
     var name: String
     var infoHash: String
     var magnet: String?
+    var downloadDirectory: String?
+    var desiredState: String
     var state: String
     var progressBytes: Int64
     var totalBytes: Int64
@@ -94,12 +111,17 @@ private struct PersistedTorrent: Equatable, Identifiable, Sendable {
     var downloadBps: Double
     var uploadBps: Double
     var error: String?
+    var addedAt: Double
+    var updatedAt: Double
 
     init(torrent: Torrent) {
         self.id = torrent.id
+        self.engineID = torrent.engineID
         self.name = torrent.name
         self.infoHash = torrent.infoHash
         self.magnet = torrent.magnet
+        self.downloadDirectory = torrent.downloadDirectory
+        self.desiredState = torrent.desiredState.rawValue
         self.state = torrent.state
         self.progressBytes = Int64(clampingTorrentByteCount: torrent.progressBytes)
         self.totalBytes = Int64(clampingTorrentByteCount: torrent.totalBytes)
@@ -107,21 +129,28 @@ private struct PersistedTorrent: Equatable, Identifiable, Sendable {
         self.downloadBps = torrent.downloadBps
         self.uploadBps = torrent.uploadBps
         self.error = torrent.error
+        self.addedAt = torrent.addedAt.timeIntervalSince1970
+        self.updatedAt = torrent.updatedAt.timeIntervalSince1970
     }
 
     var torrent: Torrent {
         Torrent(
             id: id,
+            engineID: engineID,
             name: name,
             infoHash: infoHash,
             magnet: magnet,
+            downloadDirectory: downloadDirectory,
+            desiredState: TorrentDesiredState(rawValue: desiredState) ?? .running,
             state: state,
             progressBytes: UInt64(nonnegative: progressBytes),
             totalBytes: UInt64(nonnegative: totalBytes),
             uploadedBytes: UInt64(nonnegative: uploadedBytes),
             downloadBps: downloadBps,
             uploadBps: uploadBps,
-            error: error
+            error: error,
+            addedAt: Date(timeIntervalSince1970: addedAt),
+            updatedAt: Date(timeIntervalSince1970: updatedAt)
         )
     }
 }
