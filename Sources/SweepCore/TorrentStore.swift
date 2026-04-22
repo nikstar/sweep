@@ -194,6 +194,12 @@ public final class TorrentStore: ObservableObject {
         }
     }
 
+    public func setFile(_ file: TorrentFile, included: Bool, in torrent: Torrent) {
+        Task {
+            await setFileSelection(file: file, included: included, in: torrent)
+        }
+    }
+
     public func startPolling() {
         guard pollingTask == nil else { return }
         pollingTask = Task { [weak self] in
@@ -379,6 +385,31 @@ public final class TorrentStore: ObservableObject {
                 selection = torrents.first?.id
             }
             try await persistence?.deleteTorrent(id: torrent.id)
+            lastError = nil
+        } catch {
+            lastError = error.localizedDescription
+        }
+    }
+
+    private func setFileSelection(file: TorrentFile, included: Bool, in torrent: Torrent) async {
+        var includedFileIDs = Set(torrent.files.filter(\.included).map(\.id))
+        if included {
+            includedFileIDs.insert(file.id)
+        } else {
+            includedFileIDs.remove(file.id)
+        }
+
+        guard !includedFileIDs.isEmpty else {
+            lastError = "At least one file must remain selected for download."
+            return
+        }
+
+        do {
+            let liveTorrent = try await engine
+                .setFileSelection(id: torrent.id, includedFileIDs: includedFileIDs.sorted())
+                .mergingCachedMetadata(from: torrent)
+            upsert(liveTorrent)
+            try await persistence?.save(torrent: liveTorrent)
             lastError = nil
         } catch {
             lastError = error.localizedDescription

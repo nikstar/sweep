@@ -16,15 +16,19 @@ struct TorrentInspectorWindowView: View {
             }
             .pickerStyle(.segmented)
             .labelsHidden()
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
-
-            Divider()
+            .padding(.horizontal, 12)
+            .padding(.top, 8)
+            .padding(.bottom, 7)
 
             if let torrent = store.selectedTorrent {
-                selectedContent(for: torrent)
+                ScrollView {
+                    selectedContent(for: torrent)
+                        .padding(.horizontal, 12)
+                        .padding(.top, 3)
+                        .padding(.bottom, 12)
+                }
             } else {
-                ContentUnavailableView("No Torrent Selected", systemImage: "info.circle")
+                ContentUnavailableView("No Torrent Selected", systemImage: "info")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
@@ -109,34 +113,32 @@ private struct TorrentInfoInspector: View {
     let defaultDownloadDirectory: String
 
     var body: some View {
-        InspectorForm {
-            Section("Torrent") {
-                LabeledContent("Name") {
+        InspectorPane {
+            InspectorGroup("Torrent") {
+                InspectorRow("Name") {
                     CopyableValue(torrent.name)
                 }
-                LabeledContent("Status", value: torrent.statusLabel)
-                LabeledContent("Progress", value: InspectorFormat.percent(torrent.progress))
-                LabeledContent("Size", value: InspectorFormat.bytesOrUnknown(torrent.totalBytes))
-                LabeledContent("Engine ID", value: torrent.engineID.map(String.init) ?? "None")
+                InspectorRow("Status", value: torrent.statusLabel)
+                InspectorRow("Progress", value: InspectorFormat.percent(torrent.progress))
+                InspectorRow("Size", value: InspectorFormat.bytesOrUnknown(torrent.totalBytes))
+                InspectorRow("Engine ID", value: torrent.engineID.map(String.init) ?? "None")
             }
 
-            Section("Identity") {
-                LabeledContent("Info Hash") {
+            InspectorGroup("Identity") {
+                InspectorRow("Info Hash") {
                     CopyableValue(torrent.infoHash, monospaced: true)
                 }
-
                 if let magnet = torrent.magnet {
-                    LabeledContent("Magnet") {
+                    InspectorRow("Magnet") {
                         CopyableValue(magnet, lineLimit: 3)
                     }
                 }
-
                 if let torrentFileName = torrent.torrentFileName {
-                    LabeledContent("Torrent File", value: torrentFileName)
+                    InspectorRow("Torrent File", value: torrentFileName)
                 }
             }
 
-            Section("Location") {
+            InspectorGroup("Location") {
                 let directory = TorrentFileLocation.directoryURL(
                     for: torrent,
                     defaultDirectory: defaultDownloadDirectory
@@ -146,22 +148,23 @@ private struct TorrentInfoInspector: View {
                     defaultDirectory: defaultDownloadDirectory
                 )
 
-                LabeledContent("Save To") {
+                InspectorRow("Save To") {
                     CopyableValue(abbreviatedPath(directory.path), copyValue: directory.path)
                 }
-                LabeledContent("Expected Item") {
+                InspectorRow("Item") {
                     CopyableValue(abbreviatedPath(item.path), copyValue: item.path)
                 }
             }
 
-            Section("Dates") {
-                LabeledContent("Added", value: InspectorFormat.date(torrent.addedAt))
-                LabeledContent("Updated", value: InspectorFormat.date(torrent.updatedAt))
+            InspectorGroup("Dates") {
+                InspectorRow("Added", value: InspectorFormat.date(torrent.addedAt))
+                InspectorRow("Updated", value: InspectorFormat.date(torrent.updatedAt))
             }
 
             if let error = torrent.error, !error.isEmpty {
-                Section("Error") {
+                InspectorGroup("Error") {
                     Text(error)
+                        .font(.callout)
                         .foregroundStyle(.red)
                         .textSelection(.enabled)
                 }
@@ -174,13 +177,14 @@ private struct TorrentActivityInspector: View {
     let torrent: Torrent
 
     var body: some View {
-        InspectorForm {
-            Section("Progress") {
-                VStack(alignment: .leading, spacing: 8) {
+        InspectorPane {
+            InspectorGroup("Progress") {
+                VStack(alignment: .leading, spacing: 5) {
                     SegmentedProgressView(
                         runs: torrent.pieceRuns,
                         fallbackProgress: torrent.progress,
-                        state: torrent.statusLabel
+                        state: torrent.statusLabel,
+                        height: 9
                     )
                     HStack {
                         Text(InspectorFormat.percent(torrent.progress))
@@ -189,30 +193,239 @@ private struct TorrentActivityInspector: View {
                             .foregroundStyle(.secondary)
                     }
                     .font(.caption)
+                    .monospacedDigit()
                 }
 
-                LabeledContent("Downloaded", value: ByteFormatter.bytes(torrent.progressBytes))
-                LabeledContent("Remaining", value: InspectorFormat.remainingBytes(torrent))
-                LabeledContent("Total Size", value: InspectorFormat.bytesOrUnknown(torrent.totalBytes))
+                InspectorRow("Downloaded", value: ByteFormatter.bytes(torrent.progressBytes))
+                InspectorRow("Remaining", value: InspectorFormat.remainingBytes(torrent))
+                InspectorRow("Total Size", value: InspectorFormat.bytesOrUnknown(torrent.totalBytes))
             }
 
-            Section("Transfer") {
-                LabeledContent("Download Speed", value: ByteFormatter.rate(torrent.downloadBps))
-                LabeledContent("Upload Speed", value: ByteFormatter.rate(torrent.uploadBps))
-                LabeledContent("Uploaded", value: ByteFormatter.bytes(torrent.uploadedBytes))
-                LabeledContent("Ratio", value: InspectorFormat.ratio(torrent))
+            InspectorGroup("Transfer") {
+                InspectorRow("Download", value: ByteFormatter.rate(torrent.downloadBps))
+                InspectorRow("Upload", value: ByteFormatter.rate(torrent.uploadBps))
+                InspectorRow("Uploaded", value: ByteFormatter.bytes(torrent.uploadedBytes))
+                InspectorRow("Ratio", value: InspectorFormat.ratio(torrent))
+                InspectorRow("ETA", value: torrent.etaSeconds.map(InspectorFormat.duration) ?? "Unknown")
             }
 
-            Section("State") {
-                LabeledContent("Engine State", value: torrent.state)
-                LabeledContent("Desired State", value: torrent.desiredState.rawValue.capitalized)
-                LabeledContent("Last Update", value: InspectorFormat.date(torrent.updatedAt))
+            InspectorGroup("State") {
+                InspectorRow("Engine", value: torrent.state)
+                InspectorRow("Desired", value: torrent.desiredState.rawValue.capitalized)
+                InspectorRow("Last Update", value: InspectorFormat.date(torrent.updatedAt))
+            }
+        }
+    }
+}
+
+private struct TorrentTrackersInspector: View {
+    let torrent: Torrent
+
+    var body: some View {
+        InspectorPane {
+            InspectorGroup("Summary") {
+                InspectorMetricLine {
+                    InspectorMetric("Total", String(torrent.trackers.count))
+                    InspectorMetric("Working", String(torrent.trackers.filter { $0.status == "Working" }.count))
+                    InspectorMetric("Seeds", InspectorFormat.optionalCount(torrent.trackers.compactMap(\.seeders).max()))
+                    InspectorMetric("Leechers", InspectorFormat.optionalCount(torrent.trackers.compactMap(\.leechers).max()))
+                }
+            }
+
+            if torrent.trackers.isEmpty {
+                InspectorEmptyState("No trackers")
+            } else {
+                LazyVStack(alignment: .leading, spacing: 9) {
+                    ForEach(torrent.trackers) { tracker in
+                        TorrentTrackerInspectorRow(tracker: tracker)
+                    }
+                }
+            }
+        }
+    }
+}
+
+private struct TorrentTrackerInspectorRow: View {
+    let tracker: TorrentTracker
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: statusImage)
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(statusColor)
+                .frame(width: 14, height: 18)
+
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    CopyableValue(tracker.url)
+                    Spacer(minLength: 8)
+                    Text(tracker.kind)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                InspectorTextLine {
+                    Text(tracker.status)
+                    if let lastPeerCount = tracker.lastPeerCount {
+                        Text("\(lastPeerCount) peers")
+                    }
+                    if let seeders = tracker.seeders {
+                        Text("\(seeders) seeds")
+                    }
+                    if let leechers = tracker.leechers {
+                        Text("\(leechers) leechers")
+                    }
+                    if let downloads = tracker.downloads {
+                        Text("\(downloads) downloads")
+                    }
+                }
+
+                InspectorTextLine {
+                    if let lastAnnounceAt = tracker.lastAnnounceAt {
+                        Text("Last \(InspectorFormat.date(lastAnnounceAt))")
+                    }
+                    if let nextAnnounceAt = tracker.nextAnnounceAt {
+                        Text("Next \(InspectorFormat.date(nextAnnounceAt))")
+                    }
+                }
+
+                if let scrapeURL = tracker.scrapeURL {
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        Text("Scrape")
+                            .foregroundStyle(.secondary)
+                        CopyableValue(scrapeURL)
+                    }
+                    .font(.caption)
+                }
+
+                if let lastError = tracker.lastError, !lastError.isEmpty {
+                    Text(lastError)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                        .lineLimit(2)
+                        .textSelection(.enabled)
+                }
+            }
+        }
+    }
+
+    private var statusImage: String {
+        tracker.status == "Working" ? "circle.fill" : "circle"
+    }
+
+    private var statusColor: Color {
+        tracker.status == "Working" ? .green : .secondary
+    }
+}
+
+private struct TorrentPeersInspector: View {
+    let torrent: Torrent
+
+    var body: some View {
+        InspectorPane {
+            InspectorGroup("Summary") {
+                let livePeers = torrent.peers.filter(\.isLiveConnection)
+                InspectorMetricLine {
+                    InspectorMetric("Live", String(livePeers.count))
+                    InspectorMetric("Downloading", String(livePeers.filter { ($0.downloadBps ?? 0) > 1 }.count))
+                    InspectorMetric("Uploading", String(livePeers.filter { ($0.uploadBps ?? 0) > 1 }.count))
+                }
+            }
+
+            if torrent.peers.isEmpty {
+                InspectorEmptyState("No connected peers")
+            } else {
+                LazyVStack(alignment: .leading, spacing: 9) {
+                    ForEach(torrent.peers) { peer in
+                        TorrentPeerInspectorRow(peer: peer)
+                    }
+                }
+            }
+        }
+    }
+}
+
+private struct TorrentPeerInspectorRow: View {
+    let peer: TorrentPeer
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: peer.isLiveConnection ? "circle.fill" : "circle")
+                .font(.system(size: 9))
+                .foregroundStyle(peer.isLiveConnection ? .green : .secondary)
+                .frame(width: 14, height: 18)
+
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(peer.address)
+                        .monospacedDigit()
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .textSelection(.enabled)
+                    Spacer(minLength: 8)
+                    Text(InspectorFormat.peerConnection(peer))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                InspectorTextLine {
+                    Text(peer.client ?? peer.state.capitalized)
+                    if let countryCode = peer.countryCode {
+                        Text(countryCode)
+                    }
+                    if let availability = peer.availability {
+                        Text("\(InspectorFormat.percent(availability)) available")
+                    }
+                    if let availablePieces = peer.availablePieces {
+                        Text("\(availablePieces) pieces")
+                    }
+                }
+
+                if let availability = peer.availability {
+                    ProgressView(value: availability.clamped(to: 0...1))
+                        .progressViewStyle(.linear)
+                        .controlSize(.mini)
+                }
+
+                InspectorTextLine {
+                    Text("\(ByteFormatter.bytes(peer.downloadedBytes)) down")
+                    Text("\(ByteFormatter.bytes(peer.uploadedBytes)) up")
+                    if let downloadBps = peer.downloadBps {
+                        Text("\(ByteFormatter.rate(downloadBps)) down")
+                    }
+                    if let uploadBps = peer.uploadBps {
+                        Text("\(ByteFormatter.rate(uploadBps)) up")
+                    }
+                    if peer.errors > 0 {
+                        Text("\(peer.errors) errors")
+                            .foregroundStyle(.orange)
+                    }
+                }
+
+                if !peer.featureFlags.isEmpty {
+                    Text(peer.featureFlags.joined(separator: ", "))
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+
+                if let peerID = peer.peerID {
+                    Text(peerID)
+                        .font(.system(.caption2, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .textSelection(.enabled)
+                }
             }
         }
     }
 }
 
 private struct TorrentFilesInspector: View {
+    @EnvironmentObject private var store: TorrentStore
+
     let torrent: Torrent
     let defaultDownloadDirectory: String
 
@@ -221,38 +434,28 @@ private struct TorrentFilesInspector: View {
             for: torrent,
             defaultDirectory: defaultDownloadDirectory
         )
+        let includedCount = torrent.files.filter(\.included).count
 
-        InspectorForm {
-            Section("Download") {
-                LabeledContent("Kind", value: snapshot.displayKind)
-                LabeledContent("Files", value: String(torrent.files.count))
-                LabeledContent("Save To") {
+        InspectorPane {
+            InspectorGroup("Download") {
+                InspectorRow("Kind", value: snapshot.displayKind)
+                InspectorRow("Files", value: String(torrent.files.count))
+                InspectorRow("Save To") {
                     CopyableValue(
                         abbreviatedPath(snapshot.directoryURL.path),
                         copyValue: snapshot.directoryURL.path
                     )
                 }
-                LabeledContent("Expected Item") {
+                InspectorRow("Item") {
                     CopyableValue(
                         abbreviatedPath(snapshot.expectedItemURL.path),
                         copyValue: snapshot.expectedItemURL.path
                     )
                 }
-
                 if let itemSize = snapshot.itemSize {
-                    LabeledContent("File Size", value: ByteFormatter.bytes(itemSize))
+                    InspectorRow("On Disk", value: ByteFormatter.bytes(itemSize))
                 }
-            }
 
-            if !torrent.files.isEmpty {
-                Section("Files") {
-                    ForEach(torrent.files) { file in
-                        TorrentFileInspectorRow(file: file)
-                    }
-                }
-            }
-
-            Section("Actions") {
                 HStack(spacing: 8) {
                     Button {
                         TorrentFileLocation.revealInFinder(
@@ -273,201 +476,59 @@ private struct TorrentFilesInspector: View {
                         Label("Copy Path", systemImage: "doc.on.doc")
                     }
                 }
+                .controlSize(.small)
             }
-        }
-    }
-}
 
-private struct TorrentTrackersInspector: View {
-    let torrent: Torrent
-
-    var body: some View {
-        InspectorForm {
-            Section("Trackers") {
-                LabeledContent("Count", value: String(torrent.trackers.count))
-
-                if torrent.trackers.isEmpty {
-                    Text("No trackers")
-                        .foregroundStyle(.secondary)
-                } else {
-                    ForEach(torrent.trackers) { tracker in
-                        TorrentTrackerInspectorRow(tracker: tracker)
+            if torrent.files.isEmpty {
+                InspectorEmptyState("No files yet")
+            } else {
+                LazyVStack(alignment: .leading, spacing: 9) {
+                    ForEach(torrent.files) { file in
+                        TorrentFileInspectorRow(
+                            torrent: torrent,
+                            file: file,
+                            includedCount: includedCount
+                        )
+                        .environmentObject(store)
                     }
                 }
             }
         }
-    }
-}
-
-private struct TorrentTrackerInspectorRow: View {
-    let tracker: TorrentTracker
-
-    var body: some View {
-        HStack(alignment: .top, spacing: 10) {
-            Image(systemName: "antenna.radiowaves.left.and.right")
-                .foregroundStyle(.secondary)
-                .frame(width: 18)
-
-            VStack(alignment: .leading, spacing: 5) {
-                HStack {
-                    CopyableValue(tracker.url)
-                    Spacer()
-                    Text(tracker.kind)
-                        .foregroundStyle(.secondary)
-                }
-
-                HStack(spacing: 12) {
-                    Text(tracker.status)
-                    if let lastPeerCount = tracker.lastPeerCount {
-                        Text("\(lastPeerCount) peers")
-                    }
-                    if let seeders = tracker.seeders {
-                        Text("\(seeders) seeds")
-                    }
-                    if let leechers = tracker.leechers {
-                        Text("\(leechers) leechers")
-                    }
-                    if let downloads = tracker.downloads {
-                        Text("\(downloads) downloads")
-                    }
-                }
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-                if tracker.lastAnnounceAt != nil || tracker.nextAnnounceAt != nil {
-                    HStack(spacing: 12) {
-                        if let lastAnnounceAt = tracker.lastAnnounceAt {
-                            Text("Last \(InspectorFormat.date(lastAnnounceAt))")
-                        }
-                        if let nextAnnounceAt = tracker.nextAnnounceAt {
-                            Text("Next \(InspectorFormat.date(nextAnnounceAt))")
-                        }
-                    }
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                }
-
-                if let scrapeURL = tracker.scrapeURL {
-                    HStack(spacing: 5) {
-                        Text("Scrape")
-                            .foregroundStyle(.secondary)
-                        CopyableValue(scrapeURL)
-                    }
-                    .font(.caption)
-                }
-
-                if let lastError = tracker.lastError, !lastError.isEmpty {
-                    Text(lastError)
-                        .font(.caption)
-                        .foregroundStyle(.red)
-                        .lineLimit(2)
-                }
-            }
-        }
-        .padding(.vertical, 2)
-    }
-}
-
-private struct TorrentPeersInspector: View {
-    let torrent: Torrent
-
-    var body: some View {
-        InspectorForm {
-            Section("Peers") {
-                LabeledContent("Connected", value: String(torrent.peers.count))
-
-                if torrent.peers.isEmpty {
-                    Text("No connected peers")
-                        .foregroundStyle(.secondary)
-                } else {
-                    ForEach(torrent.peers) { peer in
-                        TorrentPeerInspectorRow(peer: peer)
-                    }
-                }
-            }
-        }
-    }
-}
-
-private struct TorrentPeerInspectorRow: View {
-    let peer: TorrentPeer
-
-    var body: some View {
-        HStack(spacing: 10) {
-            Image(systemName: peer.state == "live" ? "circle.fill" : "circle")
-                .font(.system(size: 9))
-                .foregroundStyle(peer.state == "live" ? .green : .secondary)
-                .frame(width: 18)
-
-            VStack(alignment: .leading, spacing: 5) {
-                HStack {
-                    Text(peer.address)
-                        .monospacedDigit()
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                    Spacer()
-                    Text(InspectorFormat.peerConnection(peer))
-                        .foregroundStyle(.secondary)
-                }
-
-                HStack(spacing: 12) {
-                    Text(peer.countryCode ?? peer.state.capitalized)
-                    Text(peer.client ?? InspectorFormat.peerConnection(peer))
-                    if !peer.featureFlags.isEmpty {
-                        Text(peer.featureFlags.joined(separator: ", "))
-                    }
-                    if let availability = peer.availability {
-                        Text("\(InspectorFormat.percent(availability)) available")
-                    }
-                    if let availablePieces = peer.availablePieces {
-                        Text("\(availablePieces) pieces")
-                    }
-                    Text("\(ByteFormatter.bytes(peer.downloadedBytes)) down")
-                    Text("\(ByteFormatter.bytes(peer.uploadedBytes)) up")
-                    if let downloadBps = peer.downloadBps {
-                        Text("\(ByteFormatter.rate(downloadBps)) down")
-                    }
-                    if let uploadBps = peer.uploadBps {
-                        Text("\(ByteFormatter.rate(uploadBps)) up")
-                    }
-                    if peer.errors > 0 {
-                        Text("\(peer.errors) errors")
-                            .foregroundStyle(.orange)
-                    }
-                }
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-
-                if let peerID = peer.peerID {
-                    Text(peerID)
-                        .font(.system(.caption2, design: .monospaced))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                        .textSelection(.enabled)
-                }
-            }
-        }
-        .padding(.vertical, 2)
     }
 }
 
 private struct TorrentFileInspectorRow: View {
+    @EnvironmentObject private var store: TorrentStore
+
+    let torrent: Torrent
     let file: TorrentFile
+    let includedCount: Int
 
     var body: some View {
-        HStack(spacing: 10) {
+        HStack(alignment: .top, spacing: 8) {
+            Toggle(
+                "",
+                isOn: Binding(
+                    get: { file.included },
+                    set: { store.setFile(file, included: $0, in: torrent) }
+                )
+            )
+            .toggleStyle(.checkbox)
+            .labelsHidden()
+            .disabled(!canDisable)
+            .controlSize(.small)
+            .help(file.included ? "Download file" : "Skip file")
+
             Image(systemName: file.isPadding ? "doc.badge.gearshape" : "doc")
                 .foregroundStyle(.secondary)
-                .frame(width: 18)
+                .frame(width: 14, height: 18)
 
             VStack(alignment: .leading, spacing: 5) {
-                HStack {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
                     Text(file.path)
                         .lineLimit(1)
                         .truncationMode(.middle)
-                    Spacer()
+                    Spacer(minLength: 8)
                     Text(ByteFormatter.bytes(file.length))
                         .foregroundStyle(.secondary)
                         .monospacedDigit()
@@ -476,20 +537,43 @@ private struct TorrentFileInspectorRow: View {
                 SegmentedProgressView(
                     runs: file.progressRuns,
                     fallbackProgress: file.progress,
-                    state: file.included ? "Downloading" : "Paused"
+                    state: file.included ? "Downloading" : "Paused",
+                    height: 7
                 )
 
-                HStack {
+                HStack(spacing: 8) {
+                    Text("\(InspectorFormat.percent(file.progress))")
+                        .monospacedDigit()
                     Text("\(ByteFormatter.bytes(file.progressBytes)) downloaded")
-                    Spacer()
                     Text(file.included ? file.priority.capitalized : "Skipped")
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(file.included ? Color.secondary : Color.orange)
+                    Spacer(minLength: 8)
+                    Menu {
+                        Button("Download") {
+                            store.setFile(file, included: true, in: torrent)
+                        }
+                        Button("Skip") {
+                            store.setFile(file, included: false, in: torrent)
+                        }
+                        .disabled(!canDisable)
+                    } label: {
+                        Label(
+                            file.included ? "Download" : "Skip",
+                            systemImage: file.included ? "checkmark.circle" : "slash.circle"
+                        )
+                    }
+                    .menuStyle(.borderlessButton)
+                    .controlSize(.small)
+                    .fixedSize()
                 }
                 .font(.caption)
                 .foregroundStyle(.secondary)
             }
         }
-        .padding(.vertical, 2)
+    }
+
+    private var canDisable: Bool {
+        !file.included || includedCount > 1
     }
 }
 
@@ -499,10 +583,10 @@ private struct TorrentOptionsInspector: View {
     let torrent: Torrent
 
     var body: some View {
-        InspectorForm {
-            Section("Transfer") {
-                LabeledContent("Desired State", value: torrent.desiredState.rawValue.capitalized)
-                LabeledContent("Current State", value: torrent.statusLabel)
+        InspectorPane {
+            InspectorGroup("Transfer") {
+                InspectorRow("Desired", value: torrent.desiredState.rawValue.capitalized)
+                InspectorRow("Current", value: torrent.statusLabel)
 
                 HStack(spacing: 8) {
                     Button {
@@ -525,14 +609,15 @@ private struct TorrentOptionsInspector: View {
                         Label("Refresh", systemImage: "arrow.clockwise")
                     }
                 }
+                .controlSize(.small)
             }
 
-            Section("Source") {
-                LabeledContent("Type", value: InspectorFormat.sourceType(torrent))
-                LabeledContent("Restorable", value: torrent.addSource == nil ? "No" : "Yes")
+            InspectorGroup("Source") {
+                InspectorRow("Type", value: InspectorFormat.sourceType(torrent))
+                InspectorRow("Restorable", value: torrent.addSource == nil ? "No" : "Yes")
             }
 
-            Section("File") {
+            InspectorGroup("File") {
                 Button {
                     TorrentFileLocation.revealInFinder(
                         torrent: torrent,
@@ -541,37 +626,148 @@ private struct TorrentOptionsInspector: View {
                 } label: {
                     Label("Reveal in Finder", systemImage: "magnifyingglass")
                 }
+                .controlSize(.small)
             }
 
-            Section("Remove") {
+            InspectorGroup("Remove") {
                 HStack(spacing: 8) {
                     Button(role: .destructive) {
                         store.removeSelectedTorrent()
                     } label: {
-                        Label("Remove", systemImage: "trash")
+                        Label("Remove", systemImage: "xmark")
                     }
 
                     Button(role: .destructive) {
                         store.removeSelectedTorrent(deleteData: true)
                     } label: {
-                        Label("Remove Data", systemImage: "trash.slash")
+                        Label("Remove Data", systemImage: "trash")
                     }
                 }
+                .controlSize(.small)
             }
         }
     }
 }
 
-private struct InspectorForm<Content: View>: View {
+private struct InspectorPane<Content: View>: View {
     @ViewBuilder let content: Content
 
     var body: some View {
-        Form {
+        VStack(alignment: .leading, spacing: 12) {
             content
         }
-        .formStyle(.grouped)
-        .padding(14)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+    }
+}
+
+private struct InspectorGroup<Content: View>: View {
+    let title: String
+    @ViewBuilder let content: Content
+
+    init(_ title: String, @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text(title)
+                .font(.caption)
+                .fontWeight(.semibold)
+                .foregroundStyle(.secondary)
+                .textCase(.uppercase)
+
+            VStack(alignment: .leading, spacing: 3) {
+                content
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct InspectorRow<Content: View>: View {
+    let title: String
+    @ViewBuilder let content: Content
+
+    init(_ title: String, @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.content = content()
+    }
+
+    init(_ title: String, value: String) where Content == Text {
+        self.title = title
+        self.content = Text(value)
+    }
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 9) {
+            Text(title)
+                .foregroundStyle(.secondary)
+                .frame(width: 82, alignment: .trailing)
+
+            content
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .font(.callout)
+    }
+}
+
+private struct InspectorMetricLine<Content: View>: View {
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 14) {
+            content
+        }
+        .font(.callout)
+    }
+}
+
+private struct InspectorMetric: View {
+    let title: String
+    let value: String
+
+    init(_ title: String, _ value: String) {
+        self.title = title
+        self.value = value
+    }
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Text(title)
+                .foregroundStyle(.secondary)
+            Text(value)
+                .monospacedDigit()
+        }
+    }
+}
+
+private struct InspectorTextLine<Content: View>: View {
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        HStack(spacing: 10) {
+            content
+        }
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .lineLimit(1)
+    }
+}
+
+private struct InspectorEmptyState: View {
+    let text: String
+
+    init(_ text: String) {
+        self.text = text
+    }
+
+    var body: some View {
+        Text(text)
+            .font(.callout)
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, 4)
     }
 }
 
@@ -594,9 +790,9 @@ private struct CopyableValue: View {
     }
 
     var body: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 4) {
             Text(value)
-                .font(monospaced ? .system(.body, design: .monospaced) : .body)
+                .font(monospaced ? .system(.callout, design: .monospaced) : .callout)
                 .lineLimit(lineLimit)
                 .truncationMode(.middle)
                 .textSelection(.enabled)
@@ -608,6 +804,7 @@ private struct CopyableValue: View {
                 Image(systemName: "doc.on.doc")
             }
             .buttonStyle(.borderless)
+            .controlSize(.small)
             .help("Copy")
         }
     }
@@ -660,5 +857,35 @@ private enum InspectorFormat {
             return "\(peer.connectionAttempts) attempts"
         }
         return "Queued"
+    }
+
+    static func optionalCount<T: BinaryInteger>(_ value: T?) -> String {
+        value.map { String($0) } ?? "-"
+    }
+
+    static func duration(_ seconds: UInt64) -> String {
+        let hours = seconds / 3600
+        let minutes = (seconds % 3600) / 60
+        let seconds = seconds % 60
+
+        if hours > 0 {
+            return "\(hours)h \(minutes)m"
+        }
+        if minutes > 0 {
+            return "\(minutes)m \(seconds)s"
+        }
+        return "\(seconds)s"
+    }
+}
+
+private extension TorrentPeer {
+    var isLiveConnection: Bool {
+        state == "live" || connections > 0
+    }
+}
+
+private extension Comparable {
+    func clamped(to range: ClosedRange<Self>) -> Self {
+        min(max(self, range.lowerBound), range.upperBound)
     }
 }

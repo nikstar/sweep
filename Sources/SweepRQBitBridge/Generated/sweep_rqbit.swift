@@ -566,6 +566,8 @@ public protocol SweepEngineProtocol: AnyObject, Sendable {
 
     func sessionSnapshot() async throws  -> TorrentSessionSnapshot
 
+    func updateOnlyFiles(id: String, fileIds: [UInt64]) async throws  -> TorrentSnapshot
+
 }
 open class SweepEngine: SweepEngineProtocol, @unchecked Sendable {
     fileprivate let handle: UInt64
@@ -743,6 +745,23 @@ open func sessionSnapshot()async throws  -> TorrentSessionSnapshot  {
             completeFunc: ffi_sweep_rqbit_rust_future_complete_rust_buffer,
             freeFunc: ffi_sweep_rqbit_rust_future_free_rust_buffer,
             liftFunc: FfiConverterTypeTorrentSessionSnapshot_lift,
+            errorHandler: FfiConverterTypeSweepError_lift
+        )
+}
+
+open func updateOnlyFiles(id: String, fileIds: [UInt64])async throws  -> TorrentSnapshot  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_sweep_rqbit_fn_method_sweepengine_update_only_files(
+                    self.uniffiCloneHandle(),
+                    FfiConverterString.lower(id),FfiConverterSequenceUInt64.lower(fileIds)
+                )
+            },
+            pollFunc: ffi_sweep_rqbit_rust_future_poll_rust_buffer,
+            completeFunc: ffi_sweep_rqbit_rust_future_complete_rust_buffer,
+            freeFunc: ffi_sweep_rqbit_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeTorrentSnapshot_lift,
             errorHandler: FfiConverterTypeSweepError_lift
         )
 }
@@ -1499,6 +1518,31 @@ fileprivate struct FfiConverterOptionString: FfiConverterRustBuffer {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterSequenceUInt64: FfiConverterRustBuffer {
+    typealias SwiftType = [UInt64]
+
+    public static func write(_ value: [UInt64], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterUInt64.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [UInt64] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [UInt64]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterUInt64.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterSequenceString: FfiConverterRustBuffer {
     typealias SwiftType = [String]
 
@@ -1728,6 +1772,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_sweep_rqbit_checksum_method_sweepengine_session_snapshot() != 7402) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_sweep_rqbit_checksum_method_sweepengine_update_only_files() != 11478) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_sweep_rqbit_checksum_constructor_sweepengine_new() != 26636) {

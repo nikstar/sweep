@@ -86,32 +86,36 @@ The toolbar should be compact and action-oriented.
 
 The Info inspector should remain a separate auxiliary macOS window with tabs.
 
+- [x] Use a compact inspector layout aligned with the tab control.
+- [x] Avoid nested containers and duplicate section headers.
+- [x] Keep rows dense enough for a classic macOS utility panel.
+
 ### Trackers
 
-- Add tracker details similar to Transmission.
-- Show announce URL.
-- Show scrape URL when available.
-- Show status and last error.
-- Show last announce time.
-- Show next announce time.
-- Show seeders, leechers, and downloads when available.
+- [x] Add tracker details similar to Transmission.
+- [x] Show announce URL.
+- [x] Show scrape URL when available.
+- [x] Show status and last error.
+- [x] Show last announce time.
+- [x] Show next announce time.
+- [x] Show seeders, leechers, and downloads when available.
 
 ### Files
 
-- Show all files in the torrent.
-- Support file priority.
-- Support download or skip.
-- Show per-file progress.
-- Use the same segmented progress style as the main list.
+- [x] Show all files in the torrent.
+- [ ] Support full file priority tiers if rqbit exposes them.
+- [x] Support download or skip.
+- [x] Show per-file progress.
+- [x] Use the same segmented progress style as the main list.
 
 ### Peers
 
-- Show peer IP addresses.
-- Show available feature flags.
-- Show country flags or country code when resolved.
-- Show peer availability.
-- Show peer client when available.
-- Show transfer rates when available.
+- [x] Show peer IP addresses.
+- [x] Show available feature flags.
+- [ ] Show country flags or country code when resolved.
+- [x] Show peer availability.
+- [x] Show peer client when available.
+- [x] Show transfer rates when available.
 
 ## Bottom Status Line
 

@@ -12,6 +12,7 @@ public protocol TorrentEngine: Sendable {
     func pause(id: Torrent.ID) async throws -> Torrent
     func resume(id: Torrent.ID) async throws -> Torrent
     func remove(id: Torrent.ID, deleteData: Bool) async throws
+    func setFileSelection(id: Torrent.ID, includedFileIDs: [Int]) async throws -> Torrent
 }
 
 public extension TorrentEngine {
@@ -37,5 +38,17 @@ public extension TorrentEngine {
             downloadDirectory: downloadDirectory,
             startPaused: startPaused
         )
+    }
+
+    func setFileSelection(id: Torrent.ID, includedFileIDs: [Int]) async throws -> Torrent {
+        throw TorrentEngineUnsupportedOperation(message: "This engine cannot change file selection.")
+    }
+}
+
+private struct TorrentEngineUnsupportedOperation: LocalizedError, Sendable {
+    let message: String
+
+    var errorDescription: String? {
+        message
     }
 }

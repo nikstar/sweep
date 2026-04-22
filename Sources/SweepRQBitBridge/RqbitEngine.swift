@@ -94,6 +94,16 @@ public final class RqbitEngine: TorrentEngine, @unchecked Sendable {
             try await engine.removeTorrent(id: id, deleteData: deleteData)
         }
     }
+
+    public func setFileSelection(id: Torrent.ID, includedFileIDs: [Int]) async throws -> Torrent {
+        try await mapRqbitError {
+            let snapshot = try await engine.updateOnlyFiles(
+                id: id,
+                fileIds: includedFileIDs.map(UInt64.init)
+            )
+            return Torrent(snapshot: snapshot, downloadDirectory: nil)
+        }
+    }
 }
 
 private struct RqbitEngineError: LocalizedError, Sendable {

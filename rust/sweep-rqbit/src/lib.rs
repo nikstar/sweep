@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{BTreeMap, BTreeSet, HashSet},
     net::{Ipv4Addr, Ipv6Addr, SocketAddr},
     path::PathBuf,
     sync::Arc,
@@ -277,6 +277,23 @@ impl SweepEngine {
 
         rx.await?
     }
+
+    pub async fn update_only_files(
+        &self,
+        id: String,
+        file_ids: Vec<u64>,
+    ) -> Result<TorrentSnapshot, SweepError> {
+        let session = self.session.clone();
+        let runtime = self.runtime.handle().clone();
+        let (tx, rx) = oneshot::channel();
+
+        runtime.spawn(async move {
+            let result = update_only_files_in_session(session, id, file_ids).await;
+            let _ = tx.send(result);
+        });
+
+        rx.await?
+    }
 }
 
 async fn add_torrent_to_session(
@@ -499,6 +516,28 @@ async fn remove_torrent_from_session(
     }
     session.delete(id, delete_data).await?;
     Ok(())
+}
+
+async fn update_only_files_in_session(
+    session: Arc<Session>,
+    id: String,
+    file_ids: Vec<u64>,
+) -> Result<TorrentSnapshot, SweepError> {
+    let id = parse_torrent_id(&id)?;
+    let handle = session
+        .get(id)
+        .with_context(|| format!("torrent {id} is not managed"))?;
+    let only_files = file_ids
+        .into_iter()
+        .map(|file_id| {
+            usize::try_from(file_id).map_err(|_| {
+                SweepError::Message(format!("file id {file_id} is too large for this platform"))
+            })
+        })
+        .collect::<Result<HashSet<_>, _>>()?;
+
+    session.update_only_files(&handle, &only_files).await?;
+    Ok(snapshot(&handle))
 }
 
 fn parse_torrent_id(id: &str) -> Result<TorrentIdOrHash, SweepError> {

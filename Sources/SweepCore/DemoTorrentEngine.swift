@@ -111,6 +111,25 @@ public actor DemoTorrentEngine: TorrentEngine {
         torrents.removeAll { $0.id == id }
     }
 
+    public func setFileSelection(id: Torrent.ID, includedFileIDs: [Int]) async throws -> Torrent {
+        let includedFileIDs = Set(includedFileIDs)
+        return try update(id: id) { torrent in
+            let files = torrent.files.map { file in
+                TorrentFile(
+                    id: file.id,
+                    path: file.path,
+                    length: file.length,
+                    progressBytes: file.progressBytes,
+                    progressRuns: file.progressRuns,
+                    included: includedFileIDs.contains(file.id),
+                    isPadding: file.isPadding,
+                    priority: includedFileIDs.contains(file.id) ? "normal" : "skip"
+                )
+            }
+            return torrent.updating(files: files)
+        }
+    }
+
     private func update(id: Torrent.ID, apply: (Torrent) -> Torrent) throws -> Torrent {
         guard let index = torrents.firstIndex(where: { $0.id == id }) else {
             throw DemoTorrentEngineError(message: "No torrent with info hash \(id)")
