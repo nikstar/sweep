@@ -17,6 +17,7 @@
 		27C3FB0CC63F9B46A41112A1 /* SweepCore_iOS.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E9AA3930F0AD69B5C0C8BB12 /* SweepCore_iOS.framework */; };
 		2DF7D77E49DFA89C75A39CB8 /* SweepDatabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CD31BD1767BAE4A0835981A /* SweepDatabase.swift */; };
 		31F807EE66CEA8022DB12BB2 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83C54817B7513419209B220D /* ContentView.swift */; };
+		3795B496E3B8B7BCE4F856CB /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = A5E1498FACE23FDE2E8078D3 /* AppIcon.icon */; };
 		4494CC40E2124D1174A4ADAB /* SweepCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 0BC96D1162EF3968BDF0D2F5 /* SweepCore.framework */; };
 		44B81FDD13EECE27D08B7561 /* TorrentEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31CD22163BB8E95C32B2566C /* TorrentEngine.swift */; };
 		475FF5DEBDDE594449F9CCBA /* ByteFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F8FD96678BCF122632A91E1 /* ByteFormatter.swift */; };
@@ -161,6 +162,7 @@
 		83C54817B7513419209B220D /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		8502601AC92AD223E2C71A06 /* AppPersistence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppPersistence.swift; sourceTree = "<group>"; };
 		9CD31BD1767BAE4A0835981A /* SweepDatabase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SweepDatabase.swift; sourceTree = "<group>"; };
+		A5E1498FACE23FDE2E8078D3 /* AppIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = wrapper.icon; path = AppIcon.icon; sourceTree = "<group>"; };
 		A7DD29344354B70BB9CF9D24 /* magnet.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = magnet.txt; sourceTree = "<group>"; };
 		AC69917A4647B84CD9A22161 /* sweep_rqbitFFI.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = sweep_rqbitFFI.h; sourceTree = "<group>"; };
 		BFC5C2F202CC8BD9FBD5B831 /* SweepRQBitBridge.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = SweepRQBitBridge.framework; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -260,6 +262,7 @@
 		2970D2188FBB939EBC8EDEDE /* Resources */ = {
 			isa = PBXGroup;
 			children = (
+				A5E1498FACE23FDE2E8078D3 /* AppIcon.icon */,
 				1C768342A0B00653E1909911 /* Assets.xcassets */,
 				2C826FEFE14648185ECE544D /* Info.plist */,
 			);
@@ -616,6 +619,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				3795B496E3B8B7BCE4F856CB /* AppIcon.icon in Resources */,
 				4AD705AA9C1BA0DD05569D7A /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
