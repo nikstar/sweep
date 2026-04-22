@@ -5,7 +5,7 @@ edition = "2024"
 
 [lib]
 name = "sweep_rqbit"
-crate-type = ["cdylib", "staticlib"]
+crate-type = ["cdylib", "staticlib", "rlib"]
 
 [[bin]]
 name = "uniffi-bindgen-swift"
@@ -13,11 +13,14 @@ path = "src/bin/uniffi-bindgen-swift.rs"
 
 [dependencies]
 anyhow = "1"
+bencode = { path = "../../references/rqbit/crates/bencode", package = "librqbit-bencode" }
 futures-channel = "0.3"
 librqbit = { path = "../../references/rqbit/crates/librqbit" }
+reqwest = { version = "0.12", default-features = false, features = ["default-tls"] }
 thiserror = "2"
 tokio = { version = "1", features = ["rt-multi-thread", "time"] }
 uniffi = { version = "0.31.1", features = ["cli"] }
+urlencoding = "2"
 
 [patch.crates-io]
 librqbit-dualstack-sockets = { path = "../patches/librqbit-dualstack-sockets" }

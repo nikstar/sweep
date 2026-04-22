@@ -22,6 +22,8 @@ ROOT_DIR="${SRCROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
 MANIFEST_PATH="$ROOT_DIR/rust/sweep-rqbit/Cargo.toml"
 CRATE_DIR="$ROOT_DIR/rust/sweep-rqbit"
 GENERATED_DIR="$ROOT_DIR/Sources/SweepRQBitBridge/Generated"
+RQBIT_DIR="$ROOT_DIR/references/rqbit"
+RQBIT_TRACKER_COMPAT_PATCH="$ROOT_DIR/rust/patches/rqbit-tracker-compat.patch"
 
 if [ "${CONFIGURATION:-Debug}" = "Release" ]; then
   RUST_PROFILE="release"
@@ -32,6 +34,8 @@ else
 fi
 
 build_host_bridge() {
+  apply_rqbit_patches
+
   if [ "${RUST_PROFILE}" = "release" ]; then
     "$CARGO" build --release --manifest-path "$MANIFEST_PATH"
   else
@@ -70,6 +74,8 @@ build_host_bridge() {
 }
 
 build_ios_bridge() {
+  apply_rqbit_patches
+
   case "${PLATFORM_NAME:-}" in
     iphonesimulator)
       RUST_TARGET="${SWEEP_RUST_TARGET:-aarch64-apple-ios-sim}"
@@ -88,6 +94,26 @@ build_ios_bridge() {
   else
     "$CARGO" build --target "$RUST_TARGET" --manifest-path "$MANIFEST_PATH"
   fi
+}
+
+apply_rqbit_patches() {
+  if [ ! -d "$RQBIT_DIR/.git" ]; then
+    echo "error: expected rqbit reference checkout at $RQBIT_DIR" >&2
+    exit 1
+  fi
+
+  if git -C "$RQBIT_DIR" apply --reverse --check "$RQBIT_TRACKER_COMPAT_PATCH" >/dev/null 2>&1; then
+    return
+  fi
+
+  if git -C "$RQBIT_DIR" apply --check "$RQBIT_TRACKER_COMPAT_PATCH" >/dev/null 2>&1; then
+    git -C "$RQBIT_DIR" apply "$RQBIT_TRACKER_COMPAT_PATCH"
+    return
+  fi
+
+  echo "error: could not apply rqbit tracker compatibility patch." >&2
+  echo "The rqbit reference checkout may have changed; inspect $RQBIT_TRACKER_COMPAT_PATCH." >&2
+  exit 1
 }
 
 case "${PLATFORM_NAME:-macosx}" in

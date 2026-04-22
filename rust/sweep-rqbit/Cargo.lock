@@ -2623,9 +2623,12 @@ dependencies = [
  "anyhow",
  "futures-channel",
  "librqbit",
+ "librqbit-bencode",
+ "reqwest",
  "thiserror 2.0.18",
  "tokio",
  "uniffi",
+ "urlencoding",
 ]
 
 [[package]]

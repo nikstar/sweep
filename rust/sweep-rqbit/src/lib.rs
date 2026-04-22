@@ -1,15 +1,24 @@
-use std::{path::PathBuf, sync::Arc};
+use std::{
+    net::{Ipv4Addr, Ipv6Addr, SocketAddr},
+    path::PathBuf,
+    sync::Arc,
+    time::Duration,
+};
 
 use anyhow::Context;
+use bencode::{BencodeValue, ByteBuf};
 use futures_channel::oneshot;
 use librqbit::{
     AddTorrent, AddTorrentOptions, AddTorrentResponse, ConnectionOptions, ListenerMode,
-    ListenerOptions, ManagedTorrent, Session, SessionOptions, api::TorrentIdOrHash,
-    http_api_types::PeerStatsFilter,
+    ListenerOptions, ManagedTorrent, Session, SessionOptions, api::TorrentIdOrHash, dht::Id20,
+    generate_azereus_style, http_api_types::PeerStatsFilter,
 };
 use tokio::runtime::{Builder, Runtime};
 
 uniffi::setup_scaffolding!();
+
+const TRACKER_COMPAT_USER_AGENT: &str = "Transmission/4.0.6";
+const TRACKER_COMPAT_TIMEOUT: Duration = Duration::from_secs(12);
 
 #[derive(Debug, thiserror::Error, uniffi::Error)]
 #[uniffi(flat_error)]
@@ -80,6 +89,7 @@ pub struct TorrentSnapshot {
 pub struct SweepEngine {
     runtime: Runtime,
     session: Arc<Session>,
+    peer_id: Id20,
 }
 
 #[uniffi::export]
@@ -91,11 +101,13 @@ impl SweepEngine {
             .thread_name("sweep-rqbit")
             .build()
             .context("failed to create rqbit runtime")?;
+        let peer_id = tracker_compatible_peer_id();
         let session = runtime
             .block_on(Session::new_with_opts(
                 PathBuf::from(download_dir),
                 SessionOptions {
                     disable_dht_persistence: true,
+                    peer_id: Some(peer_id),
                     listen: Some(ListenerOptions {
                         mode: ListenerMode::TcpAndUtp,
                         ..Default::default()
@@ -106,7 +118,11 @@ impl SweepEngine {
             ))
             .context("failed to create rqbit session")?;
 
-        Ok(Arc::new(Self { runtime, session }))
+        Ok(Arc::new(Self {
+            runtime,
+            session,
+            peer_id,
+        }))
     }
 
     pub async fn add_magnet(
@@ -125,6 +141,7 @@ impl SweepEngine {
                 AddTorrent::from_url(magnet),
                 download_dir,
                 start_paused,
+                Vec::new(),
             )
             .await;
             let _ = tx.send(result);
@@ -140,15 +157,23 @@ impl SweepEngine {
         start_paused: bool,
     ) -> Result<TorrentSnapshot, SweepError> {
         let session = self.session.clone();
+        let peer_id = self.peer_id;
         let runtime = self.runtime.handle().clone();
         let (tx, rx) = oneshot::channel();
 
         runtime.spawn(async move {
+            let initial_peers = announce_initial_peers_for_torrent(
+                &torrent_bytes,
+                peer_id,
+                session.announce_port(),
+            )
+            .await;
             let result = add_torrent_to_session(
                 session,
                 AddTorrent::from_bytes(torrent_bytes),
                 download_dir,
                 start_paused,
+                initial_peers,
             )
             .await;
             let _ = tx.send(result);
@@ -211,6 +236,7 @@ async fn add_torrent_to_session(
     add_torrent: AddTorrent<'static>,
     download_dir: String,
     start_paused: bool,
+    initial_peers: Vec<SocketAddr>,
 ) -> Result<TorrentSnapshot, SweepError> {
     let response = session
         .add_torrent(
@@ -219,6 +245,7 @@ async fn add_torrent_to_session(
                 overwrite: true,
                 output_folder: Some(download_dir),
                 paused: start_paused,
+                initial_peers: (!initial_peers.is_empty()).then_some(initial_peers),
                 ..Default::default()
             }),
         )
@@ -235,6 +262,154 @@ async fn add_torrent_to_session(
     };
 
     Ok(snapshot(&handle))
+}
+
+fn tracker_compatible_peer_id() -> Id20 {
+    generate_azereus_style(*b"rQ", (9, 0, 0, 0))
+}
+
+async fn announce_initial_peers_for_torrent(
+    torrent_bytes: &[u8],
+    peer_id: Id20,
+    announce_port: Option<u16>,
+) -> Vec<SocketAddr> {
+    let Some(announce_port) = announce_port else {
+        return Vec::new();
+    };
+
+    let Ok(torrent) = librqbit::torrent_from_bytes(torrent_bytes) else {
+        return Vec::new();
+    };
+
+    let left = torrent
+        .info
+        .data
+        .length
+        .or_else(|| {
+            torrent.info.data.files.as_ref().map(|files| {
+                files
+                    .iter()
+                    .map(|file| file.length)
+                    .fold(0_u64, u64::saturating_add)
+            })
+        })
+        .unwrap_or_default();
+
+    let trackers = torrent
+        .iter_announce()
+        .filter_map(|tracker| std::str::from_utf8(tracker.as_ref()).ok())
+        .filter(|tracker| tracker.starts_with("http://") || tracker.starts_with("https://"))
+        .collect::<Vec<_>>();
+    if trackers.is_empty() {
+        return Vec::new();
+    }
+
+    let Ok(client) = reqwest::Client::builder()
+        .timeout(TRACKER_COMPAT_TIMEOUT)
+        .build()
+    else {
+        return Vec::new();
+    };
+
+    let mut peers = Vec::new();
+    for tracker in trackers {
+        if let Ok(mut tracker_peers) = announce_initial_peers(
+            &client,
+            tracker,
+            torrent.info_hash,
+            peer_id,
+            announce_port,
+            left,
+        )
+        .await
+        {
+            peers.append(&mut tracker_peers);
+        }
+    }
+    peers.sort_unstable();
+    peers.dedup();
+    peers
+}
+
+async fn announce_initial_peers(
+    client: &reqwest::Client,
+    tracker: &str,
+    info_hash: Id20,
+    peer_id: Id20,
+    announce_port: u16,
+    left: u64,
+) -> anyhow::Result<Vec<SocketAddr>> {
+    let mut url = reqwest::Url::parse(tracker)?;
+    let key = u32::from_be_bytes(peer_id.0[8..12].try_into()?);
+    let mut query = format!(
+        "info_hash={}&peer_id={}&port={announce_port}&uploaded=0&downloaded=0&left={left}&numwant=80&key={key:08X}&compact=1&supportcrypto=1&event=started",
+        urlencoding::encode_binary(&info_hash.0),
+        urlencoding::encode_binary(&peer_id.0)
+    );
+    if let Some(existing_query) = url.query() {
+        query.push('&');
+        query.push_str(existing_query);
+    }
+    url.set_query(Some(&query));
+
+    let response = client
+        .get(url)
+        .header(reqwest::header::USER_AGENT, TRACKER_COMPAT_USER_AGENT)
+        .send()
+        .await?;
+    if !response.status().is_success() {
+        anyhow::bail!("tracker responded with {}", response.status());
+    }
+
+    let bytes = response.bytes().await?;
+    parse_compact_tracker_peers(&bytes)
+}
+
+fn parse_compact_tracker_peers(bytes: &[u8]) -> anyhow::Result<Vec<SocketAddr>> {
+    let value = bencode::dyn_from_bytes::<ByteBuf<'_>>(bytes)
+        .map_err(|error| anyhow::anyhow!("{error:#}"))?;
+    let BencodeValue::Dict(dict) = value else {
+        return Ok(Vec::new());
+    };
+
+    if let Some(BencodeValue::Bytes(reason)) = dict.get(&ByteBuf(b"failure reason")) {
+        anyhow::bail!("tracker returned failure: {reason}");
+    }
+
+    let mut peers = Vec::new();
+    if let Some(BencodeValue::Bytes(compact_peers)) = dict.get(&ByteBuf(b"peers")) {
+        peers.extend(parse_compact_ipv4_peers(compact_peers.as_ref()));
+    }
+    if let Some(BencodeValue::Bytes(compact_peers6)) = dict.get(&ByteBuf(b"peers6")) {
+        peers.extend(parse_compact_ipv6_peers(compact_peers6.as_ref()));
+    }
+    Ok(peers)
+}
+
+fn parse_compact_ipv4_peers(bytes: &[u8]) -> Vec<SocketAddr> {
+    bytes
+        .chunks_exact(6)
+        .map(|chunk| {
+            SocketAddr::new(
+                Ipv4Addr::new(chunk[0], chunk[1], chunk[2], chunk[3]).into(),
+                u16::from_be_bytes([chunk[4], chunk[5]]),
+            )
+        })
+        .collect()
+}
+
+fn parse_compact_ipv6_peers(bytes: &[u8]) -> Vec<SocketAddr> {
+    bytes
+        .chunks_exact(18)
+        .map(|chunk| {
+            let mut addr = [0_u8; 16];
+            addr.copy_from_slice(&chunk[..16]);
+            SocketAddr::new(
+                Ipv6Addr::from(addr).into(),
+                u16::from_be_bytes([chunk[16], chunk[17]]),
+            )
+        })
+        .collect()
 }
 
 async fn pause_torrent_in_session(

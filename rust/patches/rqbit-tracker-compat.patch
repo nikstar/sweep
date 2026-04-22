@@ -1,0 +1,42 @@
+diff --git a/crates/tracker_comms/src/tracker_comms.rs b/crates/tracker_comms/src/tracker_comms.rs
+index 7614b1dd..44b67507 100644
+--- a/crates/tracker_comms/src/tracker_comms.rs
++++ b/crates/tracker_comms/src/tracker_comms.rs
+@@ -277,7 +277,7 @@ impl TrackerComms {
+             no_peer_id: false,
+             event,
+             ip: None,
+-            numwant: None,
++            numwant: Some(80),
+             key: Some(self.key),
+             trackerid: None,
+         };
+@@ -290,7 +290,12 @@ impl TrackerComms {
+         }
+         url.set_query(Some(&queries));
+ 
+-        let response: reqwest::Response = self.reqwest_client.get(url).send().await?;
++        let response: reqwest::Response = self
++            .reqwest_client
++            .get(url)
++            .header(reqwest::header::USER_AGENT, "Transmission/4.0.6")
++            .send()
++            .await?;
+         if !response.status().is_success() {
+             anyhow::bail!("tracker responded with {:?}", response.status());
+         }
+diff --git a/crates/tracker_comms/src/tracker_comms_http.rs b/crates/tracker_comms/src/tracker_comms_http.rs
+index 2d4e1875..c6e4b43b 100644
+--- a/crates/tracker_comms/src/tracker_comms_http.rs
++++ b/crates/tracker_comms/src/tracker_comms_http.rs
+@@ -195,8 +195,9 @@ impl TrackerRequest<'_> {
+             write!(s, "&numwant={numwant}").unwrap();
+         }
+         if let Some(key) = &self.key {
+-            write!(s, "&key={key}").unwrap();
++            write!(s, "&key={key:08X}").unwrap();
+         }
++        s.push_str("&supportcrypto=1");
+         if let Some(trackerid) = &self.trackerid {
+             write!(s, "&trackerid={trackerid}").unwrap();
+         }
