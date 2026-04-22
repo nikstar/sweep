@@ -2,7 +2,7 @@ import SwiftUI
 import SweepCore
 
 struct TorrentInspectorWindowView: View {
-    @EnvironmentObject private var store: TorrentStore
+    @Environment(TorrentStore.self) private var store
     @State private var selectedTab: InspectorTab = .info
     @State private var confirmingRemoveData = false
 
@@ -62,7 +62,6 @@ struct TorrentInspectorWindowView: View {
                 torrent: torrent,
                 confirmRemoveData: { confirmingRemoveData = true }
             )
-            .environmentObject(store)
         }
     }
 }

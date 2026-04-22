@@ -1,19 +1,21 @@
 import Foundation
+import Observation
 
 @MainActor
-public final class TorrentStore: ObservableObject {
-    @Published public var torrents: [Torrent] = []
-    @Published public var selection: Torrent.ID? {
+@Observable
+public final class TorrentStore {
+    public var torrents: [Torrent] = []
+    public var selection: Torrent.ID? {
         didSet {
             persistSelection()
         }
     }
-    @Published public var showingAddSheet = false
-    @Published public var pendingAddSource: TorrentAddSource?
-    @Published public var lastError: String?
-    @Published public var downloadDirectory: String
-    @Published public var sessionStats: TorrentSessionStats = .empty
-    @Published public var visibleColumns: Set<TorrentListColumn> {
+    public var showingAddSheet = false
+    public var pendingAddSource: TorrentAddSource?
+    public var lastError: String?
+    public var downloadDirectory: String
+    public var sessionStats: TorrentSessionStats = .empty
+    public var visibleColumns: Set<TorrentListColumn> {
         didSet {
             persistVisibleColumns()
         }
@@ -21,7 +23,9 @@ public final class TorrentStore: ObservableObject {
 
     private let engine: TorrentEngine
     private let persistence: AppPersistence?
+    @ObservationIgnored
     private var pollingTask: Task<Void, Never>?
+    @ObservationIgnored
     private var launchTask: Task<Void, Never>?
 
     public init(

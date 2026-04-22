@@ -2,7 +2,7 @@ import SwiftUI
 import SweepCore
 
 struct SettingsView: View {
-    @EnvironmentObject private var store: TorrentStore
+    @Environment(TorrentStore.self) private var store
 
     var body: some View {
         Form {

@@ -2,7 +2,7 @@ import SwiftUI
 import SweepCore
 
 struct TorrentOptionsInspector: View {
-    @EnvironmentObject private var store: TorrentStore
+    @Environment(TorrentStore.self) private var store
 
     let torrent: Torrent
     let confirmRemoveData: () -> Void

@@ -2,7 +2,7 @@ import SwiftUI
 import SweepCore
 
 struct TorrentFilesInspector: View {
-    @EnvironmentObject private var store: TorrentStore
+    @Environment(TorrentStore.self) private var store
 
     let torrent: Torrent
     let defaultDownloadDirectory: String
@@ -67,7 +67,6 @@ struct TorrentFilesInspector: View {
                             file: file,
                             includedCount: includedCount
                         )
-                        .environmentObject(store)
                     }
                 }
             }
@@ -76,7 +75,7 @@ struct TorrentFilesInspector: View {
 }
 
 private struct TorrentFileInspectorRow: View {
-    @EnvironmentObject private var store: TorrentStore
+    @Environment(TorrentStore.self) private var store
 
     let torrent: Torrent
     let file: TorrentFile

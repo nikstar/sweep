@@ -1,11 +1,14 @@
 import AppKit
+import Observation
 import SwiftUI
 import SweepCore
 
 @MainActor
-final class TorrentInspectorPanelPresenter: ObservableObject {
-    @Published private(set) var isPresented = false
+@Observable
+final class TorrentInspectorPanelPresenter {
+    private(set) var isPresented = false
 
+    @ObservationIgnored
     private var controller: TorrentInspectorWindowController?
 
     func show(store: TorrentStore) {
@@ -30,7 +33,7 @@ private final class TorrentInspectorWindowController: NSWindowController, NSWind
         self.onClose = onClose
         let hostingController = NSHostingController(
             rootView: TorrentInspectorWindowView()
-                .environmentObject(store)
+                .environment(store)
         )
         let panel = NSPanel(
             contentRect: NSRect(x: 0, y: 0, width: 460, height: 560),

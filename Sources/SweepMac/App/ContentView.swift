@@ -2,8 +2,8 @@ import SwiftUI
 import SweepCore
 
 struct ContentView: View {
-    @EnvironmentObject private var store: TorrentStore
-    @EnvironmentObject private var inspectorPanelPresenter: TorrentInspectorPanelPresenter
+    @Environment(TorrentStore.self) private var store
+    @Environment(TorrentInspectorPanelPresenter.self) private var inspectorPanelPresenter
     @Binding var confirmingRemoveData: Bool
 
     init(confirmingRemoveData: Binding<Bool> = .constant(false)) {
@@ -11,6 +11,8 @@ struct ContentView: View {
     }
 
     var body: some View {
+        @Bindable var store = store
+
         TorrentListView(confirmingRemoveData: $confirmingRemoveData)
         .toolbar {
             ToolbarItem(placement: .navigation) {
@@ -94,7 +96,7 @@ struct ContentView: View {
                 source: store.pendingAddSource,
                 downloadDirectory: store.downloadDirectory
             )
-                .environmentObject(store)
+                .environment(store)
         }
         .dropDestination(for: URL.self) { urls, _ in
             guard let url = urls.first else { return false }

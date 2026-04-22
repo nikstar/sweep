@@ -3,8 +3,8 @@ import SwiftUI
 import SweepCore
 
 struct TorrentListView: View {
-    @EnvironmentObject private var store: TorrentStore
-    @EnvironmentObject private var inspectorPanelPresenter: TorrentInspectorPanelPresenter
+    @Environment(TorrentStore.self) private var store
+    @Environment(TorrentInspectorPanelPresenter.self) private var inspectorPanelPresenter
     @Binding var confirmingRemoveData: Bool
     @SceneStorage("Sweep.TorrentList.columnCustomization")
     private var columnCustomization = TableColumnCustomization<Torrent>()
@@ -16,6 +16,8 @@ struct TorrentListView: View {
     }
 
     var body: some View {
+        @Bindable var store = store
+
         VStack(spacing: 0) {
             Table(
                 store.torrents,
@@ -27,7 +29,6 @@ struct TorrentListView: View {
                         torrent: torrent,
                         isSelected: store.selection == torrent.id
                     )
-                        .environmentObject(store)
                 }
                 .width(min: 320, ideal: 420)
                 .customizationID("name")
@@ -213,7 +214,7 @@ private struct PeerColumnSummary {
 }
 
 private struct TorrentNameCell: View {
-    @EnvironmentObject private var store: TorrentStore
+    @Environment(TorrentStore.self) private var store
     @State private var isHovering = false
 
     let torrent: Torrent
@@ -397,7 +398,7 @@ private struct TransferRateLine: View {
 }
 
 private struct TransferStatusBar: View {
-    @EnvironmentObject private var store: TorrentStore
+    @Environment(TorrentStore.self) private var store
 
     var body: some View {
         HStack(spacing: 16) {

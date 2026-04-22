@@ -1,10 +1,11 @@
 import SwiftUI
+import Observation
 import OSLog
 import SweepCore
 import SweepRQBitBridge
 
 struct IOSContentView: View {
-    @StateObject private var probe = IOSDownloadProbe()
+    @State private var probe = IOSDownloadProbe()
 
     var body: some View {
         NavigationStack {
@@ -48,20 +49,24 @@ struct IOSContentView: View {
 }
 
 @MainActor
-final class IOSDownloadProbe: ObservableObject {
-    @Published var status = "Idle"
-    @Published var torrentName = "Sample Magnet"
-    @Published var progressBytes: UInt64 = 0
-    @Published var totalBytes: UInt64 = 0
-    @Published var downloadBps: Double = 0
-    @Published var uploadBps: Double = 0
-    @Published var message: String?
-    @Published var didVerifyDownload = false
+@Observable
+final class IOSDownloadProbe {
+    var status = "Idle"
+    var torrentName = "Sample Magnet"
+    var progressBytes: UInt64 = 0
+    var totalBytes: UInt64 = 0
+    var downloadBps: Double = 0
+    var uploadBps: Double = 0
+    var message: String?
+    var didVerifyDownload = false
 
     let downloadDirectory: String
 
+    @ObservationIgnored
     private var task: Task<Void, Never>?
+    @ObservationIgnored
     private var engine: RqbitEngine?
+    @ObservationIgnored
     private let logger = Logger(subsystem: "com.nikstar.sweep.ios", category: "Probe")
 
     init() {

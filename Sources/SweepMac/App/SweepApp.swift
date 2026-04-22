@@ -4,15 +4,15 @@ import SweepRQBitBridge
 
 @main
 struct SweepApp: App {
-    @StateObject private var store = AppEnvironment.makeTorrentStore()
-    @StateObject private var inspectorPanelPresenter = TorrentInspectorPanelPresenter()
+    @State private var store = AppEnvironment.makeTorrentStore()
+    @State private var inspectorPanelPresenter = TorrentInspectorPanelPresenter()
     @State private var confirmingRemoveData = false
 
     var body: some Scene {
         WindowGroup {
             ContentView(confirmingRemoveData: $confirmingRemoveData)
-                .environmentObject(store)
-                .environmentObject(inspectorPanelPresenter)
+                .environment(store)
+                .environment(inspectorPanelPresenter)
                 .frame(minWidth: 820, minHeight: 500)
                 .onOpenURL { url in
                     store.beginAdding(url: url)
@@ -22,7 +22,7 @@ struct SweepApp: App {
 
         Settings {
             SettingsView()
-                .environmentObject(store)
+                .environment(store)
         }
         .commands {
             CommandGroup(replacing: .newItem) {
