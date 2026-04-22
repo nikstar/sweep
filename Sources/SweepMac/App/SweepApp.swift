@@ -19,7 +19,7 @@ struct SweepApp: App {
                     store.beginAdding(url: url)
                 }
         }
-        .windowStyle(.titleBar)
+        .windowStyle(.hiddenTitleBar)
 
         Settings {
             SettingsView()

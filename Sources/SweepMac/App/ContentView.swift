@@ -13,59 +13,71 @@ struct ContentView: View {
     var body: some View {
         TorrentListView(confirmingRemoveData: $confirmingRemoveData)
         .toolbar {
-            ToolbarItemGroup(placement: .primaryAction) {
-                Button {
-                    openTorrent()
-                } label: {
-                    Label("Add File", systemImage: "doc.badge.plus")
-                        .labelStyle(.iconOnly)
-                }
-                .help("Add Torrent File")
+            ToolbarItem(placement: .navigation) {
+                ControlGroup {
+                    Button {
+                        openTorrent()
+                    } label: {
+                        Label("Add File", systemImage: "doc.badge.plus")
+                            .labelStyle(.iconOnly)
+                    }
+                    .help("Add Torrent File")
 
-                Button {
-                    store.beginAddingMagnet(magnetFromPasteboard() ?? "")
-                } label: {
-                    Label("Add URL", systemImage: "link.badge.plus")
-                        .labelStyle(.iconOnly)
+                    Button {
+                        store.beginAddingMagnet(magnetFromPasteboard() ?? "")
+                    } label: {
+                        Label("Add URL", systemImage: "link.badge.plus")
+                            .labelStyle(.iconOnly)
+                    }
+                    .help("Add Magnet Link")
                 }
-                .help("Add Magnet Link")
+            }
 
-                Button {
-                    store.resumeSelectedTorrent()
-                } label: {
-                    Label("Resume", systemImage: "play.fill")
-                        .labelStyle(.iconOnly)
+            ToolbarItem(placement: .navigation) {
+                ControlGroup {
+                    Button {
+                        store.resumeSelectedTorrent()
+                    } label: {
+                        Label("Resume", systemImage: "play.fill")
+                            .labelStyle(.iconOnly)
+                    }
+                    .disabled(!store.canResumeSelectedTorrent)
+                    .help("Resume")
+
+                    Button {
+                        store.pauseSelectedTorrent()
+                    } label: {
+                        Label("Pause", systemImage: "pause.fill")
+                            .labelStyle(.iconOnly)
+                    }
+                    .disabled(!store.canPauseSelectedTorrent)
+                    .help("Pause")
                 }
-                .disabled(!store.canResumeSelectedTorrent)
-                .help("Resume")
+            }
 
-                Button {
-                    store.pauseSelectedTorrent()
-                } label: {
-                    Label("Pause", systemImage: "pause.fill")
-                        .labelStyle(.iconOnly)
+            ToolbarItem(placement: .navigation) {
+                ControlGroup {
+                    Button {
+                        store.removeSelectedTorrent()
+                    } label: {
+                        Label("Remove", systemImage: "xmark")
+                            .labelStyle(.iconOnly)
+                    }
+                    .disabled(store.selectedTorrent == nil)
+                    .help("Remove")
+
+                    Button(role: .destructive) {
+                        confirmingRemoveData = true
+                    } label: {
+                        Label("Remove Data", systemImage: "trash")
+                            .labelStyle(.iconOnly)
+                    }
+                    .disabled(store.selectedTorrent == nil)
+                    .help("Remove and Delete Files")
                 }
-                .disabled(!store.canPauseSelectedTorrent)
-                .help("Pause")
+            }
 
-                Button {
-                    store.removeSelectedTorrent()
-                } label: {
-                    Label("Remove", systemImage: "xmark")
-                        .labelStyle(.iconOnly)
-                }
-                .disabled(store.selectedTorrent == nil)
-                .help("Remove")
-
-                Button(role: .destructive) {
-                    confirmingRemoveData = true
-                } label: {
-                    Label("Remove Data", systemImage: "trash")
-                        .labelStyle(.iconOnly)
-                }
-                .disabled(store.selectedTorrent == nil)
-                .help("Remove and Delete Files")
-
+            ToolbarItem(placement: .primaryAction) {
                 Button {
                     inspectorPanelPresenter.show(store: store)
                 } label: {
@@ -74,22 +86,6 @@ struct ContentView: View {
                 }
                 .disabled(store.selectedTorrent == nil)
                 .help("Show Inspector")
-
-                Menu {
-                    ForEach(TorrentListColumn.allCases) { column in
-                        Toggle(
-                            column.title,
-                            isOn: Binding(
-                                get: { store.isColumnVisible(column) },
-                                set: { store.setColumn(column, visible: $0) }
-                            )
-                        )
-                    }
-                } label: {
-                    Label("Columns", systemImage: "tablecells")
-                        .labelStyle(.iconOnly)
-                }
-                .help("Choose Columns")
             }
         }
         .confirmationDialog(

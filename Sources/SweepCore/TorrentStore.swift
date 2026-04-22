@@ -164,6 +164,7 @@ public final class TorrentStore: ObservableObject {
                 upsert(liveTorrent: torrent)
             }
             sessionStats = try await engine.sessionStats()
+                .smoothed(from: sessionStats)
             try await enforceDesiredStates(for: Set(liveTorrents.map(\.id)))
             try await persistence?.save(torrents: torrents)
             lastError = nil
@@ -220,8 +221,9 @@ public final class TorrentStore: ObservableObject {
         if let index = torrents.firstIndex(where: { $0.id == torrent.id }) {
             let cached = torrents[index]
             torrents[index] = torrent
-                .withEstimatedPeerRates(from: cached)
                 .mergingCachedMetadata(from: cached)
+                .withSmoothedTransferStats(from: cached)
+                .withEstimatedPeerRates(from: cached)
         } else {
             torrents.append(torrent.updating(downloadDirectory: downloadDirectory))
         }
@@ -297,6 +299,7 @@ public final class TorrentStore: ObservableObject {
                 upsert(liveTorrent: torrent)
             }
             sessionStats = try await engine.sessionStats()
+                .smoothed(from: sessionStats)
             try await enforceDesiredStates(for: Set(reconciledLiveTorrents.map(\.id)))
             try await persistence?.save(torrents: torrents)
             lastError = nil
@@ -415,7 +418,48 @@ public final class TorrentStore: ObservableObject {
     }
 }
 
+private let transferRateSmoothingAlpha = 0.35
+private let activeTransferRateThreshold = 1.0
+
+private func smoothedRate(_ current: Double, previous: Double?) -> Double {
+    let normalizedCurrent = current.isFinite ? max(0, current) : 0
+    guard normalizedCurrent > activeTransferRateThreshold else { return normalizedCurrent }
+    guard let previous, previous.isFinite, previous > activeTransferRateThreshold else {
+        return normalizedCurrent
+    }
+    return previous + (normalizedCurrent - previous) * transferRateSmoothingAlpha
+}
+
+private func smoothedOptionalRate(_ current: Double?, previous: Double?) -> Double? {
+    guard let current else { return nil }
+    return smoothedRate(current, previous: previous)
+}
+
+private extension TorrentSessionStats {
+    func smoothed(from previous: TorrentSessionStats) -> TorrentSessionStats {
+        TorrentSessionStats(
+            downloadBps: smoothedRate(downloadBps, previous: previous.downloadBps),
+            uploadBps: smoothedRate(uploadBps, previous: previous.uploadBps),
+            downloadedBytes: downloadedBytes,
+            uploadedBytes: uploadedBytes,
+            livePeers: livePeers,
+            connectingPeers: connectingPeers,
+            queuedPeers: queuedPeers,
+            seenPeers: seenPeers,
+            uptimeSeconds: uptimeSeconds
+        )
+    }
+}
+
 private extension Torrent {
+    func withSmoothedTransferStats(from cached: Torrent) -> Torrent {
+        updating(
+            downloadBps: smoothedRate(downloadBps, previous: cached.downloadBps),
+            uploadBps: smoothedRate(uploadBps, previous: cached.uploadBps),
+            updatedAt: updatedAt
+        )
+    }
+
     func withEstimatedPeerRates(from cached: Torrent) -> Torrent {
         let elapsed = updatedAt.timeIntervalSince(cached.updatedAt)
         guard elapsed > 0.05 else { return self }
@@ -426,22 +470,24 @@ private extension Torrent {
         }
         let peers = peers.map { peer in
             guard let previous = cachedPeers[peer.id] else { return peer }
+            let downloadBps = peer.downloadBps ?? estimatedRate(
+                currentBytes: peer.downloadedBytes,
+                previousBytes: previous.downloadedBytes,
+                elapsed: elapsed
+            )
+            let uploadBps = peer.uploadBps ?? estimatedRate(
+                currentBytes: peer.uploadedBytes,
+                previousBytes: previous.uploadedBytes,
+                elapsed: elapsed
+            )
 
             return peer.updatingTransferRates(
-                downloadBps: peer.downloadBps ?? estimatedRate(
-                    currentBytes: peer.downloadedBytes,
-                    previousBytes: previous.downloadedBytes,
-                    elapsed: elapsed
-                ),
-                uploadBps: peer.uploadBps ?? estimatedRate(
-                    currentBytes: peer.uploadedBytes,
-                    previousBytes: previous.uploadedBytes,
-                    elapsed: elapsed
-                )
+                downloadBps: smoothedOptionalRate(downloadBps, previous: previous.downloadBps),
+                uploadBps: smoothedOptionalRate(uploadBps, previous: previous.uploadBps)
             )
         }
 
-        return updating(peers: peers)
+        return updating(peers: peers, updatedAt: updatedAt)
     }
 
     private func estimatedRate(

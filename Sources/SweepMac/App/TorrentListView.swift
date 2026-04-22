@@ -6,6 +6,10 @@ struct TorrentListView: View {
     @EnvironmentObject private var store: TorrentStore
     @EnvironmentObject private var inspectorPanelPresenter: TorrentInspectorPanelPresenter
     @Binding var confirmingRemoveData: Bool
+    @SceneStorage("Sweep.TorrentList.columnCustomization")
+    private var columnCustomization = TableColumnCustomization<Torrent>()
+    @SceneStorage("Sweep.TorrentList.progressColumnMode")
+    private var progressColumnModeRaw = ProgressColumnMode.detailed.rawValue
 
     init(confirmingRemoveData: Binding<Bool> = .constant(false)) {
         self._confirmingRemoveData = confirmingRemoveData
@@ -13,78 +17,79 @@ struct TorrentListView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            Table(store.torrents, selection: $store.selection) {
+            Table(
+                store.torrents,
+                selection: $store.selection,
+                columnCustomization: $columnCustomization
+            ) {
                 TableColumn("Name") { torrent in
                     TorrentNameCell(torrent: torrent)
                         .environmentObject(store)
                 }
                 .width(min: 320, ideal: 420)
+                .customizationID("name")
+                .disabledCustomizationBehavior(.visibility)
 
                 TableColumn("Progress") { torrent in
-                    TorrentProgressCell(torrent: torrent)
+                    TorrentProgressCell(
+                        torrent: torrent,
+                        mode: progressColumnMode,
+                        onOptionClick: toggleProgressColumnMode
+                    )
                 }
                 .width(min: 140, ideal: 170)
+                .customizationID("progress")
+                .disabledCustomizationBehavior(.visibility)
 
-                if store.isColumnVisible(.size) {
-                    TableColumn("Size") { torrent in
-                        Text(ByteFormatter.bytes(torrent.totalBytes))
-                            .monospacedDigit()
-                            .foregroundStyle(.secondary)
-                    }
-                    .width(min: 80, ideal: 100)
-                }
-
-                if store.isColumnVisible(.eta) {
-                    TableColumn("ETA") { torrent in
-                        Text(formatETA(torrent))
-                            .monospacedDigit()
-                            .foregroundStyle(.secondary)
-                    }
-                    .width(min: 70, ideal: 90)
-                }
-
-                if store.isColumnVisible(.progress) {
-                    TableColumn("%") { torrent in
-                        Text(formatPercent(torrent.progress))
-                            .monospacedDigit()
-                            .foregroundStyle(.secondary)
-                    }
-                    .width(min: 54, ideal: 64)
-                }
-
-                if store.isColumnVisible(.remaining) {
-                    TableColumn("Remaining") { torrent in
-                        Text(ByteFormatter.bytes(torrent.remainingBytes))
-                            .monospacedDigit()
-                            .foregroundStyle(.secondary)
-                    }
-                    .width(min: 92, ideal: 112)
-                }
-
-                if store.isColumnVisible(.speed) {
-                    TableColumn("Speed") { torrent in
-                        VStack(alignment: .trailing, spacing: 2) {
-                            TransferRateLine(systemImage: "arrow.down", value: torrent.downloadBps)
-                            TransferRateLine(systemImage: "arrow.up", value: torrent.uploadBps)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .trailing)
-                    }
-                    .width(min: 92, ideal: 112)
-                }
-
-                if store.isColumnVisible(.peers) {
-                    TableColumn("Peers") { torrent in
-                        VStack(alignment: .trailing, spacing: 2) {
-                            Text("\(torrent.peers.count)")
-                                .monospacedDigit()
-                            Text(peerSummary(torrent))
-                                .font(.caption2)
-                        }
+                TableColumn("Size") { torrent in
+                    Text(ByteFormatter.bytes(torrent.totalBytes))
+                        .monospacedDigit()
                         .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity, alignment: .trailing)
-                    }
-                    .width(min: 72, ideal: 92)
                 }
+                .width(min: 80, ideal: 100)
+                .customizationID("size")
+
+                TableColumn("ETA") { torrent in
+                    Text(formatETA(torrent))
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
+                }
+                .width(min: 70, ideal: 90)
+                .customizationID("eta")
+                .defaultVisibility(.hidden)
+
+                TableColumn("%") { torrent in
+                    Text(formatPercent(torrent.progress))
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
+                }
+                .width(min: 54, ideal: 64)
+                .customizationID("percent")
+
+                TableColumn("Remaining") { torrent in
+                    Text(ByteFormatter.bytes(torrent.remainingBytes))
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
+                }
+                .width(min: 92, ideal: 112)
+                .customizationID("remaining")
+
+                TableColumn("Speed") { torrent in
+                    VStack(alignment: .leading, spacing: 2) {
+                        TransferRateLine(systemImage: "arrow.down", value: torrent.downloadBps)
+                        TransferRateLine(systemImage: "arrow.up", value: torrent.uploadBps)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .width(min: 92, ideal: 112)
+                .customizationID("speed")
+
+                TableColumn("Peers") { torrent in
+                    PeerColumnCell(torrent: torrent)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .width(min: 86, ideal: 104)
+                .customizationID("peers")
             }
             .contextMenu {
                 Button("Resume") {
@@ -137,13 +142,64 @@ struct TorrentListView: View {
         )
     }
 
-    private func peerSummary(_ torrent: Torrent) -> String {
-        let trackerText = torrent.trackers.count == 1 ? "1 tracker" : "\(torrent.trackers.count) trackers"
-        let workingTrackers = torrent.trackers.filter { $0.status == "Working" }.count
-        if workingTrackers > 0 {
-            return "\(workingTrackers)/\(trackerText)"
+    private var progressColumnMode: ProgressColumnMode {
+        ProgressColumnMode(rawValue: progressColumnModeRaw) ?? .detailed
+    }
+
+    private func toggleProgressColumnMode() {
+        progressColumnModeRaw = progressColumnMode == .detailed
+            ? ProgressColumnMode.barOnly.rawValue
+            : ProgressColumnMode.detailed.rawValue
+    }
+}
+
+private enum ProgressColumnMode: String {
+    case detailed
+    case barOnly
+}
+
+private struct PeerColumnCell: View {
+    let torrent: Torrent
+
+    var body: some View {
+        let summary = PeerColumnSummary(torrent: torrent)
+        VStack(alignment: .leading, spacing: 2) {
+            PeerCountLine(systemImage: "arrow.up", active: summary.activeSeeders, total: summary.totalSeeders)
+            PeerCountLine(systemImage: "arrow.down", active: summary.activeLeechers, total: summary.totalLeechers)
         }
-        return trackerText
+    }
+}
+
+private struct PeerCountLine: View {
+    let systemImage: String
+    let active: Int
+    let total: UInt32?
+
+    var body: some View {
+        Label {
+            Text(total.map { "\(active) (\($0))" } ?? "\(active) (-)")
+                .monospacedDigit()
+        } icon: {
+            Image(systemName: systemImage)
+                .font(.caption2)
+        }
+        .labelStyle(.titleAndIcon)
+        .font(.caption)
+        .foregroundStyle(.secondary)
+    }
+}
+
+private struct PeerColumnSummary {
+    let activeSeeders: Int
+    let activeLeechers: Int
+    let totalSeeders: UInt32?
+    let totalLeechers: UInt32?
+
+    init(torrent: Torrent) {
+        self.activeSeeders = torrent.peers.filter { ($0.availability ?? 0) >= 1 }.count
+        self.activeLeechers = torrent.peers.count - activeSeeders
+        self.totalSeeders = torrent.trackers.compactMap(\.seeders).max()
+        self.totalLeechers = torrent.trackers.compactMap(\.leechers).max()
     }
 }
 
@@ -154,9 +210,8 @@ private struct TorrentNameCell: View {
     let torrent: Torrent
 
     var body: some View {
-        HStack(alignment: .top, spacing: 8) {
+        HStack(alignment: .center, spacing: 8) {
             TorrentStatusIcon(torrent: torrent)
-                .padding(.top, 2)
 
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
@@ -165,7 +220,7 @@ private struct TorrentNameCell: View {
                         .lineLimit(1)
                         .truncationMode(.middle)
 
-                    HStack(spacing: 2) {
+                    HStack(spacing: 7) {
                         Button {
                             store.selection = torrent.id
                             if torrent.desiredState == .paused {
@@ -249,9 +304,9 @@ private struct TorrentStatusIcon: View {
 
     var body: some View {
         Image(systemName: status.systemImage)
-            .font(.system(size: 14, weight: .semibold))
+            .font(.system(size: 11, weight: .semibold))
             .foregroundStyle(status.color)
-            .frame(width: 18, height: 18)
+            .frame(width: 16, height: 30)
             .help(status.help)
     }
 
@@ -277,24 +332,35 @@ private struct TorrentStatusIcon: View {
 
 private struct TorrentProgressCell: View {
     let torrent: Torrent
+    let mode: ProgressColumnMode
+    let onOptionClick: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             SegmentedProgressView(
                 runs: torrent.pieceRuns,
                 fallbackProgress: torrent.progress,
-                state: torrent.statusLabel
+                state: torrent.statusLabel,
+                height: mode == .barOnly ? 16 : 8
             )
-            HStack(spacing: 4) {
-                Text(formatPercent(torrent.progress))
-                if torrent.remainingBytes > 0 {
-                    Text(ByteFormatter.bytes(torrent.remainingBytes))
-                        .foregroundStyle(.tertiary)
+            if mode == .detailed {
+                HStack(spacing: 4) {
+                    Text(formatPercent(torrent.progress))
+                    if torrent.remainingBytes > 0 {
+                        Text(ByteFormatter.bytes(torrent.remainingBytes))
+                            .foregroundStyle(.tertiary)
+                    }
                 }
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .monospacedDigit()
             }
-            .font(.caption2)
-            .foregroundStyle(.secondary)
-            .monospacedDigit()
+        }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            if NSEvent.modifierFlags.contains(.option) {
+                onOptionClick()
+            }
         }
     }
 }
@@ -303,6 +369,7 @@ struct SegmentedProgressView: View {
     let runs: [TorrentPieceRun]
     let fallbackProgress: Double
     let state: String
+    var height: CGFloat = 8
 
     var body: some View {
         GeometryReader { proxy in
@@ -323,7 +390,7 @@ struct SegmentedProgressView: View {
                     .strokeBorder(Color.secondary.opacity(0.16), lineWidth: 0.5)
             }
         }
-        .frame(height: 8)
+        .frame(height: height)
         .accessibilityLabel("Progress")
         .accessibilityValue(formatPercent(fallbackProgress))
     }
@@ -434,25 +501,6 @@ private struct TransferStatusBar: View {
         .padding(.horizontal, 12)
         .frame(height: 34)
         .background(.bar)
-    }
-}
-
-extension TorrentListColumn {
-    var title: String {
-        switch self {
-        case .size:
-            "Size"
-        case .eta:
-            "ETA"
-        case .progress:
-            "Progress %"
-        case .remaining:
-            "Remaining"
-        case .speed:
-            "Speed"
-        case .peers:
-            "Peers"
-        }
     }
 }
 

@@ -26,10 +26,12 @@ turning the app into a dashboard.
 
 Add more columns and make column visibility configurable:
 
-- Size
-- ETA
-- Progress percentage
-- Remaining amount
+- [x] Size
+- [x] ETA
+- [x] Progress percentage
+- [x] Remaining amount
+- [x] Use native table column customization for visibility and ordering.
+- [x] Support option-click progress cells to switch between detailed and taller bar modes.
 
 ### Row Shortcut Buttons
 
@@ -151,6 +153,7 @@ real torrent state rather than cosmetic placeholders.
 - [x] Use two-line torrent rows with compact inline pause/reveal shortcuts.
 - [x] Make speed and peers configurable columns.
 - [x] Require confirmation before deleting downloaded files.
+- [x] Smooth displayed transfer rates so speed and ETA are less erratic.
 - [ ] Represent peer availability in the main progress bar once aggregate availability is exposed.
 
 ## Implementation Notes
