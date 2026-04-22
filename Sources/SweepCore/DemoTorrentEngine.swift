@@ -10,6 +10,14 @@ public actor DemoTorrentEngine: TorrentEngine {
             infoHash: "cab507494d02ebb1178b38f2e9d7be299c86b862",
             downloadDirectory: nil,
             state: "live",
+            files: [
+                TorrentFile(
+                    id: 0,
+                    path: "ubuntu-26.04-desktop-arm64.iso",
+                    length: 4_294_967_296,
+                    progressBytes: 734_003_200
+                )
+            ],
             progressBytes: 734_003_200,
             totalBytes: 4_294_967_296,
             uploadedBytes: 86_507_520,

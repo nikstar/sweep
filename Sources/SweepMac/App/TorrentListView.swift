@@ -4,6 +4,7 @@ import SweepCore
 
 struct TorrentListView: View {
     @EnvironmentObject private var store: TorrentStore
+    @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         VStack(spacing: 0) {
@@ -64,6 +65,10 @@ struct TorrentListView: View {
                 }
                 .disabled(store.selectedTorrent == nil)
 
+                Button("Show Inspector") {
+                    openWindow(id: AppWindowID.torrentInspector)
+                }
+
                 Divider()
 
                 Button("Remove") {
@@ -87,10 +92,10 @@ struct TorrentListView: View {
 
     private func revealSelectedTorrentInFinder() {
         guard let torrent = store.selectedTorrent else { return }
-        let directory = torrent.downloadDirectory ?? store.downloadDirectory
-        NSWorkspace.shared.activateFileViewerSelecting([
-            URL(filePath: directory, directoryHint: .isDirectory)
-        ])
+        TorrentFileLocation.revealInFinder(
+            torrent: torrent,
+            defaultDirectory: store.downloadDirectory
+        )
     }
 }
 

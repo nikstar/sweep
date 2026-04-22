@@ -6,6 +6,7 @@ import SweepRQBitBridge
 @main
 struct SweepApp: App {
     @StateObject private var store = AppEnvironment.makeTorrentStore()
+    @Environment(\.openWindow) private var openWindow
 
     var body: some Scene {
         WindowGroup {
@@ -17,6 +18,13 @@ struct SweepApp: App {
                 }
         }
         .windowStyle(.titleBar)
+
+        Window("Inspector", id: AppWindowID.torrentInspector) {
+            TorrentInspectorWindowView()
+                .environmentObject(store)
+        }
+        .defaultSize(width: 460, height: 560)
+        .windowResizability(.contentMinSize)
 
         Settings {
             SettingsView()
@@ -41,6 +49,13 @@ struct SweepApp: App {
             }
 
             CommandMenu("Transfers") {
+                Button("Show Inspector") {
+                    openWindow(id: AppWindowID.torrentInspector)
+                }
+                .keyboardShortcut("i", modifiers: [.command])
+
+                Divider()
+
                 Button("Resume") {
                     store.resumeSelectedTorrent()
                 }
@@ -87,10 +102,10 @@ struct SweepApp: App {
 
     private func revealSelectedTorrentInFinder() {
         guard let torrent = store.selectedTorrent else { return }
-        let directory = torrent.downloadDirectory ?? store.downloadDirectory
-        NSWorkspace.shared.activateFileViewerSelecting([
-            URL(filePath: directory, directoryHint: .isDirectory)
-        ])
+        TorrentFileLocation.revealInFinder(
+            torrent: torrent,
+            defaultDirectory: store.downloadDirectory
+        )
     }
 
     private var canAddFromClipboard: Bool {

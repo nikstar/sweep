@@ -47,6 +47,40 @@ public enum TorrentAddSource: Hashable, Sendable {
     }
 }
 
+public struct TorrentFile: Identifiable, Hashable, Codable, Sendable {
+    public let id: Int
+    public let path: String
+    public let length: UInt64
+    public let progressBytes: UInt64
+    public let included: Bool
+    public let isPadding: Bool
+
+    public init(
+        id: Int,
+        path: String,
+        length: UInt64,
+        progressBytes: UInt64,
+        included: Bool = true,
+        isPadding: Bool = false
+    ) {
+        self.id = id
+        self.path = path
+        self.length = length
+        self.progressBytes = progressBytes
+        self.included = included
+        self.isPadding = isPadding
+    }
+
+    public var name: String {
+        (path as NSString).lastPathComponent
+    }
+
+    public var progress: Double {
+        guard length > 0 else { return 0 }
+        return min(1, Double(min(progressBytes, length)) / Double(length))
+    }
+}
+
 public struct Torrent: Identifiable, Hashable, Codable, Sendable {
     public let id: String
     public let engineID: Int?
@@ -58,6 +92,7 @@ public struct Torrent: Identifiable, Hashable, Codable, Sendable {
     public let downloadDirectory: String?
     public let desiredState: TorrentDesiredState
     public let state: String
+    public let files: [TorrentFile]
     public let progressBytes: UInt64
     public let totalBytes: UInt64
     public let uploadedBytes: UInt64
@@ -78,6 +113,7 @@ public struct Torrent: Identifiable, Hashable, Codable, Sendable {
         downloadDirectory: String? = nil,
         desiredState: TorrentDesiredState = .running,
         state: String,
+        files: [TorrentFile] = [],
         progressBytes: UInt64,
         totalBytes: UInt64,
         uploadedBytes: UInt64,
@@ -98,6 +134,7 @@ public struct Torrent: Identifiable, Hashable, Codable, Sendable {
         self.downloadDirectory = downloadDirectory
         self.desiredState = desiredState
         self.state = state
+        self.files = files
         self.progressBytes = progressBytes
         self.totalBytes = totalBytes
         self.uploadedBytes = uploadedBytes
@@ -119,6 +156,7 @@ public struct Torrent: Identifiable, Hashable, Codable, Sendable {
         case downloadDirectory = "download_directory"
         case desiredState = "desired_state"
         case state
+        case files
         case progressBytes = "progress_bytes"
         case totalBytes = "total_bytes"
         case uploadedBytes = "uploaded_bytes"
@@ -175,6 +213,7 @@ public struct Torrent: Identifiable, Hashable, Codable, Sendable {
         downloadDirectory: String? = nil,
         desiredState: TorrentDesiredState? = nil,
         state: String? = nil,
+        files: [TorrentFile]? = nil,
         progressBytes: UInt64? = nil,
         totalBytes: UInt64? = nil,
         uploadedBytes: UInt64? = nil,
@@ -195,6 +234,7 @@ public struct Torrent: Identifiable, Hashable, Codable, Sendable {
             downloadDirectory: downloadDirectory ?? self.downloadDirectory,
             desiredState: desiredState ?? self.desiredState,
             state: state ?? self.state,
+            files: files ?? self.files,
             progressBytes: progressBytes ?? self.progressBytes,
             totalBytes: totalBytes ?? self.totalBytes,
             uploadedBytes: uploadedBytes ?? self.uploadedBytes,
@@ -218,6 +258,7 @@ public struct Torrent: Identifiable, Hashable, Codable, Sendable {
                 downloadDirectory: downloadDirectory,
                 desiredState: desiredState,
                 state: state,
+                files: files,
                 progressBytes: progressBytes,
                 totalBytes: totalBytes,
                 uploadedBytes: uploadedBytes,
@@ -239,6 +280,7 @@ public struct Torrent: Identifiable, Hashable, Codable, Sendable {
                 downloadDirectory: downloadDirectory,
                 desiredState: desiredState,
                 state: state,
+                files: files,
                 progressBytes: progressBytes,
                 totalBytes: totalBytes,
                 uploadedBytes: uploadedBytes,

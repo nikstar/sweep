@@ -30,11 +30,22 @@ impl From<oneshot::Canceled> for SweepError {
 }
 
 #[derive(Debug, Clone, uniffi::Record)]
+pub struct TorrentFileSnapshot {
+    pub id: u64,
+    pub path: String,
+    pub length: u64,
+    pub progress_bytes: u64,
+    pub included: bool,
+    pub is_padding: bool,
+}
+
+#[derive(Debug, Clone, uniffi::Record)]
 pub struct TorrentSnapshot {
     pub id: u64,
     pub name: String,
     pub info_hash: String,
     pub state: String,
+    pub files: Vec<TorrentFileSnapshot>,
     pub progress_bytes: u64,
     pub total_bytes: u64,
     pub uploaded_bytes: u64,
@@ -244,6 +255,7 @@ fn parse_torrent_id(id: &str) -> Result<TorrentIdOrHash, SweepError> {
 
 fn snapshot(handle: &Arc<ManagedTorrent>) -> TorrentSnapshot {
     let stats = handle.stats();
+    let files = snapshot_files(handle, &stats.file_progress);
     let (download_bps, upload_bps) = stats
         .live
         .as_ref()
@@ -262,6 +274,7 @@ fn snapshot(handle: &Arc<ManagedTorrent>) -> TorrentSnapshot {
             .unwrap_or_else(|| handle.info_hash().as_string()),
         info_hash: handle.info_hash().as_string(),
         state: stats.state.to_string(),
+        files,
         progress_bytes: stats.progress_bytes,
         total_bytes: stats.total_bytes,
         uploaded_bytes: stats.uploaded_bytes,
@@ -269,4 +282,28 @@ fn snapshot(handle: &Arc<ManagedTorrent>) -> TorrentSnapshot {
         upload_bps,
         error: stats.error,
     }
+}
+
+fn snapshot_files(handle: &Arc<ManagedTorrent>, file_progress: &[u64]) -> Vec<TorrentFileSnapshot> {
+    let only_files = handle.only_files();
+    handle
+        .with_metadata(|metadata| {
+            metadata
+                .file_infos
+                .iter()
+                .enumerate()
+                .map(|(idx, file)| TorrentFileSnapshot {
+                    id: idx as u64,
+                    path: file.relative_filename.to_string_lossy().into_owned(),
+                    length: file.len,
+                    progress_bytes: file_progress.get(idx).copied().unwrap_or_default(),
+                    included: only_files
+                        .as_ref()
+                        .map(|files| files.contains(&idx))
+                        .unwrap_or(true),
+                    is_padding: file.attrs.padding,
+                })
+                .collect()
+        })
+        .unwrap_or_default()
 }

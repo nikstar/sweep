@@ -3,6 +3,7 @@ import SweepCore
 
 struct ContentView: View {
     @EnvironmentObject private var store: TorrentStore
+    @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         NavigationSplitView {
@@ -44,6 +45,12 @@ struct ContentView: View {
                     Label("Remove", systemImage: "trash")
                 }
                 .disabled(store.selectedTorrent == nil)
+
+                Button {
+                    openWindow(id: AppWindowID.torrentInspector)
+                } label: {
+                    Label("Inspector", systemImage: "info.circle")
+                }
             }
         }
         .sheet(isPresented: $store.showingAddSheet) {

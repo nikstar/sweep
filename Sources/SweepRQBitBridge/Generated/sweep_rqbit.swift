@@ -760,11 +760,82 @@ public func FfiConverterTypeSweepEngine_lower(_ value: SweepEngine) -> UInt64 {
 
 
 
+public struct TorrentFileSnapshot: Equatable, Hashable {
+    public var id: UInt64
+    public var path: String
+    public var length: UInt64
+    public var progressBytes: UInt64
+    public var included: Bool
+    public var isPadding: Bool
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(id: UInt64, path: String, length: UInt64, progressBytes: UInt64, included: Bool, isPadding: Bool) {
+        self.id = id
+        self.path = path
+        self.length = length
+        self.progressBytes = progressBytes
+        self.included = included
+        self.isPadding = isPadding
+    }
+
+
+
+
+}
+
+#if compiler(>=6)
+extension TorrentFileSnapshot: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeTorrentFileSnapshot: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> TorrentFileSnapshot {
+        return
+            try TorrentFileSnapshot(
+                id: FfiConverterUInt64.read(from: &buf),
+                path: FfiConverterString.read(from: &buf),
+                length: FfiConverterUInt64.read(from: &buf),
+                progressBytes: FfiConverterUInt64.read(from: &buf),
+                included: FfiConverterBool.read(from: &buf),
+                isPadding: FfiConverterBool.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: TorrentFileSnapshot, into buf: inout [UInt8]) {
+        FfiConverterUInt64.write(value.id, into: &buf)
+        FfiConverterString.write(value.path, into: &buf)
+        FfiConverterUInt64.write(value.length, into: &buf)
+        FfiConverterUInt64.write(value.progressBytes, into: &buf)
+        FfiConverterBool.write(value.included, into: &buf)
+        FfiConverterBool.write(value.isPadding, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeTorrentFileSnapshot_lift(_ buf: RustBuffer) throws -> TorrentFileSnapshot {
+    return try FfiConverterTypeTorrentFileSnapshot.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeTorrentFileSnapshot_lower(_ value: TorrentFileSnapshot) -> RustBuffer {
+    return FfiConverterTypeTorrentFileSnapshot.lower(value)
+}
+
+
 public struct TorrentSnapshot: Equatable, Hashable {
     public var id: UInt64
     public var name: String
     public var infoHash: String
     public var state: String
+    public var files: [TorrentFileSnapshot]
     public var progressBytes: UInt64
     public var totalBytes: UInt64
     public var uploadedBytes: UInt64
@@ -774,11 +845,12 @@ public struct TorrentSnapshot: Equatable, Hashable {
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(id: UInt64, name: String, infoHash: String, state: String, progressBytes: UInt64, totalBytes: UInt64, uploadedBytes: UInt64, downloadBps: Double, uploadBps: Double, error: String?) {
+    public init(id: UInt64, name: String, infoHash: String, state: String, files: [TorrentFileSnapshot], progressBytes: UInt64, totalBytes: UInt64, uploadedBytes: UInt64, downloadBps: Double, uploadBps: Double, error: String?) {
         self.id = id
         self.name = name
         self.infoHash = infoHash
         self.state = state
+        self.files = files
         self.progressBytes = progressBytes
         self.totalBytes = totalBytes
         self.uploadedBytes = uploadedBytes
@@ -807,6 +879,7 @@ public struct FfiConverterTypeTorrentSnapshot: FfiConverterRustBuffer {
                 name: FfiConverterString.read(from: &buf),
                 infoHash: FfiConverterString.read(from: &buf),
                 state: FfiConverterString.read(from: &buf),
+                files: FfiConverterSequenceTypeTorrentFileSnapshot.read(from: &buf),
                 progressBytes: FfiConverterUInt64.read(from: &buf),
                 totalBytes: FfiConverterUInt64.read(from: &buf),
                 uploadedBytes: FfiConverterUInt64.read(from: &buf),
@@ -821,6 +894,7 @@ public struct FfiConverterTypeTorrentSnapshot: FfiConverterRustBuffer {
         FfiConverterString.write(value.name, into: &buf)
         FfiConverterString.write(value.infoHash, into: &buf)
         FfiConverterString.write(value.state, into: &buf)
+        FfiConverterSequenceTypeTorrentFileSnapshot.write(value.files, into: &buf)
         FfiConverterUInt64.write(value.progressBytes, into: &buf)
         FfiConverterUInt64.write(value.totalBytes, into: &buf)
         FfiConverterUInt64.write(value.uploadedBytes, into: &buf)
@@ -940,6 +1014,31 @@ fileprivate struct FfiConverterOptionString: FfiConverterRustBuffer {
         case 1: return try FfiConverterString.read(from: &buf)
         default: throw UniffiInternalError.unexpectedOptionalTag
         }
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterSequenceTypeTorrentFileSnapshot: FfiConverterRustBuffer {
+    typealias SwiftType = [TorrentFileSnapshot]
+
+    public static func write(_ value: [TorrentFileSnapshot], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeTorrentFileSnapshot.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [TorrentFileSnapshot] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [TorrentFileSnapshot]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeTorrentFileSnapshot.read(from: &buf))
+        }
+        return seq
     }
 }
 

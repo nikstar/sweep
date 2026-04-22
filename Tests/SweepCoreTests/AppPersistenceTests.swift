@@ -27,6 +27,14 @@ struct AppPersistenceTests {
             downloadDirectory: "/tmp/Sweep",
             desiredState: .paused,
             state: "live",
+            files: [
+                TorrentFile(
+                    id: 0,
+                    path: "Ubuntu Desktop ISO/ubuntu.iso",
+                    length: 4_294_967_296,
+                    progressBytes: 734_003_200
+                )
+            ],
             progressBytes: 734_003_200,
             totalBytes: 4_294_967_296,
             uploadedBytes: 86_507_520,

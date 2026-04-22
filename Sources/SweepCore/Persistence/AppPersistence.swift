@@ -107,6 +107,7 @@ private struct PersistedTorrent: Equatable, Identifiable, Sendable {
     var downloadDirectory: String?
     var desiredState: String
     var state: String
+    var files: String?
     var progressBytes: Int64
     var totalBytes: Int64
     var uploadedBytes: Int64
@@ -127,6 +128,7 @@ private struct PersistedTorrent: Equatable, Identifiable, Sendable {
         self.downloadDirectory = torrent.downloadDirectory
         self.desiredState = torrent.desiredState.rawValue
         self.state = torrent.state
+        self.files = encodeTorrentFiles(torrent.files)
         self.progressBytes = Int64(clampingTorrentByteCount: torrent.progressBytes)
         self.totalBytes = Int64(clampingTorrentByteCount: torrent.totalBytes)
         self.uploadedBytes = Int64(clampingTorrentByteCount: torrent.uploadedBytes)
@@ -149,6 +151,7 @@ private struct PersistedTorrent: Equatable, Identifiable, Sendable {
             downloadDirectory: downloadDirectory,
             desiredState: TorrentDesiredState(rawValue: desiredState) ?? .running,
             state: state,
+            files: decodeTorrentFiles(files),
             progressBytes: UInt64(nonnegative: progressBytes),
             totalBytes: UInt64(nonnegative: totalBytes),
             uploadedBytes: UInt64(nonnegative: uploadedBytes),
@@ -165,6 +168,17 @@ private struct PersistedTorrent: Equatable, Identifiable, Sendable {
 private struct AppSetting: Equatable, Identifiable, Sendable {
     let id: String
     var value: String
+}
+
+private func encodeTorrentFiles(_ files: [TorrentFile]) -> String? {
+    guard !files.isEmpty else { return nil }
+    guard let data = try? JSONEncoder().encode(files) else { return nil }
+    return String(data: data, encoding: .utf8)
+}
+
+private func decodeTorrentFiles(_ files: String?) -> [TorrentFile] {
+    guard let files, let data = files.data(using: .utf8) else { return [] }
+    return (try? JSONDecoder().decode([TorrentFile].self, from: data)) ?? []
 }
 
 private extension Int64 {

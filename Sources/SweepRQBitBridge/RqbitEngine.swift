@@ -119,12 +119,26 @@ private extension Torrent {
             downloadDirectory: downloadDirectory,
             desiredState: desiredState ?? (snapshot.state.lowercased() == "paused" ? .paused : .running),
             state: snapshot.state,
+            files: snapshot.files.map(TorrentFile.init(snapshot:)),
             progressBytes: snapshot.progressBytes,
             totalBytes: snapshot.totalBytes,
             uploadedBytes: snapshot.uploadedBytes,
             downloadBps: snapshot.downloadBps,
             uploadBps: snapshot.uploadBps,
             error: snapshot.error
+        )
+    }
+}
+
+private extension TorrentFile {
+    init(snapshot: TorrentFileSnapshot) {
+        self.init(
+            id: Int(snapshot.id),
+            path: snapshot.path,
+            length: snapshot.length,
+            progressBytes: snapshot.progressBytes,
+            included: snapshot.included,
+            isPadding: snapshot.isPadding
         )
     }
 }
