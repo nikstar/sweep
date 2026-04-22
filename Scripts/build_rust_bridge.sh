@@ -25,6 +25,7 @@ GENERATED_DIR="$ROOT_DIR/Sources/SweepRQBitBridge/Generated"
 RQBIT_DIR="$ROOT_DIR/references/rqbit"
 RQBIT_TRACKER_COMPAT_PATCH="$ROOT_DIR/rust/patches/rqbit-tracker-compat.patch"
 RQBIT_PIECE_SNAPSHOT_PATCH="$ROOT_DIR/rust/patches/rqbit-piece-snapshot.patch"
+RQBIT_INSPECTOR_STATS_PATCH="$ROOT_DIR/rust/patches/rqbit-inspector-stats.patch"
 
 if [ "${CONFIGURATION:-Debug}" = "Release" ]; then
   RUST_PROFILE="release"
@@ -103,8 +104,34 @@ apply_rqbit_patches() {
     exit 1
   fi
 
-  apply_rqbit_patch "$RQBIT_TRACKER_COMPAT_PATCH" "tracker compatibility"
-  apply_rqbit_patch "$RQBIT_PIECE_SNAPSHOT_PATCH" "piece snapshot"
+  apply_rqbit_patch_if_missing \
+    "$RQBIT_TRACKER_COMPAT_PATCH" \
+    "tracker compatibility" \
+    "crates/tracker_comms/src/tracker_comms_http.rs" \
+    "supportcrypto=1"
+  apply_rqbit_patch_if_missing \
+    "$RQBIT_PIECE_SNAPSHOT_PATCH" \
+    "piece snapshot" \
+    "crates/librqbit/src/torrent_state/mod.rs" \
+    "pub fn piece_snapshot"
+  apply_rqbit_patch_if_missing \
+    "$RQBIT_INSPECTOR_STATS_PATCH" \
+    "inspector stats" \
+    "crates/tracker_comms/src/tracker_comms.rs" \
+    "pub struct TrackerCommsState"
+}
+
+apply_rqbit_patch_if_missing() {
+  patch_path="$1"
+  patch_name="$2"
+  marker_file="$3"
+  marker="$4"
+
+  if grep -Fq "$marker" "$RQBIT_DIR/$marker_file"; then
+    return
+  fi
+
+  apply_rqbit_patch "$patch_path" "$patch_name"
 }
 
 apply_rqbit_patch() {

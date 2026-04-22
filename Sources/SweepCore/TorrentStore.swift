@@ -218,7 +218,10 @@ public final class TorrentStore: ObservableObject {
 
     private func upsert(liveTorrent torrent: Torrent) {
         if let index = torrents.firstIndex(where: { $0.id == torrent.id }) {
-            torrents[index] = torrent.mergingCachedMetadata(from: torrents[index])
+            let cached = torrents[index]
+            torrents[index] = torrent
+                .withEstimatedPeerRates(from: cached)
+                .mergingCachedMetadata(from: cached)
         } else {
             torrents.append(torrent.updating(downloadDirectory: downloadDirectory))
         }
@@ -409,6 +412,45 @@ public final class TorrentStore: ObservableObject {
             at: URL(filePath: path, directoryHint: .isDirectory),
             withIntermediateDirectories: true
         )
+    }
+}
+
+private extension Torrent {
+    func withEstimatedPeerRates(from cached: Torrent) -> Torrent {
+        let elapsed = updatedAt.timeIntervalSince(cached.updatedAt)
+        guard elapsed > 0.05 else { return self }
+
+        var cachedPeers: [TorrentPeer.ID: TorrentPeer] = [:]
+        for peer in cached.peers {
+            cachedPeers[peer.id] = peer
+        }
+        let peers = peers.map { peer in
+            guard let previous = cachedPeers[peer.id] else { return peer }
+
+            return peer.updatingTransferRates(
+                downloadBps: peer.downloadBps ?? estimatedRate(
+                    currentBytes: peer.downloadedBytes,
+                    previousBytes: previous.downloadedBytes,
+                    elapsed: elapsed
+                ),
+                uploadBps: peer.uploadBps ?? estimatedRate(
+                    currentBytes: peer.uploadedBytes,
+                    previousBytes: previous.uploadedBytes,
+                    elapsed: elapsed
+                )
+            )
+        }
+
+        return updating(peers: peers)
+    }
+
+    private func estimatedRate(
+        currentBytes: UInt64,
+        previousBytes: UInt64,
+        elapsed: TimeInterval
+    ) -> Double? {
+        guard currentBytes >= previousBytes else { return nil }
+        return Double(currentBytes - previousBytes) / elapsed
     }
 }
 

@@ -131,8 +131,9 @@ real torrent state rather than cosmetic placeholders.
 - [x] Expose per-file progress using the same progress model where possible.
 - [x] Expose tracker details that are available from rqbit without hiding missing data.
 - [x] Expose peer details with room for client, flags, country, and availability.
-- [ ] Add live tracker announce status once rqbit exposes it.
-- [ ] Add peer client, country, and availability once rqbit exposes it or Sweep adds resolvers.
+- [x] Add live tracker announce status once rqbit exposes it.
+- [x] Add peer client, feature flags, and availability once rqbit exposes it or Sweep adds resolvers.
+- [ ] Add peer country only if we choose a resolver that does not add avoidable dependency weight.
 
 ### Persistence
 

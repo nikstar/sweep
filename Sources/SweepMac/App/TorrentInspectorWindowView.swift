@@ -318,6 +318,9 @@ private struct TorrentTrackerInspectorRow: View {
 
                 HStack(spacing: 12) {
                     Text(tracker.status)
+                    if let lastPeerCount = tracker.lastPeerCount {
+                        Text("\(lastPeerCount) peers")
+                    }
                     if let seeders = tracker.seeders {
                         Text("\(seeders) seeds")
                     }
@@ -330,6 +333,19 @@ private struct TorrentTrackerInspectorRow: View {
                 }
                 .font(.caption)
                 .foregroundStyle(.secondary)
+
+                if tracker.lastAnnounceAt != nil || tracker.nextAnnounceAt != nil {
+                    HStack(spacing: 12) {
+                        if let lastAnnounceAt = tracker.lastAnnounceAt {
+                            Text("Last \(InspectorFormat.date(lastAnnounceAt))")
+                        }
+                        if let nextAnnounceAt = tracker.nextAnnounceAt {
+                            Text("Next \(InspectorFormat.date(nextAnnounceAt))")
+                        }
+                    }
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                }
 
                 if let scrapeURL = tracker.scrapeURL {
                     HStack(spacing: 5) {
@@ -403,13 +419,16 @@ private struct TorrentPeerInspectorRow: View {
                     if let availability = peer.availability {
                         Text("\(InspectorFormat.percent(availability)) available")
                     }
+                    if let availablePieces = peer.availablePieces {
+                        Text("\(availablePieces) pieces")
+                    }
                     Text("\(ByteFormatter.bytes(peer.downloadedBytes)) down")
                     Text("\(ByteFormatter.bytes(peer.uploadedBytes)) up")
                     if let downloadBps = peer.downloadBps {
-                        Text(ByteFormatter.rate(downloadBps))
+                        Text("\(ByteFormatter.rate(downloadBps)) down")
                     }
                     if let uploadBps = peer.uploadBps {
-                        Text(ByteFormatter.rate(uploadBps))
+                        Text("\(ByteFormatter.rate(uploadBps)) up")
                     }
                     if peer.errors > 0 {
                         Text("\(peer.errors) errors")
@@ -419,6 +438,15 @@ private struct TorrentPeerInspectorRow: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
+
+                if let peerID = peer.peerID {
+                    Text(peerID)
+                        .font(.system(.caption2, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .textSelection(.enabled)
+                }
             }
         }
         .padding(.vertical, 2)

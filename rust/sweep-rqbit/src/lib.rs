@@ -1,4 +1,5 @@
 use std::{
+    collections::{BTreeMap, BTreeSet},
     net::{Ipv4Addr, Ipv6Addr, SocketAddr},
     path::PathBuf,
     sync::Arc,
@@ -10,8 +11,8 @@ use bencode::{BencodeValue, ByteBuf};
 use futures_channel::oneshot;
 use librqbit::{
     AddTorrent, AddTorrentOptions, AddTorrentResponse, ConnectionOptions, ListenerMode,
-    ListenerOptions, ManagedTorrent, Session, SessionOptions, api::TorrentIdOrHash, dht::Id20,
-    generate_azereus_style, http_api_types::PeerStatsFilter,
+    ListenerOptions, ManagedTorrent, Session, SessionOptions, TrackerCommsTrackerStats,
+    api::TorrentIdOrHash, dht::Id20, generate_azereus_style, http_api_types::PeerStatsFilter,
 };
 use tokio::runtime::{Builder, Runtime};
 
@@ -60,9 +61,12 @@ pub struct TorrentTrackerSnapshot {
     pub scrape_url: Option<String>,
     pub status: String,
     pub last_error: Option<String>,
+    pub last_announce_unix_seconds: Option<u64>,
+    pub next_announce_unix_seconds: Option<u64>,
     pub seeders: Option<u32>,
     pub leechers: Option<u32>,
     pub downloads: Option<u32>,
+    pub last_peer_count: Option<u64>,
 }
 
 #[derive(Debug, Clone, uniffi::Record)]
@@ -79,10 +83,12 @@ pub struct TorrentPeerSnapshot {
     pub address: String,
     pub state: String,
     pub connection_kind: Option<String>,
+    pub peer_id: Option<String>,
     pub client: Option<String>,
     pub feature_flags: Vec<String>,
     pub country_code: Option<String>,
     pub availability: Option<f64>,
+    pub available_pieces: Option<u32>,
     pub downloaded_bytes: u64,
     pub uploaded_bytes: u64,
     pub download_bps: Option<f64>,
@@ -541,24 +547,41 @@ fn snapshot(handle: &Arc<ManagedTorrent>) -> TorrentSnapshot {
 }
 
 fn snapshot_trackers(handle: &Arc<ManagedTorrent>) -> Vec<TorrentTrackerSnapshot> {
-    let mut trackers = handle
+    let tracker_stats = handle
+        .tracker_stats_snapshot()
+        .into_iter()
+        .map(|stats| (stats.url.clone(), stats))
+        .collect::<BTreeMap<_, _>>();
+    let mut tracker_urls = handle
         .shared()
         .trackers
         .iter()
         .map(|url| url.to_string())
-        .collect::<Vec<_>>();
-    trackers.sort();
-    trackers
+        .collect::<BTreeSet<_>>();
+    tracker_urls.extend(tracker_stats.keys().cloned());
+
+    tracker_urls
         .into_iter()
         .enumerate()
-        .map(|(idx, url)| snapshot_tracker(idx, url))
+        .map(|(idx, url)| {
+            let stats = tracker_stats.get(&url);
+            snapshot_tracker(idx, url, stats)
+        })
         .collect()
 }
 
-fn snapshot_tracker(idx: usize, url: String) -> TorrentTrackerSnapshot {
-    let kind = reqwest::Url::parse(&url)
-        .ok()
-        .map(|url| url.scheme().to_ascii_uppercase())
+fn snapshot_tracker(
+    idx: usize,
+    url: String,
+    stats: Option<&TrackerCommsTrackerStats>,
+) -> TorrentTrackerSnapshot {
+    let kind = stats
+        .map(|stats| stats.kind.clone())
+        .or_else(|| {
+            reqwest::Url::parse(&url)
+                .ok()
+                .map(|url| url.scheme().to_ascii_uppercase())
+        })
         .unwrap_or_else(|| "Unknown".to_owned());
 
     TorrentTrackerSnapshot {
@@ -566,11 +589,16 @@ fn snapshot_tracker(idx: usize, url: String) -> TorrentTrackerSnapshot {
         scrape_url: scrape_url_for_tracker(&url),
         url,
         kind,
-        status: "Configured".to_owned(),
-        last_error: None,
-        seeders: None,
-        leechers: None,
-        downloads: None,
+        status: stats
+            .map(|stats| stats.status.clone())
+            .unwrap_or_else(|| "Configured".to_owned()),
+        last_error: stats.and_then(|stats| stats.last_error.clone()),
+        last_announce_unix_seconds: stats.and_then(|stats| stats.last_announce_unix_seconds),
+        next_announce_unix_seconds: stats.and_then(|stats| stats.next_announce_unix_seconds),
+        seeders: stats.and_then(|stats| u64_to_u32(stats.seeders)),
+        leechers: stats.and_then(|stats| u64_to_u32(stats.leechers)),
+        downloads: stats.and_then(|stats| u64_to_u32(stats.downloads)),
+        last_peer_count: stats.and_then(|stats| stats.last_peer_count),
     }
 }
 
@@ -589,34 +617,50 @@ fn snapshot_peers(handle: &Arc<ManagedTorrent>) -> Vec<TorrentPeerSnapshot> {
     let Some(live) = handle.live() else {
         return Vec::new();
     };
+    let total_pieces = handle
+        .with_metadata(|metadata| metadata.lengths().total_pieces())
+        .ok()
+        .filter(|pieces| *pieces > 0);
 
     let mut peers = live
         .per_peer_stats_snapshot(PeerStatsFilter::default())
         .peers
         .into_iter()
-        .map(|(address, peer)| TorrentPeerSnapshot {
-            id: address.clone(),
-            address,
-            state: peer.state.to_owned(),
-            connection_kind: peer.conn_kind.map(|kind| kind.to_string()),
-            client: None,
-            feature_flags: peer
-                .conn_kind
-                .map(|kind| vec![kind.to_string()])
-                .unwrap_or_default(),
-            country_code: None,
-            availability: None,
-            downloaded_bytes: peer.counters.fetched_bytes,
-            uploaded_bytes: peer.counters.uploaded_bytes,
-            download_bps: None,
-            upload_bps: None,
-            connection_attempts: peer.counters.connection_attempts,
-            connections: peer.counters.connections,
-            errors: peer.counters.errors,
+        .map(|(address, peer)| {
+            let availability = peer.available_pieces.and_then(|available| {
+                total_pieces.map(|total| {
+                    let available = available.min(total);
+                    f64::from(available) / f64::from(total)
+                })
+            });
+
+            TorrentPeerSnapshot {
+                id: address.clone(),
+                address,
+                state: peer.state.to_owned(),
+                connection_kind: peer.conn_kind.map(|kind| kind.to_string()),
+                peer_id: peer.peer_id,
+                client: peer.client,
+                feature_flags: peer.feature_flags,
+                country_code: None,
+                availability,
+                available_pieces: peer.available_pieces,
+                downloaded_bytes: peer.counters.fetched_bytes,
+                uploaded_bytes: peer.counters.uploaded_bytes,
+                download_bps: None,
+                upload_bps: None,
+                connection_attempts: peer.counters.connection_attempts,
+                connections: peer.counters.connections,
+                errors: peer.counters.errors,
+            }
         })
         .collect::<Vec<_>>();
     peers.sort_by(|lhs, rhs| lhs.address.cmp(&rhs.address));
     peers
+}
+
+fn u64_to_u32(value: Option<u64>) -> Option<u32> {
+    value.map(|value| value.min(u64::from(u32::MAX)) as u32)
 }
 
 fn snapshot_files(handle: &Arc<ManagedTorrent>, file_progress: &[u64]) -> Vec<TorrentFileSnapshot> {
@@ -674,7 +718,11 @@ fn snapshot_piece_runs(handle: &Arc<ManagedTorrent>) -> Vec<TorrentPieceRunSnaps
     runs
 }
 
-fn progress_runs(progress_bytes: u64, total_bytes: u64, included: bool) -> Vec<TorrentPieceRunSnapshot> {
+fn progress_runs(
+    progress_bytes: u64,
+    total_bytes: u64,
+    included: bool,
+) -> Vec<TorrentPieceRunSnapshot> {
     if total_bytes == 0 {
         return Vec::new();
     }

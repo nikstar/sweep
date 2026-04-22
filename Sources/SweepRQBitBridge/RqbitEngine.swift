@@ -148,9 +148,12 @@ private extension TorrentTracker {
             scrapeURL: snapshot.scrapeUrl,
             status: snapshot.status,
             lastError: snapshot.lastError,
+            lastAnnounceAt: date(unixSeconds: snapshot.lastAnnounceUnixSeconds),
+            nextAnnounceAt: date(unixSeconds: snapshot.nextAnnounceUnixSeconds),
             seeders: snapshot.seeders,
             leechers: snapshot.leechers,
-            downloads: snapshot.downloads
+            downloads: snapshot.downloads,
+            lastPeerCount: snapshot.lastPeerCount
         )
     }
 }
@@ -173,10 +176,12 @@ private extension TorrentPeer {
             address: snapshot.address,
             state: snapshot.state,
             connectionKind: snapshot.connectionKind,
+            peerID: snapshot.peerId,
             client: snapshot.client,
             featureFlags: snapshot.featureFlags,
             countryCode: snapshot.countryCode,
             availability: snapshot.availability,
+            availablePieces: snapshot.availablePieces,
             downloadedBytes: snapshot.downloadedBytes,
             uploadedBytes: snapshot.uploadedBytes,
             downloadBps: snapshot.downloadBps,
@@ -186,6 +191,10 @@ private extension TorrentPeer {
             errors: snapshot.errors
         )
     }
+}
+
+private func date(unixSeconds: UInt64?) -> Date? {
+    unixSeconds.map { Date(timeIntervalSince1970: TimeInterval($0)) }
 }
 
 private extension TorrentFile {

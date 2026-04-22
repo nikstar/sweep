@@ -200,9 +200,12 @@ public struct TorrentTracker: Identifiable, Hashable, Codable, Sendable {
     public let scrapeURL: String?
     public let status: String
     public let lastError: String?
+    public let lastAnnounceAt: Date?
+    public let nextAnnounceAt: Date?
     public let seeders: UInt32?
     public let leechers: UInt32?
     public let downloads: UInt32?
+    public let lastPeerCount: UInt64?
 
     public init(
         id: Int,
@@ -211,9 +214,12 @@ public struct TorrentTracker: Identifiable, Hashable, Codable, Sendable {
         scrapeURL: String? = nil,
         status: String = "Configured",
         lastError: String? = nil,
+        lastAnnounceAt: Date? = nil,
+        nextAnnounceAt: Date? = nil,
         seeders: UInt32? = nil,
         leechers: UInt32? = nil,
-        downloads: UInt32? = nil
+        downloads: UInt32? = nil,
+        lastPeerCount: UInt64? = nil
     ) {
         self.id = id
         self.url = url
@@ -221,9 +227,12 @@ public struct TorrentTracker: Identifiable, Hashable, Codable, Sendable {
         self.scrapeURL = scrapeURL
         self.status = status
         self.lastError = lastError
+        self.lastAnnounceAt = lastAnnounceAt
+        self.nextAnnounceAt = nextAnnounceAt
         self.seeders = seeders
         self.leechers = leechers
         self.downloads = downloads
+        self.lastPeerCount = lastPeerCount
     }
 
     enum CodingKeys: String, CodingKey {
@@ -233,9 +242,12 @@ public struct TorrentTracker: Identifiable, Hashable, Codable, Sendable {
         case scrapeURL
         case status
         case lastError
+        case lastAnnounceAt
+        case nextAnnounceAt
         case seeders
         case leechers
         case downloads
+        case lastPeerCount
     }
 
     public init(from decoder: Decoder) throws {
@@ -247,9 +259,12 @@ public struct TorrentTracker: Identifiable, Hashable, Codable, Sendable {
             scrapeURL: try container.decodeIfPresent(String.self, forKey: .scrapeURL),
             status: try container.decodeIfPresent(String.self, forKey: .status) ?? "Configured",
             lastError: try container.decodeIfPresent(String.self, forKey: .lastError),
+            lastAnnounceAt: try container.decodeIfPresent(Date.self, forKey: .lastAnnounceAt),
+            nextAnnounceAt: try container.decodeIfPresent(Date.self, forKey: .nextAnnounceAt),
             seeders: try container.decodeIfPresent(UInt32.self, forKey: .seeders),
             leechers: try container.decodeIfPresent(UInt32.self, forKey: .leechers),
-            downloads: try container.decodeIfPresent(UInt32.self, forKey: .downloads)
+            downloads: try container.decodeIfPresent(UInt32.self, forKey: .downloads),
+            lastPeerCount: try container.decodeIfPresent(UInt64.self, forKey: .lastPeerCount)
         )
     }
 }
@@ -259,10 +274,12 @@ public struct TorrentPeer: Identifiable, Hashable, Codable, Sendable {
     public let address: String
     public let state: String
     public let connectionKind: String?
+    public let peerID: String?
     public let client: String?
     public let featureFlags: [String]
     public let countryCode: String?
     public let availability: Double?
+    public let availablePieces: UInt32?
     public let downloadedBytes: UInt64
     public let uploadedBytes: UInt64
     public let downloadBps: Double?
@@ -276,10 +293,12 @@ public struct TorrentPeer: Identifiable, Hashable, Codable, Sendable {
         address: String,
         state: String,
         connectionKind: String?,
+        peerID: String? = nil,
         client: String? = nil,
         featureFlags: [String] = [],
         countryCode: String? = nil,
         availability: Double? = nil,
+        availablePieces: UInt32? = nil,
         downloadedBytes: UInt64,
         uploadedBytes: UInt64,
         downloadBps: Double? = nil,
@@ -292,10 +311,12 @@ public struct TorrentPeer: Identifiable, Hashable, Codable, Sendable {
         self.address = address
         self.state = state
         self.connectionKind = connectionKind
+        self.peerID = peerID
         self.client = client
         self.featureFlags = featureFlags
         self.countryCode = countryCode
         self.availability = availability
+        self.availablePieces = availablePieces
         self.downloadedBytes = downloadedBytes
         self.uploadedBytes = uploadedBytes
         self.downloadBps = downloadBps
@@ -310,10 +331,12 @@ public struct TorrentPeer: Identifiable, Hashable, Codable, Sendable {
         case address
         case state
         case connectionKind
+        case peerID
         case client
         case featureFlags
         case countryCode
         case availability
+        case availablePieces
         case downloadedBytes
         case uploadedBytes
         case downloadBps
@@ -331,10 +354,12 @@ public struct TorrentPeer: Identifiable, Hashable, Codable, Sendable {
             address: address,
             state: try container.decode(String.self, forKey: .state),
             connectionKind: try container.decodeIfPresent(String.self, forKey: .connectionKind),
+            peerID: try container.decodeIfPresent(String.self, forKey: .peerID),
             client: try container.decodeIfPresent(String.self, forKey: .client),
             featureFlags: try container.decodeIfPresent([String].self, forKey: .featureFlags) ?? [],
             countryCode: try container.decodeIfPresent(String.self, forKey: .countryCode),
             availability: try container.decodeIfPresent(Double.self, forKey: .availability),
+            availablePieces: try container.decodeIfPresent(UInt32.self, forKey: .availablePieces),
             downloadedBytes: try container.decode(UInt64.self, forKey: .downloadedBytes),
             uploadedBytes: try container.decode(UInt64.self, forKey: .uploadedBytes),
             downloadBps: try container.decodeIfPresent(Double.self, forKey: .downloadBps),
@@ -342,6 +367,28 @@ public struct TorrentPeer: Identifiable, Hashable, Codable, Sendable {
             connectionAttempts: try container.decode(UInt32.self, forKey: .connectionAttempts),
             connections: try container.decode(UInt32.self, forKey: .connections),
             errors: try container.decode(UInt32.self, forKey: .errors)
+        )
+    }
+
+    public func updatingTransferRates(downloadBps: Double?, uploadBps: Double?) -> TorrentPeer {
+        TorrentPeer(
+            id: id,
+            address: address,
+            state: state,
+            connectionKind: connectionKind,
+            peerID: peerID,
+            client: client,
+            featureFlags: featureFlags,
+            countryCode: countryCode,
+            availability: availability,
+            availablePieces: availablePieces,
+            downloadedBytes: downloadedBytes,
+            uploadedBytes: uploadedBytes,
+            downloadBps: downloadBps,
+            uploadBps: uploadBps,
+            connectionAttempts: connectionAttempts,
+            connections: connections,
+            errors: errors
         )
     }
 }

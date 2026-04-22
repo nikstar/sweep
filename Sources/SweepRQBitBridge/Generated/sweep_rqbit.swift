@@ -878,10 +878,12 @@ public struct TorrentPeerSnapshot: Equatable, Hashable {
     public var address: String
     public var state: String
     public var connectionKind: String?
+    public var peerId: String?
     public var client: String?
     public var featureFlags: [String]
     public var countryCode: String?
     public var availability: Double?
+    public var availablePieces: UInt32?
     public var downloadedBytes: UInt64
     public var uploadedBytes: UInt64
     public var downloadBps: Double?
@@ -892,15 +894,17 @@ public struct TorrentPeerSnapshot: Equatable, Hashable {
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(id: String, address: String, state: String, connectionKind: String?, client: String?, featureFlags: [String], countryCode: String?, availability: Double?, downloadedBytes: UInt64, uploadedBytes: UInt64, downloadBps: Double?, uploadBps: Double?, connectionAttempts: UInt32, connections: UInt32, errors: UInt32) {
+    public init(id: String, address: String, state: String, connectionKind: String?, peerId: String?, client: String?, featureFlags: [String], countryCode: String?, availability: Double?, availablePieces: UInt32?, downloadedBytes: UInt64, uploadedBytes: UInt64, downloadBps: Double?, uploadBps: Double?, connectionAttempts: UInt32, connections: UInt32, errors: UInt32) {
         self.id = id
         self.address = address
         self.state = state
         self.connectionKind = connectionKind
+        self.peerId = peerId
         self.client = client
         self.featureFlags = featureFlags
         self.countryCode = countryCode
         self.availability = availability
+        self.availablePieces = availablePieces
         self.downloadedBytes = downloadedBytes
         self.uploadedBytes = uploadedBytes
         self.downloadBps = downloadBps
@@ -930,10 +934,12 @@ public struct FfiConverterTypeTorrentPeerSnapshot: FfiConverterRustBuffer {
                 address: FfiConverterString.read(from: &buf),
                 state: FfiConverterString.read(from: &buf),
                 connectionKind: FfiConverterOptionString.read(from: &buf),
+                peerId: FfiConverterOptionString.read(from: &buf),
                 client: FfiConverterOptionString.read(from: &buf),
                 featureFlags: FfiConverterSequenceString.read(from: &buf),
                 countryCode: FfiConverterOptionString.read(from: &buf),
                 availability: FfiConverterOptionDouble.read(from: &buf),
+                availablePieces: FfiConverterOptionUInt32.read(from: &buf),
                 downloadedBytes: FfiConverterUInt64.read(from: &buf),
                 uploadedBytes: FfiConverterUInt64.read(from: &buf),
                 downloadBps: FfiConverterOptionDouble.read(from: &buf),
@@ -949,10 +955,12 @@ public struct FfiConverterTypeTorrentPeerSnapshot: FfiConverterRustBuffer {
         FfiConverterString.write(value.address, into: &buf)
         FfiConverterString.write(value.state, into: &buf)
         FfiConverterOptionString.write(value.connectionKind, into: &buf)
+        FfiConverterOptionString.write(value.peerId, into: &buf)
         FfiConverterOptionString.write(value.client, into: &buf)
         FfiConverterSequenceString.write(value.featureFlags, into: &buf)
         FfiConverterOptionString.write(value.countryCode, into: &buf)
         FfiConverterOptionDouble.write(value.availability, into: &buf)
+        FfiConverterOptionUInt32.write(value.availablePieces, into: &buf)
         FfiConverterUInt64.write(value.downloadedBytes, into: &buf)
         FfiConverterUInt64.write(value.uploadedBytes, into: &buf)
         FfiConverterOptionDouble.write(value.downloadBps, into: &buf)
@@ -1232,22 +1240,28 @@ public struct TorrentTrackerSnapshot: Equatable, Hashable {
     public var scrapeUrl: String?
     public var status: String
     public var lastError: String?
+    public var lastAnnounceUnixSeconds: UInt64?
+    public var nextAnnounceUnixSeconds: UInt64?
     public var seeders: UInt32?
     public var leechers: UInt32?
     public var downloads: UInt32?
+    public var lastPeerCount: UInt64?
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(id: UInt64, url: String, kind: String, scrapeUrl: String?, status: String, lastError: String?, seeders: UInt32?, leechers: UInt32?, downloads: UInt32?) {
+    public init(id: UInt64, url: String, kind: String, scrapeUrl: String?, status: String, lastError: String?, lastAnnounceUnixSeconds: UInt64?, nextAnnounceUnixSeconds: UInt64?, seeders: UInt32?, leechers: UInt32?, downloads: UInt32?, lastPeerCount: UInt64?) {
         self.id = id
         self.url = url
         self.kind = kind
         self.scrapeUrl = scrapeUrl
         self.status = status
         self.lastError = lastError
+        self.lastAnnounceUnixSeconds = lastAnnounceUnixSeconds
+        self.nextAnnounceUnixSeconds = nextAnnounceUnixSeconds
         self.seeders = seeders
         self.leechers = leechers
         self.downloads = downloads
+        self.lastPeerCount = lastPeerCount
     }
 
 
@@ -1272,9 +1286,12 @@ public struct FfiConverterTypeTorrentTrackerSnapshot: FfiConverterRustBuffer {
                 scrapeUrl: FfiConverterOptionString.read(from: &buf),
                 status: FfiConverterString.read(from: &buf),
                 lastError: FfiConverterOptionString.read(from: &buf),
+                lastAnnounceUnixSeconds: FfiConverterOptionUInt64.read(from: &buf),
+                nextAnnounceUnixSeconds: FfiConverterOptionUInt64.read(from: &buf),
                 seeders: FfiConverterOptionUInt32.read(from: &buf),
                 leechers: FfiConverterOptionUInt32.read(from: &buf),
-                downloads: FfiConverterOptionUInt32.read(from: &buf)
+                downloads: FfiConverterOptionUInt32.read(from: &buf),
+                lastPeerCount: FfiConverterOptionUInt64.read(from: &buf)
         )
     }
 
@@ -1285,9 +1302,12 @@ public struct FfiConverterTypeTorrentTrackerSnapshot: FfiConverterRustBuffer {
         FfiConverterOptionString.write(value.scrapeUrl, into: &buf)
         FfiConverterString.write(value.status, into: &buf)
         FfiConverterOptionString.write(value.lastError, into: &buf)
+        FfiConverterOptionUInt64.write(value.lastAnnounceUnixSeconds, into: &buf)
+        FfiConverterOptionUInt64.write(value.nextAnnounceUnixSeconds, into: &buf)
         FfiConverterOptionUInt32.write(value.seeders, into: &buf)
         FfiConverterOptionUInt32.write(value.leechers, into: &buf)
         FfiConverterOptionUInt32.write(value.downloads, into: &buf)
+        FfiConverterOptionUInt64.write(value.lastPeerCount, into: &buf)
     }
 }
 
@@ -1399,6 +1419,30 @@ fileprivate struct FfiConverterOptionUInt32: FfiConverterRustBuffer {
         switch try readInt(&buf) as Int8 {
         case 0: return nil
         case 1: return try FfiConverterUInt32.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterOptionUInt64: FfiConverterRustBuffer {
+    typealias SwiftType = UInt64?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterUInt64.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterUInt64.read(from: &buf)
         default: throw UniffiInternalError.unexpectedOptionalTag
         }
     }
