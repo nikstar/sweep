@@ -54,7 +54,7 @@ struct TorrentListView: View {
                 .customizationID("size")
 
                 TableColumn("ETA") { torrent in
-                    Text(formatETA(torrent))
+                    Text(TorrentDisplayFormat.eta(torrent))
                         .monospacedDigit()
                         .foregroundStyle(.secondary)
                 }
@@ -63,7 +63,7 @@ struct TorrentListView: View {
                 .defaultVisibility(.hidden)
 
                 TableColumn("%") { torrent in
-                    Text(formatPercent(torrent.progress))
+                    Text(TorrentDisplayFormat.percent(torrent.progress))
                         .monospacedDigit()
                         .foregroundStyle(.secondary)
                 }
@@ -109,7 +109,7 @@ struct TorrentListView: View {
                 Divider()
 
                 Button("Reveal in Finder") {
-                    revealSelectedTorrentInFinder()
+                    TorrentActions.revealSelectedTorrent(in: store)
                 }
                 .disabled(store.selectedTorrent == nil)
 
@@ -136,14 +136,6 @@ struct TorrentListView: View {
 
             TransferStatusBar()
         }
-    }
-
-    private func revealSelectedTorrentInFinder() {
-        guard let torrent = store.selectedTorrent else { return }
-        TorrentFileLocation.revealInFinder(
-            torrent: torrent,
-            defaultDirectory: store.downloadDirectory
-        )
     }
 
     private var progressColumnMode: ProgressColumnMode {
@@ -240,12 +232,7 @@ private struct TorrentNameCell: View {
 
                     HStack(spacing: 7) {
                         Button {
-                            store.selection = torrent.id
-                            if torrent.desiredState == .paused {
-                                store.resumeSelectedTorrent()
-                            } else {
-                                store.pauseSelectedTorrent()
-                            }
+                            TorrentActions.togglePause(torrent, in: store)
                         } label: {
                             Image(systemName: torrent.desiredState == .paused ? "play.fill" : "pause.fill")
                         }
@@ -254,10 +241,7 @@ private struct TorrentNameCell: View {
                         .help(torrent.desiredState == .paused ? "Resume" : "Pause")
 
                         Button {
-                            TorrentFileLocation.revealInFinder(
-                                torrent: torrent,
-                                defaultDirectory: store.downloadDirectory
-                            )
+                            TorrentActions.reveal(torrent, in: store)
                         } label: {
                             Image(systemName: "magnifyingglass")
                         }
@@ -288,7 +272,7 @@ private struct TorrentNameCell: View {
         var parts = [torrent.statusLabel]
 
         if torrent.totalBytes > 0 {
-            parts.append("\(formatPercent(torrent.progress)) of \(ByteFormatter.bytes(torrent.totalBytes))")
+            parts.append("\(TorrentDisplayFormat.percent(torrent.progress)) of \(ByteFormatter.bytes(torrent.totalBytes))")
         } else {
             parts.append("Waiting for metadata")
         }
@@ -298,7 +282,7 @@ private struct TorrentNameCell: View {
         }
 
         if let eta = torrent.etaSeconds {
-            parts.append("\(formatDuration(eta)) left")
+            parts.append("\(TorrentDisplayFormat.duration(eta)) left")
         }
 
         if torrent.downloadBps > 1 {
@@ -374,7 +358,7 @@ private struct TorrentProgressCell: View {
             )
             if mode == .detailed {
                 HStack(spacing: 4) {
-                    Text(formatPercent(torrent.progress))
+                    Text(TorrentDisplayFormat.percent(torrent.progress))
                     if torrent.remainingBytes > 0 {
                         Text(ByteFormatter.bytes(torrent.remainingBytes))
                             .foregroundStyle(.tertiary)
@@ -391,104 +375,6 @@ private struct TorrentProgressCell: View {
                 onOptionClick()
             }
         })
-    }
-}
-
-struct SegmentedProgressView: View {
-    let runs: [TorrentPieceRun]
-    let fallbackProgress: Double
-    let state: String
-    var isSelected = false
-    var height: CGFloat = 8
-
-    var body: some View {
-        GeometryReader { proxy in
-            ZStack(alignment: .leading) {
-                RoundedRectangle(cornerRadius: 3)
-                    .fill(trackColor)
-
-                HStack(spacing: 0) {
-                    ForEach(displayRuns) { run in
-                        Rectangle()
-                            .fill(color(for: run.state))
-                            .frame(width: width(for: run, totalWidth: proxy.size.width))
-                    }
-                }
-                .clipShape(RoundedRectangle(cornerRadius: 3))
-
-                RoundedRectangle(cornerRadius: 3)
-                    .strokeBorder(Color.secondary.opacity(0.16), lineWidth: 0.5)
-            }
-        }
-        .frame(height: height)
-        .accessibilityLabel("Progress")
-        .accessibilityValue(formatPercent(fallbackProgress))
-    }
-
-    private var displayRuns: [TorrentPieceRun] {
-        if !runs.isEmpty {
-            return runs
-        }
-
-        let downloaded = UInt64((fallbackProgress.clamped(to: 0...1) * 10_000).rounded())
-        let remaining = 10_000 - downloaded
-        return [
-            TorrentPieceRun(id: 0, state: .downloaded, pieceCount: 1, byteCount: downloaded),
-            TorrentPieceRun(id: 1, state: .needed, pieceCount: 1, byteCount: remaining)
-        ].filter { $0.byteCount > 0 }
-    }
-
-    private var totalBytes: UInt64 {
-        displayRuns.reduce(0) { $0 + $1.byteCount }
-    }
-
-    private func width(for run: TorrentPieceRun, totalWidth: CGFloat) -> CGFloat {
-        guard totalBytes > 0 else { return 0 }
-        return totalWidth * CGFloat(Double(run.byteCount) / Double(totalBytes))
-    }
-
-    private func color(for state: TorrentPieceState) -> Color {
-        switch state {
-        case .downloaded:
-            statusFillColor
-        case .downloading:
-            isSelected ? .secondary : .cyan
-        case .needed:
-            Color.secondary.opacity(0.24)
-        case .skipped:
-            Color.secondary.opacity(0.10)
-        case .unknown:
-            Color.secondary.opacity(0.14)
-        }
-    }
-
-    private var statusFillColor: Color {
-        if isSelected, state != "Paused", state != "Pausing", state != "Error" {
-            return .primary
-        }
-        if state == "Complete" {
-            return .green
-        }
-        if state == "Paused" || state == "Pausing" {
-            return .secondary
-        }
-        if state == "Error" {
-            return .red
-        }
-        return .blue
-    }
-
-    private var trackColor: Color {
-        if state == "Error" {
-            return Color.red.opacity(0.10)
-        }
-        return Color.secondary.opacity(0.14)
-    }
-}
-
-private extension TorrentPeer {
-    var isLiveConnection: Bool {
-        state == "live" || connections > 0
     }
 }
 
@@ -540,45 +426,5 @@ private struct TransferStatusBar: View {
         .padding(.horizontal, 12)
         .frame(height: 34)
         .background(.bar)
-    }
-}
-
-private func formatPercent(_ value: Double) -> String {
-    let formatter = NumberFormatter()
-    formatter.numberStyle = .percent
-    formatter.maximumFractionDigits = value < 1 ? 1 : 0
-    return formatter.string(from: NSNumber(value: value)) ?? "0%"
-}
-
-private func formatETA(_ torrent: Torrent) -> String {
-    if torrent.progress >= 1 {
-        return "Done"
-    }
-    if torrent.desiredState == .paused {
-        return "Paused"
-    }
-    guard let seconds = torrent.etaSeconds else {
-        return "Unknown"
-    }
-    return formatDuration(seconds)
-}
-
-private func formatDuration(_ seconds: UInt64) -> String {
-    let hours = seconds / 3600
-    let minutes = (seconds % 3600) / 60
-    let seconds = seconds % 60
-
-    if hours > 0 {
-        return "\(hours)h \(minutes)m"
-    }
-    if minutes > 0 {
-        return "\(minutes)m \(seconds)s"
-    }
-    return "\(seconds)s"
-}
-
-private extension Comparable {
-    func clamped(to range: ClosedRange<Self>) -> Self {
-        min(max(self, range.lowerBound), range.upperBound)
     }
 }

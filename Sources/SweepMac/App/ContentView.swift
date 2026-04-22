@@ -16,7 +16,7 @@ struct ContentView: View {
             ToolbarItem(placement: .navigation) {
                 ControlGroup {
                     Button {
-                        openTorrent()
+                        TorrentActions.openTorrent(in: store)
                     } label: {
                         Label("Add File", systemImage: "doc.badge.plus")
                             .labelStyle(.iconOnly)
@@ -24,7 +24,7 @@ struct ContentView: View {
                     .help("Add Torrent File")
 
                     Button {
-                        store.beginAddingMagnet(magnetFromPasteboard() ?? "")
+                        TorrentActions.addLocationFromPasteboard(in: store)
                     } label: {
                         Label("Add URL", systemImage: "link.badge.plus")
                             .labelStyle(.iconOnly)
@@ -88,18 +88,7 @@ struct ContentView: View {
                 .help("Show Inspector")
             }
         }
-        .confirmationDialog(
-            removeDataConfirmationTitle,
-            isPresented: $confirmingRemoveData,
-            titleVisibility: .visible
-        ) {
-            Button("Delete Torrent and Files", role: .destructive) {
-                store.removeSelectedTorrent(deleteData: true)
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("Downloaded files for this torrent will be deleted from disk.")
-        }
+        .removeTorrentDataConfirmation(isPresented: $confirmingRemoveData, store: store)
         .sheet(isPresented: $store.showingAddSheet) {
             AddTorrentView(
                 source: store.pendingAddSource,
@@ -122,17 +111,5 @@ struct ContentView: View {
         .task {
             store.startPolling()
         }
-    }
-
-    private func openTorrent() {
-        guard let url = chooseTorrentFileURL() else { return }
-        store.beginAdding(url: url)
-    }
-
-    private var removeDataConfirmationTitle: String {
-        guard let name = store.selectedTorrent?.name else {
-            return "Delete the selected torrent and its downloaded files?"
-        }
-        return "Delete \"\(name)\" and its downloaded files?"
     }
 }

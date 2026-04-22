@@ -1,4 +1,3 @@
-import AppKit
 import SwiftUI
 import SweepCore
 import SweepRQBitBridge
@@ -28,19 +27,19 @@ struct SweepApp: App {
         .commands {
             CommandGroup(replacing: .newItem) {
                 Button("Open Torrent...") {
-                    openTorrent()
+                    TorrentActions.openTorrent(in: store)
                 }
                 .keyboardShortcut("o", modifiers: [.command])
 
                 Button("Open Location...") {
-                    store.beginAddingMagnet(magnetFromPasteboard() ?? "")
+                    TorrentActions.addLocationFromPasteboard(in: store)
                 }
                 .keyboardShortcut("u", modifiers: [.command])
 
                 Button("Add from Clipboard") {
-                    addFromClipboard()
+                    TorrentActions.addFromClipboard(in: store)
                 }
-                .disabled(!canAddFromClipboard)
+                .disabled(!TorrentActions.canAddFromClipboard)
             }
 
             CommandMenu("Transfers") {
@@ -71,7 +70,7 @@ struct SweepApp: App {
                 Divider()
 
                 Button("Reveal in Finder") {
-                    revealSelectedTorrentInFinder()
+                    TorrentActions.revealSelectedTorrent(in: store)
                 }
                 .keyboardShortcut("r", modifiers: [.command, .shift])
                 .disabled(store.selectedTorrent == nil)
@@ -92,31 +91,6 @@ struct SweepApp: App {
             }
         }
         .windowToolbarStyle(.unifiedCompact)
-    }
-
-    private func revealSelectedTorrentInFinder() {
-        guard let torrent = store.selectedTorrent else { return }
-        TorrentFileLocation.revealInFinder(
-            torrent: torrent,
-            defaultDirectory: store.downloadDirectory
-        )
-    }
-
-    private var canAddFromClipboard: Bool {
-        magnetFromPasteboard() != nil || torrentFileURLFromPasteboard() != nil
-    }
-
-    private func openTorrent() {
-        guard let url = chooseTorrentFileURL() else { return }
-        store.beginAdding(url: url)
-    }
-
-    private func addFromClipboard() {
-        if let magnet = magnetFromPasteboard() {
-            store.beginAddingMagnet(magnet)
-        } else if let url = torrentFileURLFromPasteboard() {
-            store.beginAdding(url: url)
-        }
     }
 }
 
