@@ -6,25 +6,19 @@ import SweepRQBitBridge
 @main
 struct SweepApp: App {
     @StateObject private var store = AppEnvironment.makeTorrentStore()
-    @Environment(\.openWindow) private var openWindow
+    @StateObject private var inspectorPanelPresenter = TorrentInspectorPanelPresenter()
 
     var body: some Scene {
         WindowGroup {
             ContentView()
                 .environmentObject(store)
+                .environmentObject(inspectorPanelPresenter)
                 .frame(minWidth: 820, minHeight: 500)
                 .onOpenURL { url in
                     store.beginAdding(url: url)
                 }
         }
         .windowStyle(.titleBar)
-
-        Window("Inspector", id: AppWindowID.torrentInspector) {
-            TorrentInspectorWindowView()
-                .environmentObject(store)
-        }
-        .defaultSize(width: 460, height: 560)
-        .windowResizability(.contentMinSize)
 
         Settings {
             SettingsView()
@@ -50,7 +44,7 @@ struct SweepApp: App {
 
             CommandMenu("Transfers") {
                 Button("Show Inspector") {
-                    openWindow(id: AppWindowID.torrentInspector)
+                    inspectorPanelPresenter.show(store: store)
                 }
                 .keyboardShortcut("i", modifiers: [.command])
 

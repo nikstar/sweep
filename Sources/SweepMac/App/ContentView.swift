@@ -3,7 +3,7 @@ import SweepCore
 
 struct ContentView: View {
     @EnvironmentObject private var store: TorrentStore
-    @Environment(\.openWindow) private var openWindow
+    @EnvironmentObject private var inspectorPanelPresenter: TorrentInspectorPanelPresenter
 
     var body: some View {
         NavigationSplitView {
@@ -47,7 +47,7 @@ struct ContentView: View {
                 .disabled(store.selectedTorrent == nil)
 
                 Button {
-                    openWindow(id: AppWindowID.torrentInspector)
+                    inspectorPanelPresenter.show(store: store)
                 } label: {
                     Label("Inspector", systemImage: "info.circle")
                 }
