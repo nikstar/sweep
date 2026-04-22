@@ -35,6 +35,9 @@ struct AppPersistenceTests {
                     progressBytes: 734_003_200
                 )
             ],
+            trackers: [
+                TorrentTracker(id: 0, url: "udp://tracker.opentrackr.org:1337/announce")
+            ],
             progressBytes: 734_003_200,
             totalBytes: 4_294_967_296,
             uploadedBytes: 86_507_520,

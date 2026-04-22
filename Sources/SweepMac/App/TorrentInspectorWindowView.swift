@@ -43,6 +43,12 @@ struct TorrentInspectorWindowView: View {
         case .activity:
             TorrentActivityInspector(torrent: torrent)
 
+        case .trackers:
+            TorrentTrackersInspector(torrent: torrent)
+
+        case .peers:
+            TorrentPeersInspector(torrent: torrent)
+
         case .files:
             TorrentFilesInspector(torrent: torrent, defaultDownloadDirectory: store.downloadDirectory)
 
@@ -56,6 +62,8 @@ struct TorrentInspectorWindowView: View {
 private enum InspectorTab: String, CaseIterable, Identifiable {
     case info
     case activity
+    case trackers
+    case peers
     case files
     case options
 
@@ -67,6 +75,10 @@ private enum InspectorTab: String, CaseIterable, Identifiable {
             "Info"
         case .activity:
             "Activity"
+        case .trackers:
+            "Trackers"
+        case .peers:
+            "Peers"
         case .files:
             "Files"
         case .options:
@@ -80,6 +92,10 @@ private enum InspectorTab: String, CaseIterable, Identifiable {
             "info.circle"
         case .activity:
             "speedometer"
+        case .trackers:
+            "antenna.radiowaves.left.and.right"
+        case .peers:
+            "person.2"
         case .files:
             "folder"
         case .options:
@@ -256,6 +272,102 @@ private struct TorrentFilesInspector: View {
                 }
             }
         }
+    }
+}
+
+private struct TorrentTrackersInspector: View {
+    let torrent: Torrent
+
+    var body: some View {
+        InspectorForm {
+            Section("Trackers") {
+                LabeledContent("Count", value: String(torrent.trackers.count))
+
+                if torrent.trackers.isEmpty {
+                    Text("No trackers")
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(torrent.trackers) { tracker in
+                        TorrentTrackerInspectorRow(tracker: tracker)
+                    }
+                }
+            }
+        }
+    }
+}
+
+private struct TorrentTrackerInspectorRow: View {
+    let tracker: TorrentTracker
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "antenna.radiowaves.left.and.right")
+                .foregroundStyle(.secondary)
+                .frame(width: 18)
+
+            CopyableValue(tracker.url)
+        }
+        .padding(.vertical, 2)
+    }
+}
+
+private struct TorrentPeersInspector: View {
+    let torrent: Torrent
+
+    var body: some View {
+        InspectorForm {
+            Section("Peers") {
+                LabeledContent("Connected", value: String(torrent.peers.count))
+
+                if torrent.peers.isEmpty {
+                    Text("No connected peers")
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(torrent.peers) { peer in
+                        TorrentPeerInspectorRow(peer: peer)
+                    }
+                }
+            }
+        }
+    }
+}
+
+private struct TorrentPeerInspectorRow: View {
+    let peer: TorrentPeer
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: peer.state == "live" ? "circle.fill" : "circle")
+                .font(.system(size: 9))
+                .foregroundStyle(peer.state == "live" ? .green : .secondary)
+                .frame(width: 18)
+
+            VStack(alignment: .leading, spacing: 5) {
+                HStack {
+                    Text(peer.address)
+                        .monospacedDigit()
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    Spacer()
+                    Text(InspectorFormat.peerConnection(peer))
+                        .foregroundStyle(.secondary)
+                }
+
+                HStack(spacing: 12) {
+                    Text(peer.state.capitalized)
+                    Text("\(ByteFormatter.bytes(peer.downloadedBytes)) down")
+                    Text("\(ByteFormatter.bytes(peer.uploadedBytes)) up")
+                    if peer.errors > 0 {
+                        Text("\(peer.errors) errors")
+                            .foregroundStyle(.orange)
+                    }
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+            }
+        }
+        .padding(.vertical, 2)
     }
 }
 
@@ -455,5 +567,15 @@ private enum InspectorFormat {
             return "Torrent File"
         }
         return "Unknown"
+    }
+
+    static func peerConnection(_ peer: TorrentPeer) -> String {
+        if let connectionKind = peer.connectionKind, !connectionKind.isEmpty {
+            return connectionKind
+        }
+        if peer.connectionAttempts > 0 {
+            return "\(peer.connectionAttempts) attempts"
+        }
+        return "Queued"
     }
 }

@@ -81,6 +81,50 @@ public struct TorrentFile: Identifiable, Hashable, Codable, Sendable {
     }
 }
 
+public struct TorrentTracker: Identifiable, Hashable, Codable, Sendable {
+    public let id: Int
+    public let url: String
+
+    public init(id: Int, url: String) {
+        self.id = id
+        self.url = url
+    }
+}
+
+public struct TorrentPeer: Identifiable, Hashable, Codable, Sendable {
+    public let id: String
+    public let address: String
+    public let state: String
+    public let connectionKind: String?
+    public let downloadedBytes: UInt64
+    public let uploadedBytes: UInt64
+    public let connectionAttempts: UInt32
+    public let connections: UInt32
+    public let errors: UInt32
+
+    public init(
+        id: String? = nil,
+        address: String,
+        state: String,
+        connectionKind: String?,
+        downloadedBytes: UInt64,
+        uploadedBytes: UInt64,
+        connectionAttempts: UInt32,
+        connections: UInt32,
+        errors: UInt32
+    ) {
+        self.id = id ?? address
+        self.address = address
+        self.state = state
+        self.connectionKind = connectionKind
+        self.downloadedBytes = downloadedBytes
+        self.uploadedBytes = uploadedBytes
+        self.connectionAttempts = connectionAttempts
+        self.connections = connections
+        self.errors = errors
+    }
+}
+
 public struct Torrent: Identifiable, Hashable, Codable, Sendable {
     public let id: String
     public let engineID: Int?
@@ -93,6 +137,8 @@ public struct Torrent: Identifiable, Hashable, Codable, Sendable {
     public let desiredState: TorrentDesiredState
     public let state: String
     public let files: [TorrentFile]
+    public let trackers: [TorrentTracker]
+    public let peers: [TorrentPeer]
     public let progressBytes: UInt64
     public let totalBytes: UInt64
     public let uploadedBytes: UInt64
@@ -114,6 +160,8 @@ public struct Torrent: Identifiable, Hashable, Codable, Sendable {
         desiredState: TorrentDesiredState = .running,
         state: String,
         files: [TorrentFile] = [],
+        trackers: [TorrentTracker] = [],
+        peers: [TorrentPeer] = [],
         progressBytes: UInt64,
         totalBytes: UInt64,
         uploadedBytes: UInt64,
@@ -135,6 +183,8 @@ public struct Torrent: Identifiable, Hashable, Codable, Sendable {
         self.desiredState = desiredState
         self.state = state
         self.files = files
+        self.trackers = trackers
+        self.peers = peers
         self.progressBytes = progressBytes
         self.totalBytes = totalBytes
         self.uploadedBytes = uploadedBytes
@@ -157,6 +207,8 @@ public struct Torrent: Identifiable, Hashable, Codable, Sendable {
         case desiredState = "desired_state"
         case state
         case files
+        case trackers
+        case peers
         case progressBytes = "progress_bytes"
         case totalBytes = "total_bytes"
         case uploadedBytes = "uploaded_bytes"
@@ -214,6 +266,8 @@ public struct Torrent: Identifiable, Hashable, Codable, Sendable {
         desiredState: TorrentDesiredState? = nil,
         state: String? = nil,
         files: [TorrentFile]? = nil,
+        trackers: [TorrentTracker]? = nil,
+        peers: [TorrentPeer]? = nil,
         progressBytes: UInt64? = nil,
         totalBytes: UInt64? = nil,
         uploadedBytes: UInt64? = nil,
@@ -235,6 +289,8 @@ public struct Torrent: Identifiable, Hashable, Codable, Sendable {
             desiredState: desiredState ?? self.desiredState,
             state: state ?? self.state,
             files: files ?? self.files,
+            trackers: trackers ?? self.trackers,
+            peers: peers ?? self.peers,
             progressBytes: progressBytes ?? self.progressBytes,
             totalBytes: totalBytes ?? self.totalBytes,
             uploadedBytes: uploadedBytes ?? self.uploadedBytes,
@@ -259,6 +315,8 @@ public struct Torrent: Identifiable, Hashable, Codable, Sendable {
                 desiredState: desiredState,
                 state: state,
                 files: files,
+                trackers: trackers,
+                peers: peers,
                 progressBytes: progressBytes,
                 totalBytes: totalBytes,
                 uploadedBytes: uploadedBytes,
@@ -281,6 +339,8 @@ public struct Torrent: Identifiable, Hashable, Codable, Sendable {
                 desiredState: desiredState,
                 state: state,
                 files: files,
+                trackers: trackers,
+                peers: peers,
                 progressBytes: progressBytes,
                 totalBytes: totalBytes,
                 uploadedBytes: uploadedBytes,
@@ -300,6 +360,7 @@ public struct Torrent: Identifiable, Hashable, Codable, Sendable {
             torrentFileBytes: torrentFileBytes ?? cached.torrentFileBytes,
             downloadDirectory: downloadDirectory ?? cached.downloadDirectory,
             desiredState: cached.desiredState,
+            trackers: trackers.isEmpty ? cached.trackers : trackers,
             addedAt: cached.addedAt
         )
     }

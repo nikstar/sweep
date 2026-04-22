@@ -419,6 +419,22 @@ fileprivate final class UniffiHandleMap<T>: @unchecked Sendable {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterUInt32: FfiConverterPrimitive {
+    typealias FfiType = UInt32
+    typealias SwiftType = UInt32
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> UInt32 {
+        return try lift(readInt(&buf))
+    }
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        writeInt(&buf, lower(value))
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterUInt64: FfiConverterPrimitive {
     typealias FfiType = UInt64
     typealias SwiftType = UInt64
@@ -830,12 +846,96 @@ public func FfiConverterTypeTorrentFileSnapshot_lower(_ value: TorrentFileSnapsh
 }
 
 
+public struct TorrentPeerSnapshot: Equatable, Hashable {
+    public var id: String
+    public var address: String
+    public var state: String
+    public var connectionKind: String?
+    public var downloadedBytes: UInt64
+    public var uploadedBytes: UInt64
+    public var connectionAttempts: UInt32
+    public var connections: UInt32
+    public var errors: UInt32
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(id: String, address: String, state: String, connectionKind: String?, downloadedBytes: UInt64, uploadedBytes: UInt64, connectionAttempts: UInt32, connections: UInt32, errors: UInt32) {
+        self.id = id
+        self.address = address
+        self.state = state
+        self.connectionKind = connectionKind
+        self.downloadedBytes = downloadedBytes
+        self.uploadedBytes = uploadedBytes
+        self.connectionAttempts = connectionAttempts
+        self.connections = connections
+        self.errors = errors
+    }
+
+
+
+
+}
+
+#if compiler(>=6)
+extension TorrentPeerSnapshot: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeTorrentPeerSnapshot: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> TorrentPeerSnapshot {
+        return
+            try TorrentPeerSnapshot(
+                id: FfiConverterString.read(from: &buf),
+                address: FfiConverterString.read(from: &buf),
+                state: FfiConverterString.read(from: &buf),
+                connectionKind: FfiConverterOptionString.read(from: &buf),
+                downloadedBytes: FfiConverterUInt64.read(from: &buf),
+                uploadedBytes: FfiConverterUInt64.read(from: &buf),
+                connectionAttempts: FfiConverterUInt32.read(from: &buf),
+                connections: FfiConverterUInt32.read(from: &buf),
+                errors: FfiConverterUInt32.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: TorrentPeerSnapshot, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.id, into: &buf)
+        FfiConverterString.write(value.address, into: &buf)
+        FfiConverterString.write(value.state, into: &buf)
+        FfiConverterOptionString.write(value.connectionKind, into: &buf)
+        FfiConverterUInt64.write(value.downloadedBytes, into: &buf)
+        FfiConverterUInt64.write(value.uploadedBytes, into: &buf)
+        FfiConverterUInt32.write(value.connectionAttempts, into: &buf)
+        FfiConverterUInt32.write(value.connections, into: &buf)
+        FfiConverterUInt32.write(value.errors, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeTorrentPeerSnapshot_lift(_ buf: RustBuffer) throws -> TorrentPeerSnapshot {
+    return try FfiConverterTypeTorrentPeerSnapshot.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeTorrentPeerSnapshot_lower(_ value: TorrentPeerSnapshot) -> RustBuffer {
+    return FfiConverterTypeTorrentPeerSnapshot.lower(value)
+}
+
+
 public struct TorrentSnapshot: Equatable, Hashable {
     public var id: UInt64
     public var name: String
     public var infoHash: String
     public var state: String
     public var files: [TorrentFileSnapshot]
+    public var trackers: [TorrentTrackerSnapshot]
+    public var peers: [TorrentPeerSnapshot]
     public var progressBytes: UInt64
     public var totalBytes: UInt64
     public var uploadedBytes: UInt64
@@ -845,12 +945,14 @@ public struct TorrentSnapshot: Equatable, Hashable {
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(id: UInt64, name: String, infoHash: String, state: String, files: [TorrentFileSnapshot], progressBytes: UInt64, totalBytes: UInt64, uploadedBytes: UInt64, downloadBps: Double, uploadBps: Double, error: String?) {
+    public init(id: UInt64, name: String, infoHash: String, state: String, files: [TorrentFileSnapshot], trackers: [TorrentTrackerSnapshot], peers: [TorrentPeerSnapshot], progressBytes: UInt64, totalBytes: UInt64, uploadedBytes: UInt64, downloadBps: Double, uploadBps: Double, error: String?) {
         self.id = id
         self.name = name
         self.infoHash = infoHash
         self.state = state
         self.files = files
+        self.trackers = trackers
+        self.peers = peers
         self.progressBytes = progressBytes
         self.totalBytes = totalBytes
         self.uploadedBytes = uploadedBytes
@@ -880,6 +982,8 @@ public struct FfiConverterTypeTorrentSnapshot: FfiConverterRustBuffer {
                 infoHash: FfiConverterString.read(from: &buf),
                 state: FfiConverterString.read(from: &buf),
                 files: FfiConverterSequenceTypeTorrentFileSnapshot.read(from: &buf),
+                trackers: FfiConverterSequenceTypeTorrentTrackerSnapshot.read(from: &buf),
+                peers: FfiConverterSequenceTypeTorrentPeerSnapshot.read(from: &buf),
                 progressBytes: FfiConverterUInt64.read(from: &buf),
                 totalBytes: FfiConverterUInt64.read(from: &buf),
                 uploadedBytes: FfiConverterUInt64.read(from: &buf),
@@ -895,6 +999,8 @@ public struct FfiConverterTypeTorrentSnapshot: FfiConverterRustBuffer {
         FfiConverterString.write(value.infoHash, into: &buf)
         FfiConverterString.write(value.state, into: &buf)
         FfiConverterSequenceTypeTorrentFileSnapshot.write(value.files, into: &buf)
+        FfiConverterSequenceTypeTorrentTrackerSnapshot.write(value.trackers, into: &buf)
+        FfiConverterSequenceTypeTorrentPeerSnapshot.write(value.peers, into: &buf)
         FfiConverterUInt64.write(value.progressBytes, into: &buf)
         FfiConverterUInt64.write(value.totalBytes, into: &buf)
         FfiConverterUInt64.write(value.uploadedBytes, into: &buf)
@@ -917,6 +1023,60 @@ public func FfiConverterTypeTorrentSnapshot_lift(_ buf: RustBuffer) throws -> To
 #endif
 public func FfiConverterTypeTorrentSnapshot_lower(_ value: TorrentSnapshot) -> RustBuffer {
     return FfiConverterTypeTorrentSnapshot.lower(value)
+}
+
+
+public struct TorrentTrackerSnapshot: Equatable, Hashable {
+    public var id: UInt64
+    public var url: String
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(id: UInt64, url: String) {
+        self.id = id
+        self.url = url
+    }
+
+
+
+
+}
+
+#if compiler(>=6)
+extension TorrentTrackerSnapshot: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeTorrentTrackerSnapshot: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> TorrentTrackerSnapshot {
+        return
+            try TorrentTrackerSnapshot(
+                id: FfiConverterUInt64.read(from: &buf),
+                url: FfiConverterString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: TorrentTrackerSnapshot, into buf: inout [UInt8]) {
+        FfiConverterUInt64.write(value.id, into: &buf)
+        FfiConverterString.write(value.url, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeTorrentTrackerSnapshot_lift(_ buf: RustBuffer) throws -> TorrentTrackerSnapshot {
+    return try FfiConverterTypeTorrentTrackerSnapshot.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeTorrentTrackerSnapshot_lower(_ value: TorrentTrackerSnapshot) -> RustBuffer {
+    return FfiConverterTypeTorrentTrackerSnapshot.lower(value)
 }
 
 
@@ -1045,6 +1205,31 @@ fileprivate struct FfiConverterSequenceTypeTorrentFileSnapshot: FfiConverterRust
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterSequenceTypeTorrentPeerSnapshot: FfiConverterRustBuffer {
+    typealias SwiftType = [TorrentPeerSnapshot]
+
+    public static func write(_ value: [TorrentPeerSnapshot], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeTorrentPeerSnapshot.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [TorrentPeerSnapshot] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [TorrentPeerSnapshot]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeTorrentPeerSnapshot.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterSequenceTypeTorrentSnapshot: FfiConverterRustBuffer {
     typealias SwiftType = [TorrentSnapshot]
 
@@ -1062,6 +1247,31 @@ fileprivate struct FfiConverterSequenceTypeTorrentSnapshot: FfiConverterRustBuff
         seq.reserveCapacity(Int(len))
         for _ in 0 ..< len {
             seq.append(try FfiConverterTypeTorrentSnapshot.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterSequenceTypeTorrentTrackerSnapshot: FfiConverterRustBuffer {
+    typealias SwiftType = [TorrentTrackerSnapshot]
+
+    public static func write(_ value: [TorrentTrackerSnapshot], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeTorrentTrackerSnapshot.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [TorrentTrackerSnapshot] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [TorrentTrackerSnapshot]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeTorrentTrackerSnapshot.read(from: &buf))
         }
         return seq
     }

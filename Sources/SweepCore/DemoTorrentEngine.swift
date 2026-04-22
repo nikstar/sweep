@@ -18,6 +18,21 @@ public actor DemoTorrentEngine: TorrentEngine {
                     progressBytes: 734_003_200
                 )
             ],
+            trackers: [
+                TorrentTracker(id: 0, url: "udp://tracker.opentrackr.org:1337/announce")
+            ],
+            peers: [
+                TorrentPeer(
+                    address: "203.0.113.42:51413",
+                    state: "live",
+                    connectionKind: "uTP",
+                    downloadedBytes: 734_003_200,
+                    uploadedBytes: 86_507_520,
+                    connectionAttempts: 1,
+                    connections: 1,
+                    errors: 0
+                )
+            ],
             progressBytes: 734_003_200,
             totalBytes: 4_294_967_296,
             uploadedBytes: 86_507_520,

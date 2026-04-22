@@ -120,12 +120,39 @@ private extension Torrent {
             desiredState: desiredState ?? (snapshot.state.lowercased() == "paused" ? .paused : .running),
             state: snapshot.state,
             files: snapshot.files.map(TorrentFile.init(snapshot:)),
+            trackers: snapshot.trackers.map(TorrentTracker.init(snapshot:)),
+            peers: snapshot.peers.map(TorrentPeer.init(snapshot:)),
             progressBytes: snapshot.progressBytes,
             totalBytes: snapshot.totalBytes,
             uploadedBytes: snapshot.uploadedBytes,
             downloadBps: snapshot.downloadBps,
             uploadBps: snapshot.uploadBps,
             error: snapshot.error
+        )
+    }
+}
+
+private extension TorrentTracker {
+    init(snapshot: TorrentTrackerSnapshot) {
+        self.init(
+            id: Int(snapshot.id),
+            url: snapshot.url
+        )
+    }
+}
+
+private extension TorrentPeer {
+    init(snapshot: TorrentPeerSnapshot) {
+        self.init(
+            id: snapshot.id,
+            address: snapshot.address,
+            state: snapshot.state,
+            connectionKind: snapshot.connectionKind,
+            downloadedBytes: snapshot.downloadedBytes,
+            uploadedBytes: snapshot.uploadedBytes,
+            connectionAttempts: snapshot.connectionAttempts,
+            connections: snapshot.connections,
+            errors: snapshot.errors
         )
     }
 }

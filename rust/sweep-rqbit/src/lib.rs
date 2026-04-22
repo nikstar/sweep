@@ -3,8 +3,9 @@ use std::{path::PathBuf, sync::Arc};
 use anyhow::Context;
 use futures_channel::oneshot;
 use librqbit::{
-    AddTorrent, AddTorrentOptions, AddTorrentResponse, ManagedTorrent, Session,
-    api::TorrentIdOrHash,
+    AddTorrent, AddTorrentOptions, AddTorrentResponse, ConnectionOptions, ListenerMode,
+    ListenerOptions, ManagedTorrent, Session, SessionOptions, api::TorrentIdOrHash,
+    http_api_types::PeerStatsFilter,
 };
 use tokio::runtime::{Builder, Runtime};
 
@@ -40,12 +41,33 @@ pub struct TorrentFileSnapshot {
 }
 
 #[derive(Debug, Clone, uniffi::Record)]
+pub struct TorrentTrackerSnapshot {
+    pub id: u64,
+    pub url: String,
+}
+
+#[derive(Debug, Clone, uniffi::Record)]
+pub struct TorrentPeerSnapshot {
+    pub id: String,
+    pub address: String,
+    pub state: String,
+    pub connection_kind: Option<String>,
+    pub downloaded_bytes: u64,
+    pub uploaded_bytes: u64,
+    pub connection_attempts: u32,
+    pub connections: u32,
+    pub errors: u32,
+}
+
+#[derive(Debug, Clone, uniffi::Record)]
 pub struct TorrentSnapshot {
     pub id: u64,
     pub name: String,
     pub info_hash: String,
     pub state: String,
     pub files: Vec<TorrentFileSnapshot>,
+    pub trackers: Vec<TorrentTrackerSnapshot>,
+    pub peers: Vec<TorrentPeerSnapshot>,
     pub progress_bytes: u64,
     pub total_bytes: u64,
     pub uploaded_bytes: u64,
@@ -70,7 +92,18 @@ impl SweepEngine {
             .build()
             .context("failed to create rqbit runtime")?;
         let session = runtime
-            .block_on(Session::new(PathBuf::from(download_dir)))
+            .block_on(Session::new_with_opts(
+                PathBuf::from(download_dir),
+                SessionOptions {
+                    disable_dht_persistence: true,
+                    listen: Some(ListenerOptions {
+                        mode: ListenerMode::TcpAndUtp,
+                        ..Default::default()
+                    }),
+                    connect: Some(ConnectionOptions::default()),
+                    ..Default::default()
+                },
+            ))
             .context("failed to create rqbit session")?;
 
         Ok(Arc::new(Self { runtime, session }))
@@ -256,6 +289,8 @@ fn parse_torrent_id(id: &str) -> Result<TorrentIdOrHash, SweepError> {
 fn snapshot(handle: &Arc<ManagedTorrent>) -> TorrentSnapshot {
     let stats = handle.stats();
     let files = snapshot_files(handle, &stats.file_progress);
+    let trackers = snapshot_trackers(handle);
+    let peers = snapshot_peers(handle);
     let (download_bps, upload_bps) = stats
         .live
         .as_ref()
@@ -275,6 +310,8 @@ fn snapshot(handle: &Arc<ManagedTorrent>) -> TorrentSnapshot {
         info_hash: handle.info_hash().as_string(),
         state: stats.state.to_string(),
         files,
+        trackers,
+        peers,
         progress_bytes: stats.progress_bytes,
         total_bytes: stats.total_bytes,
         uploaded_bytes: stats.uploaded_bytes,
@@ -282,6 +319,49 @@ fn snapshot(handle: &Arc<ManagedTorrent>) -> TorrentSnapshot {
         upload_bps,
         error: stats.error,
     }
+}
+
+fn snapshot_trackers(handle: &Arc<ManagedTorrent>) -> Vec<TorrentTrackerSnapshot> {
+    let mut trackers = handle
+        .shared()
+        .trackers
+        .iter()
+        .map(|url| url.to_string())
+        .collect::<Vec<_>>();
+    trackers.sort();
+    trackers
+        .into_iter()
+        .enumerate()
+        .map(|(idx, url)| TorrentTrackerSnapshot {
+            id: idx as u64,
+            url,
+        })
+        .collect()
+}
+
+fn snapshot_peers(handle: &Arc<ManagedTorrent>) -> Vec<TorrentPeerSnapshot> {
+    let Some(live) = handle.live() else {
+        return Vec::new();
+    };
+
+    let mut peers = live
+        .per_peer_stats_snapshot(PeerStatsFilter::default())
+        .peers
+        .into_iter()
+        .map(|(address, peer)| TorrentPeerSnapshot {
+            id: address.clone(),
+            address,
+            state: peer.state.to_owned(),
+            connection_kind: peer.conn_kind.map(|kind| kind.to_string()),
+            downloaded_bytes: peer.counters.fetched_bytes,
+            uploaded_bytes: peer.counters.uploaded_bytes,
+            connection_attempts: peer.counters.connection_attempts,
+            connections: peer.counters.connections,
+            errors: peer.counters.errors,
+        })
+        .collect::<Vec<_>>();
+    peers.sort_by(|lhs, rhs| lhs.address.cmp(&rhs.address));
+    peers
 }
 
 fn snapshot_files(handle: &Arc<ManagedTorrent>, file_progress: &[u64]) -> Vec<TorrentFileSnapshot> {
