@@ -5,6 +5,11 @@ import SweepCore
 struct TorrentListView: View {
     @EnvironmentObject private var store: TorrentStore
     @EnvironmentObject private var inspectorPanelPresenter: TorrentInspectorPanelPresenter
+    @Binding var confirmingRemoveData: Bool
+
+    init(confirmingRemoveData: Binding<Bool> = .constant(false)) {
+        self._confirmingRemoveData = confirmingRemoveData
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -56,28 +61,30 @@ struct TorrentListView: View {
                     .width(min: 92, ideal: 112)
                 }
 
-                TableColumn("Speed") { torrent in
-                    VStack(alignment: .trailing, spacing: 2) {
-                        Text(ByteFormatter.rate(torrent.downloadBps))
-                        Text(ByteFormatter.rate(torrent.uploadBps))
+                if store.isColumnVisible(.speed) {
+                    TableColumn("Speed") { torrent in
+                        VStack(alignment: .trailing, spacing: 2) {
+                            TransferRateLine(systemImage: "arrow.down", value: torrent.downloadBps)
+                            TransferRateLine(systemImage: "arrow.up", value: torrent.uploadBps)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .trailing)
                     }
-                    .monospacedDigit()
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .trailing)
+                    .width(min: 92, ideal: 112)
                 }
-                .width(min: 92, ideal: 112)
 
-                TableColumn("Peers") { torrent in
-                    VStack(alignment: .trailing, spacing: 2) {
-                        Text("\(torrent.peers.count)")
-                        Text("\(torrent.trackers.count) trackers")
-                            .font(.caption2)
+                if store.isColumnVisible(.peers) {
+                    TableColumn("Peers") { torrent in
+                        VStack(alignment: .trailing, spacing: 2) {
+                            Text("\(torrent.peers.count)")
+                                .monospacedDigit()
+                            Text(peerSummary(torrent))
+                                .font(.caption2)
+                        }
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .trailing)
                     }
-                    .monospacedDigit()
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .trailing)
+                    .width(min: 72, ideal: 92)
                 }
-                .width(min: 70, ideal: 86)
             }
             .contextMenu {
                 Button("Resume") {
@@ -100,6 +107,7 @@ struct TorrentListView: View {
                 Button("Show Inspector") {
                     inspectorPanelPresenter.show(store: store)
                 }
+                .disabled(store.selectedTorrent == nil)
 
                 Divider()
 
@@ -109,7 +117,7 @@ struct TorrentListView: View {
                 .disabled(store.selectedTorrent == nil)
 
                 Button("Remove and Delete Data") {
-                    store.removeSelectedTorrent(deleteData: true)
+                    confirmingRemoveData = true
                 }
                 .disabled(store.selectedTorrent == nil)
             }
@@ -128,51 +136,63 @@ struct TorrentListView: View {
             defaultDirectory: store.downloadDirectory
         )
     }
+
+    private func peerSummary(_ torrent: Torrent) -> String {
+        let trackerText = torrent.trackers.count == 1 ? "1 tracker" : "\(torrent.trackers.count) trackers"
+        let workingTrackers = torrent.trackers.filter { $0.status == "Working" }.count
+        if workingTrackers > 0 {
+            return "\(workingTrackers)/\(trackerText)"
+        }
+        return trackerText
+    }
 }
 
 private struct TorrentNameCell: View {
     @EnvironmentObject private var store: TorrentStore
+    @State private var isHovering = false
 
     let torrent: Torrent
 
     var body: some View {
-        HStack(spacing: 8) {
-            Image(systemName: statusIcon.systemName)
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(statusIcon.color)
-                .frame(width: 18)
+        HStack(alignment: .top, spacing: 8) {
+            TorrentStatusIcon(torrent: torrent)
+                .padding(.top, 2)
 
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
                     Text(torrent.name)
+                        .font(.body)
                         .lineLimit(1)
                         .truncationMode(.middle)
 
-                    Button {
-                        store.selection = torrent.id
-                        if torrent.desiredState == .paused {
-                            store.resumeSelectedTorrent()
-                        } else {
-                            store.pauseSelectedTorrent()
+                    HStack(spacing: 2) {
+                        Button {
+                            store.selection = torrent.id
+                            if torrent.desiredState == .paused {
+                                store.resumeSelectedTorrent()
+                            } else {
+                                store.pauseSelectedTorrent()
+                            }
+                        } label: {
+                            Image(systemName: torrent.desiredState == .paused ? "play.fill" : "pause.fill")
                         }
-                    } label: {
-                        Image(systemName: torrent.desiredState == .paused ? "play.fill" : "pause.fill")
-                    }
-                    .buttonStyle(.borderless)
-                    .controlSize(.small)
-                    .help(torrent.desiredState == .paused ? "Resume" : "Pause")
+                        .buttonStyle(.borderless)
+                        .controlSize(.small)
+                        .help(torrent.desiredState == .paused ? "Resume" : "Pause")
 
-                    Button {
-                        TorrentFileLocation.revealInFinder(
-                            torrent: torrent,
-                            defaultDirectory: store.downloadDirectory
-                        )
-                    } label: {
-                        Image(systemName: "magnifyingglass")
+                        Button {
+                            TorrentFileLocation.revealInFinder(
+                                torrent: torrent,
+                                defaultDirectory: store.downloadDirectory
+                            )
+                        } label: {
+                            Image(systemName: "magnifyingglass")
+                        }
+                        .buttonStyle(.borderless)
+                        .controlSize(.small)
+                        .help("Reveal in Finder")
                     }
-                    .buttonStyle(.borderless)
-                    .controlSize(.small)
-                    .help("Reveal in Finder")
+                    .opacity(isHovering || store.selection == torrent.id ? 1 : 0.72)
                 }
 
                 Text(statusText)
@@ -182,7 +202,8 @@ private struct TorrentNameCell: View {
                     .truncationMode(.tail)
             }
         }
-        .padding(.vertical, 2)
+        .padding(.vertical, 3)
+        .onHover { isHovering = $0 }
     }
 
     private var statusText: String {
@@ -190,27 +211,67 @@ private struct TorrentNameCell: View {
             return error
         }
 
-        let progress = "\(ByteFormatter.bytes(torrent.progressBytes)) of \(ByteFormatter.bytes(torrent.totalBytes))"
-        if torrent.remainingBytes > 0 {
-            return "\(torrent.statusLabel) - \(progress) - \(ByteFormatter.bytes(torrent.remainingBytes)) left"
+        var parts = [torrent.statusLabel]
+
+        if torrent.totalBytes > 0 {
+            parts.append("\(formatPercent(torrent.progress)) of \(ByteFormatter.bytes(torrent.totalBytes))")
+        } else {
+            parts.append("Waiting for metadata")
         }
-        return "\(torrent.statusLabel) - \(progress)"
+
+        if torrent.remainingBytes > 0 {
+            parts.append("\(ByteFormatter.bytes(torrent.remainingBytes)) remaining")
+        }
+
+        if let eta = torrent.etaSeconds {
+            parts.append("\(formatDuration(eta)) left")
+        }
+
+        if torrent.downloadBps > 1 {
+            parts.append("\(ByteFormatter.rate(torrent.downloadBps)) down")
+        }
+
+        if torrent.uploadBps > 1 {
+            parts.append("\(ByteFormatter.rate(torrent.uploadBps)) up")
+        }
+
+        if !torrent.peers.isEmpty {
+            let peerText = torrent.peers.count == 1 ? "1 peer" : "\(torrent.peers.count) peers"
+            parts.append(peerText)
+        }
+
+        return parts.joined(separator: " - ")
+    }
+}
+
+private struct TorrentStatusIcon: View {
+    let torrent: Torrent
+
+    var body: some View {
+        Image(systemName: status.systemImage)
+            .font(.system(size: 14, weight: .semibold))
+            .foregroundStyle(status.color)
+            .frame(width: 18, height: 18)
+            .help(status.help)
     }
 
-    private var statusIcon: (systemName: String, color: Color) {
+    private var status: (systemImage: String, color: Color, help: String) {
         if torrent.error != nil {
-            return ("exclamationmark.circle.fill", .red)
+            return ("exclamationmark.circle.fill", .red, "Error")
         }
         if torrent.desiredState == .paused || torrent.isPausedInEngine {
-            return ("circle", .secondary)
+            return ("circle.fill", .secondary, "Paused")
         }
         if torrent.progress >= 1 {
-            return ("arrow.up.circle.fill", .green)
+            if torrent.uploadBps > 1 {
+                return ("arrow.up.circle.fill", .green, "Seeding")
+            }
+            return ("checkmark.circle.fill", .green, "Complete")
         }
-        if torrent.downloadBps > 0 {
-            return ("arrow.down.circle.fill", .blue)
+        if torrent.downloadBps > 1 {
+            return ("arrow.down.circle.fill", .blue, "Downloading")
         }
-        return ("circle.dotted", .secondary)
+        return ("circle.dotted", .secondary, "Waiting")
     }
 }
 
@@ -224,10 +285,16 @@ private struct TorrentProgressCell: View {
                 fallbackProgress: torrent.progress,
                 state: torrent.statusLabel
             )
-            Text(formatPercent(torrent.progress))
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-                .monospacedDigit()
+            HStack(spacing: 4) {
+                Text(formatPercent(torrent.progress))
+                if torrent.remainingBytes > 0 {
+                    Text(ByteFormatter.bytes(torrent.remainingBytes))
+                        .foregroundStyle(.tertiary)
+                }
+            }
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .monospacedDigit()
         }
     }
 }
@@ -240,8 +307,8 @@ struct SegmentedProgressView: View {
     var body: some View {
         GeometryReader { proxy in
             ZStack(alignment: .leading) {
-                RoundedRectangle(cornerRadius: 2)
-                    .fill(Color.secondary.opacity(0.18))
+                RoundedRectangle(cornerRadius: 3)
+                    .fill(trackColor)
 
                 HStack(spacing: 0) {
                     ForEach(displayRuns) { run in
@@ -250,10 +317,13 @@ struct SegmentedProgressView: View {
                             .frame(width: width(for: run, totalWidth: proxy.size.width))
                     }
                 }
-                .clipShape(RoundedRectangle(cornerRadius: 2))
+                .clipShape(RoundedRectangle(cornerRadius: 3))
+
+                RoundedRectangle(cornerRadius: 3)
+                    .strokeBorder(Color.secondary.opacity(0.16), lineWidth: 0.5)
             }
         }
-        .frame(height: 7)
+        .frame(height: 8)
         .accessibilityLabel("Progress")
         .accessibilityValue(formatPercent(fallbackProgress))
     }
@@ -283,16 +353,54 @@ struct SegmentedProgressView: View {
     private func color(for state: TorrentPieceState) -> Color {
         switch state {
         case .downloaded:
-            self.state == "Complete" ? .green : .blue
+            statusFillColor
         case .downloading:
-            .accentColor
+            .cyan
         case .needed:
-            Color.secondary.opacity(0.22)
+            Color.secondary.opacity(0.24)
         case .skipped:
             Color.secondary.opacity(0.10)
         case .unknown:
             Color.secondary.opacity(0.14)
         }
+    }
+
+    private var statusFillColor: Color {
+        if state == "Complete" {
+            return .green
+        }
+        if state == "Paused" || state == "Pausing" {
+            return .secondary
+        }
+        if state == "Error" {
+            return .red
+        }
+        return .blue
+    }
+
+    private var trackColor: Color {
+        if state == "Error" {
+            return Color.red.opacity(0.10)
+        }
+        return Color.secondary.opacity(0.14)
+    }
+}
+
+private struct TransferRateLine: View {
+    let systemImage: String
+    let value: Double
+
+    var body: some View {
+        Label {
+            Text(ByteFormatter.rate(value))
+                .monospacedDigit()
+        } icon: {
+            Image(systemName: systemImage)
+                .font(.caption2)
+        }
+        .labelStyle(.titleAndIcon)
+        .font(.caption)
+        .foregroundStyle(value > 1 ? .primary : .secondary)
     }
 }
 
@@ -340,6 +448,10 @@ extension TorrentListColumn {
             "Progress %"
         case .remaining:
             "Remaining"
+        case .speed:
+            "Speed"
+        case .peers:
+            "Peers"
         }
     }
 }

@@ -148,6 +148,10 @@ real torrent state rather than cosmetic placeholders.
 - [x] Keep the toolbar focused on transfer actions.
 - [x] Drive bottom status from aggregate transfer stats.
 - [x] Make optional columns configurable before adding more columns permanently.
+- [x] Use two-line torrent rows with compact inline pause/reveal shortcuts.
+- [x] Make speed and peers configurable columns.
+- [x] Require confirmation before deleting downloaded files.
+- [ ] Represent peer availability in the main progress bar once aggregate availability is exposed.
 
 ## Implementation Notes
 

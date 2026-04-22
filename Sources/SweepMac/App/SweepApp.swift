@@ -7,10 +7,11 @@ import SweepRQBitBridge
 struct SweepApp: App {
     @StateObject private var store = AppEnvironment.makeTorrentStore()
     @StateObject private var inspectorPanelPresenter = TorrentInspectorPanelPresenter()
+    @State private var confirmingRemoveData = false
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            ContentView(confirmingRemoveData: $confirmingRemoveData)
                 .environmentObject(store)
                 .environmentObject(inspectorPanelPresenter)
                 .frame(minWidth: 820, minHeight: 500)
@@ -84,12 +85,13 @@ struct SweepApp: App {
                 .disabled(store.selectedTorrent == nil)
 
                 Button("Remove and Delete Data") {
-                    store.removeSelectedTorrent(deleteData: true)
+                    confirmingRemoveData = true
                 }
                 .keyboardShortcut(.delete, modifiers: [.command])
                 .disabled(store.selectedTorrent == nil)
             }
         }
+        .windowToolbarStyle(.unifiedCompact)
     }
 
     private func revealSelectedTorrentInFinder() {

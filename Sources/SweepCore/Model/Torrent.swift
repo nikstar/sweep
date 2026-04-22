@@ -80,10 +80,18 @@ public enum TorrentListColumn: String, CaseIterable, Codable, Hashable, Identifi
     case eta
     case progress
     case remaining
+    case speed
+    case peers
 
     public var id: String { rawValue }
 
-    public static let defaultVisible: Set<TorrentListColumn> = [.size, .progress, .remaining]
+    public static let defaultVisible: Set<TorrentListColumn> = [
+        .size,
+        .progress,
+        .remaining,
+        .speed,
+        .peers
+    ]
 }
 
 public struct TorrentFileSource: Hashable, Codable, Sendable {
