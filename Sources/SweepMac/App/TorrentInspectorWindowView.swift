@@ -177,8 +177,11 @@ private struct TorrentActivityInspector: View {
         InspectorForm {
             Section("Progress") {
                 VStack(alignment: .leading, spacing: 8) {
-                    ProgressView(value: torrent.progress)
-                        .progressViewStyle(.linear)
+                    SegmentedProgressView(
+                        runs: torrent.pieceRuns,
+                        fallbackProgress: torrent.progress,
+                        state: torrent.statusLabel
+                    )
                     HStack {
                         Text(InspectorFormat.percent(torrent.progress))
                         Spacer()
@@ -300,12 +303,50 @@ private struct TorrentTrackerInspectorRow: View {
     let tracker: TorrentTracker
 
     var body: some View {
-        HStack(spacing: 10) {
+        HStack(alignment: .top, spacing: 10) {
             Image(systemName: "antenna.radiowaves.left.and.right")
                 .foregroundStyle(.secondary)
                 .frame(width: 18)
 
-            CopyableValue(tracker.url)
+            VStack(alignment: .leading, spacing: 5) {
+                HStack {
+                    CopyableValue(tracker.url)
+                    Spacer()
+                    Text(tracker.kind)
+                        .foregroundStyle(.secondary)
+                }
+
+                HStack(spacing: 12) {
+                    Text(tracker.status)
+                    if let seeders = tracker.seeders {
+                        Text("\(seeders) seeds")
+                    }
+                    if let leechers = tracker.leechers {
+                        Text("\(leechers) leechers")
+                    }
+                    if let downloads = tracker.downloads {
+                        Text("\(downloads) downloads")
+                    }
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+                if let scrapeURL = tracker.scrapeURL {
+                    HStack(spacing: 5) {
+                        Text("Scrape")
+                            .foregroundStyle(.secondary)
+                        CopyableValue(scrapeURL)
+                    }
+                    .font(.caption)
+                }
+
+                if let lastError = tracker.lastError, !lastError.isEmpty {
+                    Text(lastError)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                        .lineLimit(2)
+                }
+            }
         }
         .padding(.vertical, 2)
     }
@@ -354,9 +395,22 @@ private struct TorrentPeerInspectorRow: View {
                 }
 
                 HStack(spacing: 12) {
-                    Text(peer.state.capitalized)
+                    Text(peer.countryCode ?? peer.state.capitalized)
+                    Text(peer.client ?? InspectorFormat.peerConnection(peer))
+                    if !peer.featureFlags.isEmpty {
+                        Text(peer.featureFlags.joined(separator: ", "))
+                    }
+                    if let availability = peer.availability {
+                        Text("\(InspectorFormat.percent(availability)) available")
+                    }
                     Text("\(ByteFormatter.bytes(peer.downloadedBytes)) down")
                     Text("\(ByteFormatter.bytes(peer.uploadedBytes)) up")
+                    if let downloadBps = peer.downloadBps {
+                        Text(ByteFormatter.rate(downloadBps))
+                    }
+                    if let uploadBps = peer.uploadBps {
+                        Text(ByteFormatter.rate(uploadBps))
+                    }
                     if peer.errors > 0 {
                         Text("\(peer.errors) errors")
                             .foregroundStyle(.orange)
@@ -391,16 +445,17 @@ private struct TorrentFileInspectorRow: View {
                         .monospacedDigit()
                 }
 
-                ProgressView(value: file.progress)
-                    .progressViewStyle(.linear)
+                SegmentedProgressView(
+                    runs: file.progressRuns,
+                    fallbackProgress: file.progress,
+                    state: file.included ? "Downloading" : "Paused"
+                )
 
                 HStack {
                     Text("\(ByteFormatter.bytes(file.progressBytes)) downloaded")
                     Spacer()
-                    if !file.included {
-                        Text("Skipped")
-                            .foregroundStyle(.secondary)
-                    }
+                    Text(file.included ? file.priority.capitalized : "Skipped")
+                        .foregroundStyle(.secondary)
                 }
                 .font(.caption)
                 .foregroundStyle(.secondary)

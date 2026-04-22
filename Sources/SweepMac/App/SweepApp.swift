@@ -89,8 +89,6 @@ struct SweepApp: App {
                 .keyboardShortcut(.delete, modifiers: [.command])
                 .disabled(store.selectedTorrent == nil)
             }
-
-            SidebarCommands()
         }
     }
 

@@ -19,6 +19,7 @@ uniffi::setup_scaffolding!();
 
 const TRACKER_COMPAT_USER_AGENT: &str = "Transmission/4.0.6";
 const TRACKER_COMPAT_TIMEOUT: Duration = Duration::from_secs(12);
+const BYTES_PER_MIB: f64 = 1024.0 * 1024.0;
 
 #[derive(Debug, thiserror::Error, uniffi::Error)]
 #[uniffi(flat_error)]
@@ -45,14 +46,31 @@ pub struct TorrentFileSnapshot {
     pub path: String,
     pub length: u64,
     pub progress_bytes: u64,
+    pub progress_runs: Vec<TorrentPieceRunSnapshot>,
     pub included: bool,
     pub is_padding: bool,
+    pub priority: String,
 }
 
 #[derive(Debug, Clone, uniffi::Record)]
 pub struct TorrentTrackerSnapshot {
     pub id: u64,
     pub url: String,
+    pub kind: String,
+    pub scrape_url: Option<String>,
+    pub status: String,
+    pub last_error: Option<String>,
+    pub seeders: Option<u32>,
+    pub leechers: Option<u32>,
+    pub downloads: Option<u32>,
+}
+
+#[derive(Debug, Clone, uniffi::Record)]
+pub struct TorrentPieceRunSnapshot {
+    pub id: u64,
+    pub state: String,
+    pub piece_count: u64,
+    pub byte_count: u64,
 }
 
 #[derive(Debug, Clone, uniffi::Record)]
@@ -61,11 +79,30 @@ pub struct TorrentPeerSnapshot {
     pub address: String,
     pub state: String,
     pub connection_kind: Option<String>,
+    pub client: Option<String>,
+    pub feature_flags: Vec<String>,
+    pub country_code: Option<String>,
+    pub availability: Option<f64>,
     pub downloaded_bytes: u64,
     pub uploaded_bytes: u64,
+    pub download_bps: Option<f64>,
+    pub upload_bps: Option<f64>,
     pub connection_attempts: u32,
     pub connections: u32,
     pub errors: u32,
+}
+
+#[derive(Debug, Clone, uniffi::Record)]
+pub struct TorrentSessionSnapshot {
+    pub download_bps: f64,
+    pub upload_bps: f64,
+    pub downloaded_bytes: u64,
+    pub uploaded_bytes: u64,
+    pub live_peers: u32,
+    pub connecting_peers: u32,
+    pub queued_peers: u32,
+    pub seen_peers: u32,
+    pub uptime_seconds: u64,
 }
 
 #[derive(Debug, Clone, uniffi::Record)]
@@ -77,6 +114,7 @@ pub struct TorrentSnapshot {
     pub files: Vec<TorrentFileSnapshot>,
     pub trackers: Vec<TorrentTrackerSnapshot>,
     pub peers: Vec<TorrentPeerSnapshot>,
+    pub piece_runs: Vec<TorrentPieceRunSnapshot>,
     pub progress_bytes: u64,
     pub total_bytes: u64,
     pub uploaded_bytes: u64,
@@ -189,6 +227,10 @@ impl SweepEngine {
                 .collect::<Vec<_>>()
         });
         Ok(handles.iter().map(snapshot).collect())
+    }
+
+    pub async fn session_snapshot(&self) -> Result<TorrentSessionSnapshot, SweepError> {
+        Ok(snapshot_session(&self.session))
     }
 
     pub async fn pause_torrent(&self, id: String) -> Result<TorrentSnapshot, SweepError> {
@@ -466,13 +508,14 @@ fn snapshot(handle: &Arc<ManagedTorrent>) -> TorrentSnapshot {
     let files = snapshot_files(handle, &stats.file_progress);
     let trackers = snapshot_trackers(handle);
     let peers = snapshot_peers(handle);
+    let piece_runs = snapshot_piece_runs(handle);
     let (download_bps, upload_bps) = stats
         .live
         .as_ref()
         .map(|live| {
             (
-                live.download_speed.mbps * 125_000.0,
-                live.upload_speed.mbps * 125_000.0,
+                live.download_speed.mbps * BYTES_PER_MIB,
+                live.upload_speed.mbps * BYTES_PER_MIB,
             )
         })
         .unwrap_or_default();
@@ -487,6 +530,7 @@ fn snapshot(handle: &Arc<ManagedTorrent>) -> TorrentSnapshot {
         files,
         trackers,
         peers,
+        piece_runs,
         progress_bytes: stats.progress_bytes,
         total_bytes: stats.total_bytes,
         uploaded_bytes: stats.uploaded_bytes,
@@ -507,11 +551,38 @@ fn snapshot_trackers(handle: &Arc<ManagedTorrent>) -> Vec<TorrentTrackerSnapshot
     trackers
         .into_iter()
         .enumerate()
-        .map(|(idx, url)| TorrentTrackerSnapshot {
-            id: idx as u64,
-            url,
-        })
+        .map(|(idx, url)| snapshot_tracker(idx, url))
         .collect()
+}
+
+fn snapshot_tracker(idx: usize, url: String) -> TorrentTrackerSnapshot {
+    let kind = reqwest::Url::parse(&url)
+        .ok()
+        .map(|url| url.scheme().to_ascii_uppercase())
+        .unwrap_or_else(|| "Unknown".to_owned());
+
+    TorrentTrackerSnapshot {
+        id: idx as u64,
+        scrape_url: scrape_url_for_tracker(&url),
+        url,
+        kind,
+        status: "Configured".to_owned(),
+        last_error: None,
+        seeders: None,
+        leechers: None,
+        downloads: None,
+    }
+}
+
+fn scrape_url_for_tracker(url: &str) -> Option<String> {
+    let mut url = reqwest::Url::parse(url).ok()?;
+    let path = url.path();
+    if !path.ends_with("/announce") {
+        return None;
+    }
+    let scrape_path = format!("{}{}", &path[..path.len() - "/announce".len()], "/scrape");
+    url.set_path(&scrape_path);
+    Some(url.to_string())
 }
 
 fn snapshot_peers(handle: &Arc<ManagedTorrent>) -> Vec<TorrentPeerSnapshot> {
@@ -528,8 +599,17 @@ fn snapshot_peers(handle: &Arc<ManagedTorrent>) -> Vec<TorrentPeerSnapshot> {
             address,
             state: peer.state.to_owned(),
             connection_kind: peer.conn_kind.map(|kind| kind.to_string()),
+            client: None,
+            feature_flags: peer
+                .conn_kind
+                .map(|kind| vec![kind.to_string()])
+                .unwrap_or_default(),
+            country_code: None,
+            availability: None,
             downloaded_bytes: peer.counters.fetched_bytes,
             uploaded_bytes: peer.counters.uploaded_bytes,
+            download_bps: None,
+            upload_bps: None,
             connection_attempts: peer.counters.connection_attempts,
             connections: peer.counters.connections,
             errors: peer.counters.errors,
@@ -547,18 +627,93 @@ fn snapshot_files(handle: &Arc<ManagedTorrent>, file_progress: &[u64]) -> Vec<To
                 .file_infos
                 .iter()
                 .enumerate()
-                .map(|(idx, file)| TorrentFileSnapshot {
-                    id: idx as u64,
-                    path: file.relative_filename.to_string_lossy().into_owned(),
-                    length: file.len,
-                    progress_bytes: file_progress.get(idx).copied().unwrap_or_default(),
-                    included: only_files
+                .map(|(idx, file)| {
+                    let included = only_files
                         .as_ref()
                         .map(|files| files.contains(&idx))
-                        .unwrap_or(true),
-                    is_padding: file.attrs.padding,
+                        .unwrap_or(true);
+                    let progress_bytes = file_progress.get(idx).copied().unwrap_or_default();
+                    TorrentFileSnapshot {
+                        id: idx as u64,
+                        path: file.relative_filename.to_string_lossy().into_owned(),
+                        length: file.len,
+                        progress_bytes,
+                        progress_runs: progress_runs(progress_bytes, file.len, included),
+                        included,
+                        is_padding: file.attrs.padding,
+                        priority: if included { "normal" } else { "skip" }.to_owned(),
+                    }
                 })
                 .collect()
         })
         .unwrap_or_default()
+}
+
+fn snapshot_piece_runs(handle: &Arc<ManagedTorrent>) -> Vec<TorrentPieceRunSnapshot> {
+    let pieces = handle.piece_snapshot();
+    let mut runs = Vec::<TorrentPieceRunSnapshot>::new();
+
+    for piece in pieces {
+        let state = piece.status.as_str();
+        if let Some(last) = runs.last_mut()
+            && last.state == state
+        {
+            last.piece_count += 1;
+            last.byte_count += u64::from(piece.length);
+            continue;
+        }
+
+        runs.push(TorrentPieceRunSnapshot {
+            id: runs.len() as u64,
+            state: state.to_owned(),
+            piece_count: 1,
+            byte_count: u64::from(piece.length),
+        });
+    }
+
+    runs
+}
+
+fn progress_runs(progress_bytes: u64, total_bytes: u64, included: bool) -> Vec<TorrentPieceRunSnapshot> {
+    if total_bytes == 0 {
+        return Vec::new();
+    }
+
+    let progress_bytes = progress_bytes.min(total_bytes);
+    let mut runs = Vec::new();
+    if progress_bytes > 0 {
+        runs.push(TorrentPieceRunSnapshot {
+            id: 0,
+            state: "downloaded".to_owned(),
+            piece_count: 1,
+            byte_count: progress_bytes,
+        });
+    }
+
+    let remaining_bytes = total_bytes - progress_bytes;
+    if remaining_bytes > 0 {
+        runs.push(TorrentPieceRunSnapshot {
+            id: runs.len() as u64,
+            state: if included { "needed" } else { "skipped" }.to_owned(),
+            piece_count: 1,
+            byte_count: remaining_bytes,
+        });
+    }
+
+    runs
+}
+
+fn snapshot_session(session: &Arc<Session>) -> TorrentSessionSnapshot {
+    let stats = session.stats_snapshot();
+    TorrentSessionSnapshot {
+        download_bps: stats.download_speed.mbps * BYTES_PER_MIB,
+        upload_bps: stats.upload_speed.mbps * BYTES_PER_MIB,
+        downloaded_bytes: stats.counters.fetched_bytes,
+        uploaded_bytes: stats.counters.uploaded_bytes,
+        live_peers: stats.peers.live,
+        connecting_peers: stats.peers.connecting,
+        queued_peers: stats.peers.queued,
+        seen_peers: stats.peers.seen,
+        uptime_seconds: stats.uptime_seconds,
+    }
 }

@@ -119,6 +119,35 @@ Add a compact bottom status line with aggregate session info:
 - Total upload speed
 - Optional session status such as DHT, tracker, or port state when useful
 
+## Infrastructure Tasks
+
+These tasks should happen alongside the UI work so the interface is backed by
+real torrent state rather than cosmetic placeholders.
+
+### Engine Snapshot Contract
+
+- [x] Add aggregate session transfer stats to the engine model.
+- [x] Expose piece progress in a compact form that can drive segmented progress bars.
+- [x] Expose per-file progress using the same progress model where possible.
+- [x] Expose tracker details that are available from rqbit without hiding missing data.
+- [x] Expose peer details with room for client, flags, country, and availability.
+- [ ] Add live tracker announce status once rqbit exposes it.
+- [ ] Add peer client, country, and availability once rqbit exposes it or Sweep adds resolvers.
+
+### Persistence
+
+- [x] Store UI preferences with sqlite-data.
+- [x] Persist visible torrent list columns.
+- [x] Keep live transfer details out of persistent storage unless they are needed for
+  restoring the session.
+
+### Main Window Foundation
+
+- [x] Remove the sidebar.
+- [x] Keep the toolbar focused on transfer actions.
+- [x] Drive bottom status from aggregate transfer stats.
+- [x] Make optional columns configurable before adding more columns permanently.
+
 ## Implementation Notes
 
 - Prefer compact native AppKit and SwiftUI controls that match macOS conventions.

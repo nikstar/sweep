@@ -5,6 +5,87 @@ public enum TorrentDesiredState: String, Codable, Hashable, Sendable {
     case paused
 }
 
+public enum TorrentPieceState: String, Codable, CaseIterable, Hashable, Sendable {
+    case downloaded
+    case downloading
+    case needed
+    case skipped
+    case unknown
+}
+
+public struct TorrentPieceRun: Identifiable, Hashable, Codable, Sendable {
+    public let id: Int
+    public let state: TorrentPieceState
+    public let pieceCount: UInt64
+    public let byteCount: UInt64
+
+    public init(
+        id: Int,
+        state: TorrentPieceState,
+        pieceCount: UInt64,
+        byteCount: UInt64
+    ) {
+        self.id = id
+        self.state = state
+        self.pieceCount = pieceCount
+        self.byteCount = byteCount
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case state
+        case pieceCount = "piece_count"
+        case byteCount = "byte_count"
+    }
+}
+
+public struct TorrentSessionStats: Hashable, Codable, Sendable {
+    public static let empty = TorrentSessionStats()
+
+    public let downloadBps: Double
+    public let uploadBps: Double
+    public let downloadedBytes: UInt64
+    public let uploadedBytes: UInt64
+    public let livePeers: UInt32
+    public let connectingPeers: UInt32
+    public let queuedPeers: UInt32
+    public let seenPeers: UInt32
+    public let uptimeSeconds: UInt64
+
+    public init(
+        downloadBps: Double = 0,
+        uploadBps: Double = 0,
+        downloadedBytes: UInt64 = 0,
+        uploadedBytes: UInt64 = 0,
+        livePeers: UInt32 = 0,
+        connectingPeers: UInt32 = 0,
+        queuedPeers: UInt32 = 0,
+        seenPeers: UInt32 = 0,
+        uptimeSeconds: UInt64 = 0
+    ) {
+        self.downloadBps = downloadBps
+        self.uploadBps = uploadBps
+        self.downloadedBytes = downloadedBytes
+        self.uploadedBytes = uploadedBytes
+        self.livePeers = livePeers
+        self.connectingPeers = connectingPeers
+        self.queuedPeers = queuedPeers
+        self.seenPeers = seenPeers
+        self.uptimeSeconds = uptimeSeconds
+    }
+}
+
+public enum TorrentListColumn: String, CaseIterable, Codable, Hashable, Identifiable, Sendable {
+    case size
+    case eta
+    case progress
+    case remaining
+
+    public var id: String { rawValue }
+
+    public static let defaultVisible: Set<TorrentListColumn> = [.size, .progress, .remaining]
+}
+
 public struct TorrentFileSource: Hashable, Codable, Sendable {
     public let fileName: String?
     public let bytes: [UInt8]
@@ -52,23 +133,29 @@ public struct TorrentFile: Identifiable, Hashable, Codable, Sendable {
     public let path: String
     public let length: UInt64
     public let progressBytes: UInt64
+    public let progressRuns: [TorrentPieceRun]
     public let included: Bool
     public let isPadding: Bool
+    public let priority: String
 
     public init(
         id: Int,
         path: String,
         length: UInt64,
         progressBytes: UInt64,
+        progressRuns: [TorrentPieceRun] = [],
         included: Bool = true,
-        isPadding: Bool = false
+        isPadding: Bool = false,
+        priority: String = "normal"
     ) {
         self.id = id
         self.path = path
         self.length = length
         self.progressBytes = progressBytes
+        self.progressRuns = progressRuns
         self.included = included
         self.isPadding = isPadding
+        self.priority = priority
     }
 
     public var name: String {
@@ -79,15 +166,91 @@ public struct TorrentFile: Identifiable, Hashable, Codable, Sendable {
         guard length > 0 else { return 0 }
         return min(1, Double(min(progressBytes, length)) / Double(length))
     }
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case path
+        case length
+        case progressBytes
+        case progressRuns
+        case included
+        case isPadding
+        case priority
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            id: try container.decode(Int.self, forKey: .id),
+            path: try container.decode(String.self, forKey: .path),
+            length: try container.decode(UInt64.self, forKey: .length),
+            progressBytes: try container.decode(UInt64.self, forKey: .progressBytes),
+            progressRuns: try container.decodeIfPresent([TorrentPieceRun].self, forKey: .progressRuns) ?? [],
+            included: try container.decodeIfPresent(Bool.self, forKey: .included) ?? true,
+            isPadding: try container.decodeIfPresent(Bool.self, forKey: .isPadding) ?? false,
+            priority: try container.decodeIfPresent(String.self, forKey: .priority) ?? "normal"
+        )
+    }
 }
 
 public struct TorrentTracker: Identifiable, Hashable, Codable, Sendable {
     public let id: Int
     public let url: String
+    public let kind: String
+    public let scrapeURL: String?
+    public let status: String
+    public let lastError: String?
+    public let seeders: UInt32?
+    public let leechers: UInt32?
+    public let downloads: UInt32?
 
-    public init(id: Int, url: String) {
+    public init(
+        id: Int,
+        url: String,
+        kind: String = "Unknown",
+        scrapeURL: String? = nil,
+        status: String = "Configured",
+        lastError: String? = nil,
+        seeders: UInt32? = nil,
+        leechers: UInt32? = nil,
+        downloads: UInt32? = nil
+    ) {
         self.id = id
         self.url = url
+        self.kind = kind
+        self.scrapeURL = scrapeURL
+        self.status = status
+        self.lastError = lastError
+        self.seeders = seeders
+        self.leechers = leechers
+        self.downloads = downloads
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case url
+        case kind
+        case scrapeURL
+        case status
+        case lastError
+        case seeders
+        case leechers
+        case downloads
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            id: try container.decode(Int.self, forKey: .id),
+            url: try container.decode(String.self, forKey: .url),
+            kind: try container.decodeIfPresent(String.self, forKey: .kind) ?? "Unknown",
+            scrapeURL: try container.decodeIfPresent(String.self, forKey: .scrapeURL),
+            status: try container.decodeIfPresent(String.self, forKey: .status) ?? "Configured",
+            lastError: try container.decodeIfPresent(String.self, forKey: .lastError),
+            seeders: try container.decodeIfPresent(UInt32.self, forKey: .seeders),
+            leechers: try container.decodeIfPresent(UInt32.self, forKey: .leechers),
+            downloads: try container.decodeIfPresent(UInt32.self, forKey: .downloads)
+        )
     }
 }
 
@@ -96,8 +259,14 @@ public struct TorrentPeer: Identifiable, Hashable, Codable, Sendable {
     public let address: String
     public let state: String
     public let connectionKind: String?
+    public let client: String?
+    public let featureFlags: [String]
+    public let countryCode: String?
+    public let availability: Double?
     public let downloadedBytes: UInt64
     public let uploadedBytes: UInt64
+    public let downloadBps: Double?
+    public let uploadBps: Double?
     public let connectionAttempts: UInt32
     public let connections: UInt32
     public let errors: UInt32
@@ -107,8 +276,14 @@ public struct TorrentPeer: Identifiable, Hashable, Codable, Sendable {
         address: String,
         state: String,
         connectionKind: String?,
+        client: String? = nil,
+        featureFlags: [String] = [],
+        countryCode: String? = nil,
+        availability: Double? = nil,
         downloadedBytes: UInt64,
         uploadedBytes: UInt64,
+        downloadBps: Double? = nil,
+        uploadBps: Double? = nil,
         connectionAttempts: UInt32,
         connections: UInt32,
         errors: UInt32
@@ -117,11 +292,57 @@ public struct TorrentPeer: Identifiable, Hashable, Codable, Sendable {
         self.address = address
         self.state = state
         self.connectionKind = connectionKind
+        self.client = client
+        self.featureFlags = featureFlags
+        self.countryCode = countryCode
+        self.availability = availability
         self.downloadedBytes = downloadedBytes
         self.uploadedBytes = uploadedBytes
+        self.downloadBps = downloadBps
+        self.uploadBps = uploadBps
         self.connectionAttempts = connectionAttempts
         self.connections = connections
         self.errors = errors
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case address
+        case state
+        case connectionKind
+        case client
+        case featureFlags
+        case countryCode
+        case availability
+        case downloadedBytes
+        case uploadedBytes
+        case downloadBps
+        case uploadBps
+        case connectionAttempts
+        case connections
+        case errors
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let address = try container.decode(String.self, forKey: .address)
+        self.init(
+            id: try container.decodeIfPresent(String.self, forKey: .id),
+            address: address,
+            state: try container.decode(String.self, forKey: .state),
+            connectionKind: try container.decodeIfPresent(String.self, forKey: .connectionKind),
+            client: try container.decodeIfPresent(String.self, forKey: .client),
+            featureFlags: try container.decodeIfPresent([String].self, forKey: .featureFlags) ?? [],
+            countryCode: try container.decodeIfPresent(String.self, forKey: .countryCode),
+            availability: try container.decodeIfPresent(Double.self, forKey: .availability),
+            downloadedBytes: try container.decode(UInt64.self, forKey: .downloadedBytes),
+            uploadedBytes: try container.decode(UInt64.self, forKey: .uploadedBytes),
+            downloadBps: try container.decodeIfPresent(Double.self, forKey: .downloadBps),
+            uploadBps: try container.decodeIfPresent(Double.self, forKey: .uploadBps),
+            connectionAttempts: try container.decode(UInt32.self, forKey: .connectionAttempts),
+            connections: try container.decode(UInt32.self, forKey: .connections),
+            errors: try container.decode(UInt32.self, forKey: .errors)
+        )
     }
 }
 
@@ -139,6 +360,7 @@ public struct Torrent: Identifiable, Hashable, Codable, Sendable {
     public let files: [TorrentFile]
     public let trackers: [TorrentTracker]
     public let peers: [TorrentPeer]
+    public let pieceRuns: [TorrentPieceRun]
     public let progressBytes: UInt64
     public let totalBytes: UInt64
     public let uploadedBytes: UInt64
@@ -162,6 +384,7 @@ public struct Torrent: Identifiable, Hashable, Codable, Sendable {
         files: [TorrentFile] = [],
         trackers: [TorrentTracker] = [],
         peers: [TorrentPeer] = [],
+        pieceRuns: [TorrentPieceRun] = [],
         progressBytes: UInt64,
         totalBytes: UInt64,
         uploadedBytes: UInt64,
@@ -185,6 +408,7 @@ public struct Torrent: Identifiable, Hashable, Codable, Sendable {
         self.files = files
         self.trackers = trackers
         self.peers = peers
+        self.pieceRuns = pieceRuns
         self.progressBytes = progressBytes
         self.totalBytes = totalBytes
         self.uploadedBytes = uploadedBytes
@@ -209,6 +433,7 @@ public struct Torrent: Identifiable, Hashable, Codable, Sendable {
         case files
         case trackers
         case peers
+        case pieceRuns = "piece_runs"
         case progressBytes = "progress_bytes"
         case totalBytes = "total_bytes"
         case uploadedBytes = "uploaded_bytes"
@@ -222,6 +447,15 @@ public struct Torrent: Identifiable, Hashable, Codable, Sendable {
     public var progress: Double {
         guard totalBytes > 0 else { return 0 }
         return min(1, Double(progressBytes) / Double(totalBytes))
+    }
+
+    public var remainingBytes: UInt64 {
+        totalBytes > progressBytes ? totalBytes - progressBytes : 0
+    }
+
+    public var etaSeconds: UInt64? {
+        guard remainingBytes > 0, downloadBps > 1 else { return nil }
+        return UInt64((Double(remainingBytes) / downloadBps).rounded(.up))
     }
 
     public var statusLabel: String {
@@ -268,6 +502,7 @@ public struct Torrent: Identifiable, Hashable, Codable, Sendable {
         files: [TorrentFile]? = nil,
         trackers: [TorrentTracker]? = nil,
         peers: [TorrentPeer]? = nil,
+        pieceRuns: [TorrentPieceRun]? = nil,
         progressBytes: UInt64? = nil,
         totalBytes: UInt64? = nil,
         uploadedBytes: UInt64? = nil,
@@ -291,6 +526,7 @@ public struct Torrent: Identifiable, Hashable, Codable, Sendable {
             files: files ?? self.files,
             trackers: trackers ?? self.trackers,
             peers: peers ?? self.peers,
+            pieceRuns: pieceRuns ?? self.pieceRuns,
             progressBytes: progressBytes ?? self.progressBytes,
             totalBytes: totalBytes ?? self.totalBytes,
             uploadedBytes: uploadedBytes ?? self.uploadedBytes,
@@ -317,6 +553,7 @@ public struct Torrent: Identifiable, Hashable, Codable, Sendable {
                 files: files,
                 trackers: trackers,
                 peers: peers,
+                pieceRuns: pieceRuns,
                 progressBytes: progressBytes,
                 totalBytes: totalBytes,
                 uploadedBytes: uploadedBytes,
@@ -341,6 +578,7 @@ public struct Torrent: Identifiable, Hashable, Codable, Sendable {
                 files: files,
                 trackers: trackers,
                 peers: peers,
+                pieceRuns: pieceRuns,
                 progressBytes: progressBytes,
                 totalBytes: totalBytes,
                 uploadedBytes: uploadedBytes,
@@ -361,6 +599,7 @@ public struct Torrent: Identifiable, Hashable, Codable, Sendable {
             downloadDirectory: downloadDirectory ?? cached.downloadDirectory,
             desiredState: cached.desiredState,
             trackers: trackers.isEmpty ? cached.trackers : trackers,
+            pieceRuns: pieceRuns.isEmpty ? cached.pieceRuns : pieceRuns,
             addedAt: cached.addedAt
         )
     }

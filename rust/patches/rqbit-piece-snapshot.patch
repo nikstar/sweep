@@ -1,0 +1,142 @@
+diff --git a/crates/librqbit/src/lib.rs b/crates/librqbit/src/lib.rs
+index e1c37bea..fba65422 100644
+--- a/crates/librqbit/src/lib.rs
++++ b/crates/librqbit/src/lib.rs
+@@ -98,7 +98,7 @@ pub use session::{
+ pub use stream_connect::ConnectionOptions;
+ pub use torrent_state::{
+     ManagedTorrent, ManagedTorrentShared, ManagedTorrentState, TorrentMetadata, TorrentStats,
+-    TorrentStatsState,
++    TorrentPieceSnapshot, TorrentPieceStatus, TorrentStatsState,
+ };
+ pub use type_aliases::FileInfos;
+ 
+diff --git a/crates/librqbit/src/torrent_state/mod.rs b/crates/librqbit/src/torrent_state/mod.rs
+index fe9e7e21..b32fb4e8 100644
+--- a/crates/librqbit/src/torrent_state/mod.rs
++++ b/crates/librqbit/src/torrent_state/mod.rs
+@@ -41,6 +41,7 @@ use crate::Session;
+ use crate::chunk_tracker::ChunkTracker;
+ use crate::file_info::FileInfo;
+ use crate::limits::LimitsConfig;
++use crate::piece_tracker::PieceTracker;
+ use crate::session::TorrentId;
+ use crate::spawn_utils::BlockingSpawner;
+ use crate::storage::BoxStorageFactory;
+@@ -203,6 +204,34 @@ pub struct ManagedTorrent {
+     pub(crate) locked: RwLock<ManagedTorrentLocked>,
+ }
+ 
++#[derive(Clone, Copy, Debug, Eq, PartialEq)]
++pub enum TorrentPieceStatus {
++    Downloaded,
++    Downloading,
++    Needed,
++    Skipped,
++    Unknown,
++}
++
++impl TorrentPieceStatus {
++    pub const fn as_str(self) -> &'static str {
++        match self {
++            Self::Downloaded => "downloaded",
++            Self::Downloading => "downloading",
++            Self::Needed => "needed",
++            Self::Skipped => "skipped",
++            Self::Unknown => "unknown",
++        }
++    }
++}
++
++#[derive(Clone, Copy, Debug, Eq, PartialEq)]
++pub struct TorrentPieceSnapshot {
++    pub index: u32,
++    pub length: u32,
++    pub status: TorrentPieceStatus,
++}
++
+ impl ManagedTorrent {
+     pub fn id(&self) -> TorrentId {
+         self.shared.id
+@@ -240,6 +269,30 @@ impl ManagedTorrent {
+         self.locked.read().only_files.clone()
+     }
+ 
++    pub fn piece_snapshot(&self) -> Vec<TorrentPieceSnapshot> {
++        let metadata = self.metadata.load();
++        let Some(metadata) = metadata.as_ref() else {
++            return Vec::new();
++        };
++        let lengths = metadata.lengths();
++
++        self.with_state(|state| match state {
++            ManagedTorrentState::Paused(paused) => {
++                snapshot_piece_tracker(lengths, &paused.chunk_tracker, None)
++            }
++            ManagedTorrentState::Live(live) => {
++                let locked = live.lock_read("piece_snapshot");
++                match locked.get_pieces() {
++                    Ok(pieces) => snapshot_piece_tracker(lengths, pieces.chunks(), Some(pieces)),
++                    Err(_) => snapshot_unknown_pieces(lengths),
++                }
++            }
++            ManagedTorrentState::Initializing(_)
++            | ManagedTorrentState::Error(_)
++            | ManagedTorrentState::None => snapshot_unknown_pieces(lengths),
++        })
++    }
++
+     pub fn with_state<R>(&self, f: impl FnOnce(&ManagedTorrentState) -> R) -> R {
+         f(&self.locked.read().state)
+     }
+@@ -613,6 +666,50 @@ impl ManagedTorrent {
+     }
+ }
+ 
++fn snapshot_piece_tracker(
++    lengths: &Lengths,
++    chunks: &ChunkTracker,
++    pieces: Option<&PieceTracker>,
++) -> Vec<TorrentPieceSnapshot> {
++    let selected = chunks.get_selected_pieces();
++    lengths
++        .iter_piece_infos()
++        .map(|piece| {
++            let index = piece.piece_index;
++            let idx = index.get() as usize;
++            let status = if chunks.is_piece_have(index) {
++                TorrentPieceStatus::Downloaded
++            } else if pieces
++                .map(|pieces| pieces.is_inflight(index))
++                .unwrap_or(false)
++            {
++                TorrentPieceStatus::Downloading
++            } else if selected.get(idx).map(|value| *value).unwrap_or(false) {
++                TorrentPieceStatus::Needed
++            } else {
++                TorrentPieceStatus::Skipped
++            };
++
++            TorrentPieceSnapshot {
++                index: index.get(),
++                length: piece.len,
++                status,
++            }
++        })
++        .collect()
++}
++
++fn snapshot_unknown_pieces(lengths: &Lengths) -> Vec<TorrentPieceSnapshot> {
++    lengths
++        .iter_piece_infos()
++        .map(|piece| TorrentPieceSnapshot {
++            index: piece.piece_index.get(),
++            length: piece.len,
++            status: TorrentPieceStatus::Unknown,
++        })
++        .collect()
++}
++
+ pub type ManagedTorrentHandle = Arc<ManagedTorrent>;
+ 
+ fn spawn_fatal_errors_receiver(

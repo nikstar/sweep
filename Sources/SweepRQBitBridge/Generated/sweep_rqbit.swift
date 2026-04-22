@@ -564,6 +564,8 @@ public protocol SweepEngineProtocol: AnyObject, Sendable {
 
     func resumeTorrent(id: String) async throws  -> TorrentSnapshot
 
+    func sessionSnapshot() async throws  -> TorrentSessionSnapshot
+
 }
 open class SweepEngine: SweepEngineProtocol, @unchecked Sendable {
     fileprivate let handle: UInt64
@@ -728,6 +730,23 @@ open func resumeTorrent(id: String)async throws  -> TorrentSnapshot  {
         )
 }
 
+open func sessionSnapshot()async throws  -> TorrentSessionSnapshot  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_sweep_rqbit_fn_method_sweepengine_session_snapshot(
+                    self.uniffiCloneHandle()
+
+                )
+            },
+            pollFunc: ffi_sweep_rqbit_rust_future_poll_rust_buffer,
+            completeFunc: ffi_sweep_rqbit_rust_future_complete_rust_buffer,
+            freeFunc: ffi_sweep_rqbit_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeTorrentSessionSnapshot_lift,
+            errorHandler: FfiConverterTypeSweepError_lift
+        )
+}
+
 
 
 }
@@ -781,18 +800,22 @@ public struct TorrentFileSnapshot: Equatable, Hashable {
     public var path: String
     public var length: UInt64
     public var progressBytes: UInt64
+    public var progressRuns: [TorrentPieceRunSnapshot]
     public var included: Bool
     public var isPadding: Bool
+    public var priority: String
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(id: UInt64, path: String, length: UInt64, progressBytes: UInt64, included: Bool, isPadding: Bool) {
+    public init(id: UInt64, path: String, length: UInt64, progressBytes: UInt64, progressRuns: [TorrentPieceRunSnapshot], included: Bool, isPadding: Bool, priority: String) {
         self.id = id
         self.path = path
         self.length = length
         self.progressBytes = progressBytes
+        self.progressRuns = progressRuns
         self.included = included
         self.isPadding = isPadding
+        self.priority = priority
     }
 
 
@@ -815,8 +838,10 @@ public struct FfiConverterTypeTorrentFileSnapshot: FfiConverterRustBuffer {
                 path: FfiConverterString.read(from: &buf),
                 length: FfiConverterUInt64.read(from: &buf),
                 progressBytes: FfiConverterUInt64.read(from: &buf),
+                progressRuns: FfiConverterSequenceTypeTorrentPieceRunSnapshot.read(from: &buf),
                 included: FfiConverterBool.read(from: &buf),
-                isPadding: FfiConverterBool.read(from: &buf)
+                isPadding: FfiConverterBool.read(from: &buf),
+                priority: FfiConverterString.read(from: &buf)
         )
     }
 
@@ -825,8 +850,10 @@ public struct FfiConverterTypeTorrentFileSnapshot: FfiConverterRustBuffer {
         FfiConverterString.write(value.path, into: &buf)
         FfiConverterUInt64.write(value.length, into: &buf)
         FfiConverterUInt64.write(value.progressBytes, into: &buf)
+        FfiConverterSequenceTypeTorrentPieceRunSnapshot.write(value.progressRuns, into: &buf)
         FfiConverterBool.write(value.included, into: &buf)
         FfiConverterBool.write(value.isPadding, into: &buf)
+        FfiConverterString.write(value.priority, into: &buf)
     }
 }
 
@@ -851,21 +878,33 @@ public struct TorrentPeerSnapshot: Equatable, Hashable {
     public var address: String
     public var state: String
     public var connectionKind: String?
+    public var client: String?
+    public var featureFlags: [String]
+    public var countryCode: String?
+    public var availability: Double?
     public var downloadedBytes: UInt64
     public var uploadedBytes: UInt64
+    public var downloadBps: Double?
+    public var uploadBps: Double?
     public var connectionAttempts: UInt32
     public var connections: UInt32
     public var errors: UInt32
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(id: String, address: String, state: String, connectionKind: String?, downloadedBytes: UInt64, uploadedBytes: UInt64, connectionAttempts: UInt32, connections: UInt32, errors: UInt32) {
+    public init(id: String, address: String, state: String, connectionKind: String?, client: String?, featureFlags: [String], countryCode: String?, availability: Double?, downloadedBytes: UInt64, uploadedBytes: UInt64, downloadBps: Double?, uploadBps: Double?, connectionAttempts: UInt32, connections: UInt32, errors: UInt32) {
         self.id = id
         self.address = address
         self.state = state
         self.connectionKind = connectionKind
+        self.client = client
+        self.featureFlags = featureFlags
+        self.countryCode = countryCode
+        self.availability = availability
         self.downloadedBytes = downloadedBytes
         self.uploadedBytes = uploadedBytes
+        self.downloadBps = downloadBps
+        self.uploadBps = uploadBps
         self.connectionAttempts = connectionAttempts
         self.connections = connections
         self.errors = errors
@@ -891,8 +930,14 @@ public struct FfiConverterTypeTorrentPeerSnapshot: FfiConverterRustBuffer {
                 address: FfiConverterString.read(from: &buf),
                 state: FfiConverterString.read(from: &buf),
                 connectionKind: FfiConverterOptionString.read(from: &buf),
+                client: FfiConverterOptionString.read(from: &buf),
+                featureFlags: FfiConverterSequenceString.read(from: &buf),
+                countryCode: FfiConverterOptionString.read(from: &buf),
+                availability: FfiConverterOptionDouble.read(from: &buf),
                 downloadedBytes: FfiConverterUInt64.read(from: &buf),
                 uploadedBytes: FfiConverterUInt64.read(from: &buf),
+                downloadBps: FfiConverterOptionDouble.read(from: &buf),
+                uploadBps: FfiConverterOptionDouble.read(from: &buf),
                 connectionAttempts: FfiConverterUInt32.read(from: &buf),
                 connections: FfiConverterUInt32.read(from: &buf),
                 errors: FfiConverterUInt32.read(from: &buf)
@@ -904,8 +949,14 @@ public struct FfiConverterTypeTorrentPeerSnapshot: FfiConverterRustBuffer {
         FfiConverterString.write(value.address, into: &buf)
         FfiConverterString.write(value.state, into: &buf)
         FfiConverterOptionString.write(value.connectionKind, into: &buf)
+        FfiConverterOptionString.write(value.client, into: &buf)
+        FfiConverterSequenceString.write(value.featureFlags, into: &buf)
+        FfiConverterOptionString.write(value.countryCode, into: &buf)
+        FfiConverterOptionDouble.write(value.availability, into: &buf)
         FfiConverterUInt64.write(value.downloadedBytes, into: &buf)
         FfiConverterUInt64.write(value.uploadedBytes, into: &buf)
+        FfiConverterOptionDouble.write(value.downloadBps, into: &buf)
+        FfiConverterOptionDouble.write(value.uploadBps, into: &buf)
         FfiConverterUInt32.write(value.connectionAttempts, into: &buf)
         FfiConverterUInt32.write(value.connections, into: &buf)
         FfiConverterUInt32.write(value.errors, into: &buf)
@@ -928,6 +979,150 @@ public func FfiConverterTypeTorrentPeerSnapshot_lower(_ value: TorrentPeerSnapsh
 }
 
 
+public struct TorrentPieceRunSnapshot: Equatable, Hashable {
+    public var id: UInt64
+    public var state: String
+    public var pieceCount: UInt64
+    public var byteCount: UInt64
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(id: UInt64, state: String, pieceCount: UInt64, byteCount: UInt64) {
+        self.id = id
+        self.state = state
+        self.pieceCount = pieceCount
+        self.byteCount = byteCount
+    }
+
+
+
+
+}
+
+#if compiler(>=6)
+extension TorrentPieceRunSnapshot: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeTorrentPieceRunSnapshot: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> TorrentPieceRunSnapshot {
+        return
+            try TorrentPieceRunSnapshot(
+                id: FfiConverterUInt64.read(from: &buf),
+                state: FfiConverterString.read(from: &buf),
+                pieceCount: FfiConverterUInt64.read(from: &buf),
+                byteCount: FfiConverterUInt64.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: TorrentPieceRunSnapshot, into buf: inout [UInt8]) {
+        FfiConverterUInt64.write(value.id, into: &buf)
+        FfiConverterString.write(value.state, into: &buf)
+        FfiConverterUInt64.write(value.pieceCount, into: &buf)
+        FfiConverterUInt64.write(value.byteCount, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeTorrentPieceRunSnapshot_lift(_ buf: RustBuffer) throws -> TorrentPieceRunSnapshot {
+    return try FfiConverterTypeTorrentPieceRunSnapshot.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeTorrentPieceRunSnapshot_lower(_ value: TorrentPieceRunSnapshot) -> RustBuffer {
+    return FfiConverterTypeTorrentPieceRunSnapshot.lower(value)
+}
+
+
+public struct TorrentSessionSnapshot: Equatable, Hashable {
+    public var downloadBps: Double
+    public var uploadBps: Double
+    public var downloadedBytes: UInt64
+    public var uploadedBytes: UInt64
+    public var livePeers: UInt32
+    public var connectingPeers: UInt32
+    public var queuedPeers: UInt32
+    public var seenPeers: UInt32
+    public var uptimeSeconds: UInt64
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(downloadBps: Double, uploadBps: Double, downloadedBytes: UInt64, uploadedBytes: UInt64, livePeers: UInt32, connectingPeers: UInt32, queuedPeers: UInt32, seenPeers: UInt32, uptimeSeconds: UInt64) {
+        self.downloadBps = downloadBps
+        self.uploadBps = uploadBps
+        self.downloadedBytes = downloadedBytes
+        self.uploadedBytes = uploadedBytes
+        self.livePeers = livePeers
+        self.connectingPeers = connectingPeers
+        self.queuedPeers = queuedPeers
+        self.seenPeers = seenPeers
+        self.uptimeSeconds = uptimeSeconds
+    }
+
+
+
+
+}
+
+#if compiler(>=6)
+extension TorrentSessionSnapshot: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeTorrentSessionSnapshot: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> TorrentSessionSnapshot {
+        return
+            try TorrentSessionSnapshot(
+                downloadBps: FfiConverterDouble.read(from: &buf),
+                uploadBps: FfiConverterDouble.read(from: &buf),
+                downloadedBytes: FfiConverterUInt64.read(from: &buf),
+                uploadedBytes: FfiConverterUInt64.read(from: &buf),
+                livePeers: FfiConverterUInt32.read(from: &buf),
+                connectingPeers: FfiConverterUInt32.read(from: &buf),
+                queuedPeers: FfiConverterUInt32.read(from: &buf),
+                seenPeers: FfiConverterUInt32.read(from: &buf),
+                uptimeSeconds: FfiConverterUInt64.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: TorrentSessionSnapshot, into buf: inout [UInt8]) {
+        FfiConverterDouble.write(value.downloadBps, into: &buf)
+        FfiConverterDouble.write(value.uploadBps, into: &buf)
+        FfiConverterUInt64.write(value.downloadedBytes, into: &buf)
+        FfiConverterUInt64.write(value.uploadedBytes, into: &buf)
+        FfiConverterUInt32.write(value.livePeers, into: &buf)
+        FfiConverterUInt32.write(value.connectingPeers, into: &buf)
+        FfiConverterUInt32.write(value.queuedPeers, into: &buf)
+        FfiConverterUInt32.write(value.seenPeers, into: &buf)
+        FfiConverterUInt64.write(value.uptimeSeconds, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeTorrentSessionSnapshot_lift(_ buf: RustBuffer) throws -> TorrentSessionSnapshot {
+    return try FfiConverterTypeTorrentSessionSnapshot.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeTorrentSessionSnapshot_lower(_ value: TorrentSessionSnapshot) -> RustBuffer {
+    return FfiConverterTypeTorrentSessionSnapshot.lower(value)
+}
+
+
 public struct TorrentSnapshot: Equatable, Hashable {
     public var id: UInt64
     public var name: String
@@ -936,6 +1131,7 @@ public struct TorrentSnapshot: Equatable, Hashable {
     public var files: [TorrentFileSnapshot]
     public var trackers: [TorrentTrackerSnapshot]
     public var peers: [TorrentPeerSnapshot]
+    public var pieceRuns: [TorrentPieceRunSnapshot]
     public var progressBytes: UInt64
     public var totalBytes: UInt64
     public var uploadedBytes: UInt64
@@ -945,7 +1141,7 @@ public struct TorrentSnapshot: Equatable, Hashable {
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(id: UInt64, name: String, infoHash: String, state: String, files: [TorrentFileSnapshot], trackers: [TorrentTrackerSnapshot], peers: [TorrentPeerSnapshot], progressBytes: UInt64, totalBytes: UInt64, uploadedBytes: UInt64, downloadBps: Double, uploadBps: Double, error: String?) {
+    public init(id: UInt64, name: String, infoHash: String, state: String, files: [TorrentFileSnapshot], trackers: [TorrentTrackerSnapshot], peers: [TorrentPeerSnapshot], pieceRuns: [TorrentPieceRunSnapshot], progressBytes: UInt64, totalBytes: UInt64, uploadedBytes: UInt64, downloadBps: Double, uploadBps: Double, error: String?) {
         self.id = id
         self.name = name
         self.infoHash = infoHash
@@ -953,6 +1149,7 @@ public struct TorrentSnapshot: Equatable, Hashable {
         self.files = files
         self.trackers = trackers
         self.peers = peers
+        self.pieceRuns = pieceRuns
         self.progressBytes = progressBytes
         self.totalBytes = totalBytes
         self.uploadedBytes = uploadedBytes
@@ -984,6 +1181,7 @@ public struct FfiConverterTypeTorrentSnapshot: FfiConverterRustBuffer {
                 files: FfiConverterSequenceTypeTorrentFileSnapshot.read(from: &buf),
                 trackers: FfiConverterSequenceTypeTorrentTrackerSnapshot.read(from: &buf),
                 peers: FfiConverterSequenceTypeTorrentPeerSnapshot.read(from: &buf),
+                pieceRuns: FfiConverterSequenceTypeTorrentPieceRunSnapshot.read(from: &buf),
                 progressBytes: FfiConverterUInt64.read(from: &buf),
                 totalBytes: FfiConverterUInt64.read(from: &buf),
                 uploadedBytes: FfiConverterUInt64.read(from: &buf),
@@ -1001,6 +1199,7 @@ public struct FfiConverterTypeTorrentSnapshot: FfiConverterRustBuffer {
         FfiConverterSequenceTypeTorrentFileSnapshot.write(value.files, into: &buf)
         FfiConverterSequenceTypeTorrentTrackerSnapshot.write(value.trackers, into: &buf)
         FfiConverterSequenceTypeTorrentPeerSnapshot.write(value.peers, into: &buf)
+        FfiConverterSequenceTypeTorrentPieceRunSnapshot.write(value.pieceRuns, into: &buf)
         FfiConverterUInt64.write(value.progressBytes, into: &buf)
         FfiConverterUInt64.write(value.totalBytes, into: &buf)
         FfiConverterUInt64.write(value.uploadedBytes, into: &buf)
@@ -1029,12 +1228,26 @@ public func FfiConverterTypeTorrentSnapshot_lower(_ value: TorrentSnapshot) -> R
 public struct TorrentTrackerSnapshot: Equatable, Hashable {
     public var id: UInt64
     public var url: String
+    public var kind: String
+    public var scrapeUrl: String?
+    public var status: String
+    public var lastError: String?
+    public var seeders: UInt32?
+    public var leechers: UInt32?
+    public var downloads: UInt32?
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(id: UInt64, url: String) {
+    public init(id: UInt64, url: String, kind: String, scrapeUrl: String?, status: String, lastError: String?, seeders: UInt32?, leechers: UInt32?, downloads: UInt32?) {
         self.id = id
         self.url = url
+        self.kind = kind
+        self.scrapeUrl = scrapeUrl
+        self.status = status
+        self.lastError = lastError
+        self.seeders = seeders
+        self.leechers = leechers
+        self.downloads = downloads
     }
 
 
@@ -1054,13 +1267,27 @@ public struct FfiConverterTypeTorrentTrackerSnapshot: FfiConverterRustBuffer {
         return
             try TorrentTrackerSnapshot(
                 id: FfiConverterUInt64.read(from: &buf),
-                url: FfiConverterString.read(from: &buf)
+                url: FfiConverterString.read(from: &buf),
+                kind: FfiConverterString.read(from: &buf),
+                scrapeUrl: FfiConverterOptionString.read(from: &buf),
+                status: FfiConverterString.read(from: &buf),
+                lastError: FfiConverterOptionString.read(from: &buf),
+                seeders: FfiConverterOptionUInt32.read(from: &buf),
+                leechers: FfiConverterOptionUInt32.read(from: &buf),
+                downloads: FfiConverterOptionUInt32.read(from: &buf)
         )
     }
 
     public static func write(_ value: TorrentTrackerSnapshot, into buf: inout [UInt8]) {
         FfiConverterUInt64.write(value.id, into: &buf)
         FfiConverterString.write(value.url, into: &buf)
+        FfiConverterString.write(value.kind, into: &buf)
+        FfiConverterOptionString.write(value.scrapeUrl, into: &buf)
+        FfiConverterString.write(value.status, into: &buf)
+        FfiConverterOptionString.write(value.lastError, into: &buf)
+        FfiConverterOptionUInt32.write(value.seeders, into: &buf)
+        FfiConverterOptionUInt32.write(value.leechers, into: &buf)
+        FfiConverterOptionUInt32.write(value.downloads, into: &buf)
     }
 }
 
@@ -1156,6 +1383,54 @@ public func FfiConverterTypeSweepError_lower(_ value: SweepError) -> RustBuffer 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterOptionUInt32: FfiConverterRustBuffer {
+    typealias SwiftType = UInt32?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterUInt32.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterUInt32.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterOptionDouble: FfiConverterRustBuffer {
+    typealias SwiftType = Double?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterDouble.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterDouble.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterOptionString: FfiConverterRustBuffer {
     typealias SwiftType = String?
 
@@ -1174,6 +1449,31 @@ fileprivate struct FfiConverterOptionString: FfiConverterRustBuffer {
         case 1: return try FfiConverterString.read(from: &buf)
         default: throw UniffiInternalError.unexpectedOptionalTag
         }
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterSequenceString: FfiConverterRustBuffer {
+    typealias SwiftType = [String]
+
+    public static func write(_ value: [String], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterString.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [String] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [String]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterString.read(from: &buf))
+        }
+        return seq
     }
 }
 
@@ -1222,6 +1522,31 @@ fileprivate struct FfiConverterSequenceTypeTorrentPeerSnapshot: FfiConverterRust
         seq.reserveCapacity(Int(len))
         for _ in 0 ..< len {
             seq.append(try FfiConverterTypeTorrentPeerSnapshot.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterSequenceTypeTorrentPieceRunSnapshot: FfiConverterRustBuffer {
+    typealias SwiftType = [TorrentPieceRunSnapshot]
+
+    public static func write(_ value: [TorrentPieceRunSnapshot], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeTorrentPieceRunSnapshot.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [TorrentPieceRunSnapshot] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [TorrentPieceRunSnapshot]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeTorrentPieceRunSnapshot.read(from: &buf))
         }
         return seq
     }
@@ -1356,6 +1681,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_sweep_rqbit_checksum_method_sweepengine_resume_torrent() != 12583) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_sweep_rqbit_checksum_method_sweepengine_session_snapshot() != 7402) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_sweep_rqbit_checksum_constructor_sweepengine_new() != 26636) {

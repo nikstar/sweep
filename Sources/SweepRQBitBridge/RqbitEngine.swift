@@ -31,6 +31,12 @@ public final class RqbitEngine: TorrentEngine, @unchecked Sendable {
         }
     }
 
+    public func sessionStats() async throws -> TorrentSessionStats {
+        try await mapRqbitError {
+            TorrentSessionStats(snapshot: try await engine.sessionSnapshot())
+        }
+    }
+
     public func addTorrent(
         _ source: TorrentAddSource,
         downloadDirectory: String,
@@ -122,6 +128,7 @@ private extension Torrent {
             files: snapshot.files.map(TorrentFile.init(snapshot:)),
             trackers: snapshot.trackers.map(TorrentTracker.init(snapshot:)),
             peers: snapshot.peers.map(TorrentPeer.init(snapshot:)),
+            pieceRuns: snapshot.pieceRuns.map(TorrentPieceRun.init(snapshot:)),
             progressBytes: snapshot.progressBytes,
             totalBytes: snapshot.totalBytes,
             uploadedBytes: snapshot.uploadedBytes,
@@ -136,7 +143,25 @@ private extension TorrentTracker {
     init(snapshot: TorrentTrackerSnapshot) {
         self.init(
             id: Int(snapshot.id),
-            url: snapshot.url
+            url: snapshot.url,
+            kind: snapshot.kind,
+            scrapeURL: snapshot.scrapeUrl,
+            status: snapshot.status,
+            lastError: snapshot.lastError,
+            seeders: snapshot.seeders,
+            leechers: snapshot.leechers,
+            downloads: snapshot.downloads
+        )
+    }
+}
+
+private extension TorrentPieceRun {
+    init(snapshot: TorrentPieceRunSnapshot) {
+        self.init(
+            id: Int(snapshot.id),
+            state: TorrentPieceState(rawValue: snapshot.state) ?? .unknown,
+            pieceCount: snapshot.pieceCount,
+            byteCount: snapshot.byteCount
         )
     }
 }
@@ -148,8 +173,14 @@ private extension TorrentPeer {
             address: snapshot.address,
             state: snapshot.state,
             connectionKind: snapshot.connectionKind,
+            client: snapshot.client,
+            featureFlags: snapshot.featureFlags,
+            countryCode: snapshot.countryCode,
+            availability: snapshot.availability,
             downloadedBytes: snapshot.downloadedBytes,
             uploadedBytes: snapshot.uploadedBytes,
+            downloadBps: snapshot.downloadBps,
+            uploadBps: snapshot.uploadBps,
             connectionAttempts: snapshot.connectionAttempts,
             connections: snapshot.connections,
             errors: snapshot.errors
@@ -164,8 +195,26 @@ private extension TorrentFile {
             path: snapshot.path,
             length: snapshot.length,
             progressBytes: snapshot.progressBytes,
+            progressRuns: snapshot.progressRuns.map(TorrentPieceRun.init(snapshot:)),
             included: snapshot.included,
-            isPadding: snapshot.isPadding
+            isPadding: snapshot.isPadding,
+            priority: snapshot.priority
+        )
+    }
+}
+
+private extension TorrentSessionStats {
+    init(snapshot: TorrentSessionSnapshot) {
+        self.init(
+            downloadBps: snapshot.downloadBps,
+            uploadBps: snapshot.uploadBps,
+            downloadedBytes: snapshot.downloadedBytes,
+            uploadedBytes: snapshot.uploadedBytes,
+            livePeers: snapshot.livePeers,
+            connectingPeers: snapshot.connectingPeers,
+            queuedPeers: snapshot.queuedPeers,
+            seenPeers: snapshot.seenPeers,
+            uptimeSeconds: snapshot.uptimeSeconds
         )
     }
 }

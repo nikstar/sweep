@@ -12,6 +12,12 @@ public final class TorrentStore: ObservableObject {
     @Published public var pendingAddSource: TorrentAddSource?
     @Published public var lastError: String?
     @Published public var downloadDirectory: String
+    @Published public var sessionStats: TorrentSessionStats = .empty
+    @Published public var visibleColumns: Set<TorrentListColumn> {
+        didSet {
+            persistVisibleColumns()
+        }
+    }
 
     private let engine: TorrentEngine
     private let persistence: AppPersistence?
@@ -28,6 +34,7 @@ public final class TorrentStore: ObservableObject {
         self.engine = engine
         self.persistence = persistence
         self.downloadDirectory = initialState?.downloadDirectory ?? downloadDirectory
+        self.visibleColumns = initialState?.visibleTorrentColumns ?? TorrentListColumn.defaultVisible
         self.lastError = initialError
         if let initialState {
             self.torrents = normalized(torrents: initialState.torrents, downloadDirectory: self.downloadDirectory)
@@ -50,6 +57,18 @@ public final class TorrentStore: ObservableObject {
     public var selectedTorrent: Torrent? {
         guard let selection else { return nil }
         return torrents.first { $0.id == selection }
+    }
+
+    public func isColumnVisible(_ column: TorrentListColumn) -> Bool {
+        visibleColumns.contains(column)
+    }
+
+    public func setColumn(_ column: TorrentListColumn, visible: Bool) {
+        if visible {
+            visibleColumns.insert(column)
+        } else {
+            visibleColumns.remove(column)
+        }
     }
 
     public var canPauseSelectedTorrent: Bool {
@@ -144,6 +163,7 @@ public final class TorrentStore: ObservableObject {
             for torrent in liveTorrents {
                 upsert(liveTorrent: torrent)
             }
+            sessionStats = try await engine.sessionStats()
             try await enforceDesiredStates(for: Set(liveTorrents.map(\.id)))
             try await persistence?.save(torrents: torrents)
             lastError = nil
@@ -220,6 +240,9 @@ public final class TorrentStore: ObservableObject {
             } else {
                 try? await persistence?.saveSetting(.downloadDirectory, value: downloadDirectory)
             }
+            if let visibleTorrentColumns = state.visibleTorrentColumns {
+                visibleColumns = visibleTorrentColumns
+            }
             if !state.torrents.isEmpty {
                 torrents = normalized(torrents: state.torrents, downloadDirectory: self.downloadDirectory)
             }
@@ -270,6 +293,7 @@ public final class TorrentStore: ObservableObject {
             for torrent in reconciledLiveTorrents {
                 upsert(liveTorrent: torrent)
             }
+            sessionStats = try await engine.sessionStats()
             try await enforceDesiredStates(for: Set(reconciledLiveTorrents.map(\.id)))
             try await persistence?.save(torrents: torrents)
             lastError = nil
@@ -359,6 +383,13 @@ public final class TorrentStore: ObservableObject {
         let selection = selection
         Task {
             try? await persistence?.saveSetting(.selectedTorrentID, value: selection)
+        }
+    }
+
+    private func persistVisibleColumns() {
+        let visibleColumns = visibleColumns
+        Task {
+            try? await persistence?.saveVisibleTorrentColumns(visibleColumns)
         }
     }
 

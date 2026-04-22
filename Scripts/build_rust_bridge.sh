@@ -24,6 +24,7 @@ CRATE_DIR="$ROOT_DIR/rust/sweep-rqbit"
 GENERATED_DIR="$ROOT_DIR/Sources/SweepRQBitBridge/Generated"
 RQBIT_DIR="$ROOT_DIR/references/rqbit"
 RQBIT_TRACKER_COMPAT_PATCH="$ROOT_DIR/rust/patches/rqbit-tracker-compat.patch"
+RQBIT_PIECE_SNAPSHOT_PATCH="$ROOT_DIR/rust/patches/rqbit-piece-snapshot.patch"
 
 if [ "${CONFIGURATION:-Debug}" = "Release" ]; then
   RUST_PROFILE="release"
@@ -102,17 +103,25 @@ apply_rqbit_patches() {
     exit 1
   fi
 
-  if git -C "$RQBIT_DIR" apply --reverse --check "$RQBIT_TRACKER_COMPAT_PATCH" >/dev/null 2>&1; then
+  apply_rqbit_patch "$RQBIT_TRACKER_COMPAT_PATCH" "tracker compatibility"
+  apply_rqbit_patch "$RQBIT_PIECE_SNAPSHOT_PATCH" "piece snapshot"
+}
+
+apply_rqbit_patch() {
+  patch_path="$1"
+  patch_name="$2"
+
+  if git -C "$RQBIT_DIR" apply --reverse --check "$patch_path" >/dev/null 2>&1; then
     return
   fi
 
-  if git -C "$RQBIT_DIR" apply --check "$RQBIT_TRACKER_COMPAT_PATCH" >/dev/null 2>&1; then
-    git -C "$RQBIT_DIR" apply "$RQBIT_TRACKER_COMPAT_PATCH"
+  if git -C "$RQBIT_DIR" apply --check "$patch_path" >/dev/null 2>&1; then
+    git -C "$RQBIT_DIR" apply "$patch_path"
     return
   fi
 
-  echo "error: could not apply rqbit tracker compatibility patch." >&2
-  echo "The rqbit reference checkout may have changed; inspect $RQBIT_TRACKER_COMPAT_PATCH." >&2
+  echo "error: could not apply rqbit $patch_name patch." >&2
+  echo "The rqbit reference checkout may have changed; inspect $patch_path." >&2
   exit 1
 }
 

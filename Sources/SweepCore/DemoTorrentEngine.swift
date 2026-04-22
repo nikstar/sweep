@@ -19,7 +19,7 @@ public actor DemoTorrentEngine: TorrentEngine {
                 )
             ],
             trackers: [
-                TorrentTracker(id: 0, url: "udp://tracker.opentrackr.org:1337/announce")
+                TorrentTracker(id: 0, url: "udp://tracker.opentrackr.org:1337/announce", kind: "UDP")
             ],
             peers: [
                 TorrentPeer(
@@ -32,6 +32,11 @@ public actor DemoTorrentEngine: TorrentEngine {
                     connections: 1,
                     errors: 0
                 )
+            ],
+            pieceRuns: [
+                TorrentPieceRun(id: 0, state: .downloaded, pieceCount: 2800, byteCount: 734_003_200),
+                TorrentPieceRun(id: 1, state: .downloading, pieceCount: 16, byteCount: 4_194_304),
+                TorrentPieceRun(id: 2, state: .needed, pieceCount: 13_568, byteCount: 3_556_769_792)
             ],
             progressBytes: 734_003_200,
             totalBytes: 4_294_967_296,
@@ -49,6 +54,17 @@ public actor DemoTorrentEngine: TorrentEngine {
 
     public func list() async throws -> [Torrent] {
         torrents
+    }
+
+    public func sessionStats() async throws -> TorrentSessionStats {
+        TorrentSessionStats(
+            downloadBps: torrents.reduce(0) { $0 + $1.downloadBps },
+            uploadBps: torrents.reduce(0) { $0 + $1.uploadBps },
+            downloadedBytes: torrents.reduce(0) { $0 + $1.progressBytes },
+            uploadedBytes: torrents.reduce(0) { $0 + $1.uploadedBytes },
+            livePeers: UInt32(clamping: torrents.reduce(0) { $0 + $1.peers.count }),
+            seenPeers: UInt32(clamping: torrents.reduce(0) { $0 + $1.peers.count })
+        )
     }
 
     public func addTorrent(
