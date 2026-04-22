@@ -421,25 +421,53 @@ public final class TorrentStore: ObservableObject {
 private let transferRateSmoothingAlpha = 0.35
 private let activeTransferRateThreshold = 1.0
 
-private func smoothedRate(_ current: Double, previous: Double?) -> Double {
+private func smoothedRate(
+    _ current: Double,
+    previous: Double?,
+    holdTransientZero: Bool = false
+) -> Double {
     let normalizedCurrent = current.isFinite ? max(0, current) : 0
-    guard normalizedCurrent > activeTransferRateThreshold else { return normalizedCurrent }
+    guard normalizedCurrent > activeTransferRateThreshold else {
+        guard
+            holdTransientZero,
+            let previous,
+            previous.isFinite,
+            previous > activeTransferRateThreshold
+        else {
+            return normalizedCurrent
+        }
+        let decayed = previous * (1 - transferRateSmoothingAlpha)
+        return decayed > activeTransferRateThreshold ? decayed : 0
+    }
     guard let previous, previous.isFinite, previous > activeTransferRateThreshold else {
         return normalizedCurrent
     }
     return previous + (normalizedCurrent - previous) * transferRateSmoothingAlpha
 }
 
-private func smoothedOptionalRate(_ current: Double?, previous: Double?) -> Double? {
+private func smoothedOptionalRate(
+    _ current: Double?,
+    previous: Double?,
+    holdTransientZero: Bool = false
+) -> Double? {
     guard let current else { return nil }
-    return smoothedRate(current, previous: previous)
+    return smoothedRate(current, previous: previous, holdTransientZero: holdTransientZero)
 }
 
 private extension TorrentSessionStats {
     func smoothed(from previous: TorrentSessionStats) -> TorrentSessionStats {
-        TorrentSessionStats(
-            downloadBps: smoothedRate(downloadBps, previous: previous.downloadBps),
-            uploadBps: smoothedRate(uploadBps, previous: previous.uploadBps),
+        let shouldHoldTransientZero = livePeers > 0 || previous.livePeers > 0
+        return TorrentSessionStats(
+            downloadBps: smoothedRate(
+                downloadBps,
+                previous: previous.downloadBps,
+                holdTransientZero: shouldHoldTransientZero
+            ),
+            uploadBps: smoothedRate(
+                uploadBps,
+                previous: previous.uploadBps,
+                holdTransientZero: shouldHoldTransientZero
+            ),
             downloadedBytes: downloadedBytes,
             uploadedBytes: uploadedBytes,
             livePeers: livePeers,
@@ -453,9 +481,18 @@ private extension TorrentSessionStats {
 
 private extension Torrent {
     func withSmoothedTransferStats(from cached: Torrent) -> Torrent {
-        updating(
-            downloadBps: smoothedRate(downloadBps, previous: cached.downloadBps),
-            uploadBps: smoothedRate(uploadBps, previous: cached.uploadBps),
+        let shouldHoldTransfer = shouldHoldTransientTransferStats
+        return updating(
+            downloadBps: smoothedRate(
+                downloadBps,
+                previous: cached.downloadBps,
+                holdTransientZero: shouldHoldTransfer && remainingBytes > 0
+            ),
+            uploadBps: smoothedRate(
+                uploadBps,
+                previous: cached.uploadBps,
+                holdTransientZero: shouldHoldTransfer && (progress >= 1 || cached.uploadBps > activeTransferRateThreshold)
+            ),
             updatedAt: updatedAt
         )
     }
@@ -482,12 +519,24 @@ private extension Torrent {
             )
 
             return peer.updatingTransferRates(
-                downloadBps: smoothedOptionalRate(downloadBps, previous: previous.downloadBps),
-                uploadBps: smoothedOptionalRate(uploadBps, previous: previous.uploadBps)
+                downloadBps: smoothedOptionalRate(
+                    downloadBps,
+                    previous: previous.downloadBps,
+                    holdTransientZero: peer.isLiveConnection
+                ),
+                uploadBps: smoothedOptionalRate(
+                    uploadBps,
+                    previous: previous.uploadBps,
+                    holdTransientZero: peer.isLiveConnection
+                )
             )
         }
 
         return updating(peers: peers, updatedAt: updatedAt)
+    }
+
+    private var shouldHoldTransientTransferStats: Bool {
+        desiredState == .running && !isPausedInEngine && error == nil
     }
 
     private func estimatedRate(
@@ -497,6 +546,12 @@ private extension Torrent {
     ) -> Double? {
         guard currentBytes >= previousBytes else { return nil }
         return Double(currentBytes - previousBytes) / elapsed
+    }
+}
+
+private extension TorrentPeer {
+    var isLiveConnection: Bool {
+        state == "live" || connections > 0
     }
 }
 

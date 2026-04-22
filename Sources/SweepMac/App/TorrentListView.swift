@@ -23,7 +23,10 @@ struct TorrentListView: View {
                 columnCustomization: $columnCustomization
             ) {
                 TableColumn("Name") { torrent in
-                    TorrentNameCell(torrent: torrent)
+                    TorrentNameCell(
+                        torrent: torrent,
+                        isSelected: store.selection == torrent.id
+                    )
                         .environmentObject(store)
                 }
                 .width(min: 320, ideal: 420)
@@ -33,6 +36,7 @@ struct TorrentListView: View {
                 TableColumn("Progress") { torrent in
                     TorrentProgressCell(
                         torrent: torrent,
+                        isSelected: store.selection == torrent.id,
                         mode: progressColumnMode,
                         onOptionClick: toggleProgressColumnMode
                     )
@@ -164,8 +168,18 @@ private struct PeerColumnCell: View {
     var body: some View {
         let summary = PeerColumnSummary(torrent: torrent)
         VStack(alignment: .leading, spacing: 2) {
-            PeerCountLine(systemImage: "arrow.up", active: summary.activeSeeders, total: summary.totalSeeders)
-            PeerCountLine(systemImage: "arrow.down", active: summary.activeLeechers, total: summary.totalLeechers)
+            PeerCountLine(
+                systemImage: "arrow.down",
+                active: summary.activeDownloading,
+                total: summary.totalDownloadPeers,
+                help: "Downloading from \(summary.activeDownloading) of \(summary.totalDownloadPeers) peers"
+            )
+            PeerCountLine(
+                systemImage: "arrow.up",
+                active: summary.activeUploading,
+                total: summary.totalUploadPeers,
+                help: "Uploading to \(summary.activeUploading) of \(summary.totalUploadPeers) peers"
+            )
         }
     }
 }
@@ -173,11 +187,12 @@ private struct PeerColumnCell: View {
 private struct PeerCountLine: View {
     let systemImage: String
     let active: Int
-    let total: UInt32?
+    let total: Int
+    let help: String
 
     var body: some View {
         Label {
-            Text(total.map { "\(active) (\($0))" } ?? "\(active) (-)")
+            Text("\(active) of \(total)")
                 .monospacedDigit()
         } icon: {
             Image(systemName: systemImage)
@@ -186,20 +201,22 @@ private struct PeerCountLine: View {
         .labelStyle(.titleAndIcon)
         .font(.caption)
         .foregroundStyle(.secondary)
+        .help(help)
     }
 }
 
 private struct PeerColumnSummary {
-    let activeSeeders: Int
-    let activeLeechers: Int
-    let totalSeeders: UInt32?
-    let totalLeechers: UInt32?
+    let activeDownloading: Int
+    let activeUploading: Int
+    let totalDownloadPeers: Int
+    let totalUploadPeers: Int
 
     init(torrent: Torrent) {
-        self.activeSeeders = torrent.peers.filter { ($0.availability ?? 0) >= 1 }.count
-        self.activeLeechers = torrent.peers.count - activeSeeders
-        self.totalSeeders = torrent.trackers.compactMap(\.seeders).max()
-        self.totalLeechers = torrent.trackers.compactMap(\.leechers).max()
+        let livePeers = torrent.peers.filter(\.isLiveConnection)
+        self.activeDownloading = livePeers.filter { ($0.downloadBps ?? 0) > 1 }.count
+        self.activeUploading = livePeers.filter { ($0.uploadBps ?? 0) > 1 }.count
+        self.totalDownloadPeers = livePeers.count
+        self.totalUploadPeers = livePeers.count
     }
 }
 
@@ -208,10 +225,11 @@ private struct TorrentNameCell: View {
     @State private var isHovering = false
 
     let torrent: Torrent
+    let isSelected: Bool
 
     var body: some View {
         HStack(alignment: .center, spacing: 8) {
-            TorrentStatusIcon(torrent: torrent)
+            TorrentStatusIcon(torrent: torrent, isSelected: isSelected)
 
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
@@ -247,6 +265,7 @@ private struct TorrentNameCell: View {
                         .controlSize(.small)
                         .help("Reveal in Finder")
                     }
+                    .foregroundStyle(isSelected ? Color.primary : Color.secondary)
                     .opacity(isHovering || store.selection == torrent.id ? 1 : 0.72)
                 }
 
@@ -301,37 +320,46 @@ private struct TorrentNameCell: View {
 
 private struct TorrentStatusIcon: View {
     let torrent: Torrent
+    let isSelected: Bool
 
     var body: some View {
         Image(systemName: status.systemImage)
             .font(.system(size: 11, weight: .semibold))
-            .foregroundStyle(status.color)
+            .foregroundStyle(statusColor)
             .frame(width: 16, height: 30)
             .help(status.help)
     }
 
-    private var status: (systemImage: String, color: Color, help: String) {
+    private var statusColor: Color {
+        if isSelected, status.usesSelectionColor {
+            return .primary
+        }
+        return status.color
+    }
+
+    private var status: (systemImage: String, color: Color, help: String, usesSelectionColor: Bool) {
         if torrent.error != nil {
-            return ("exclamationmark.circle.fill", .red, "Error")
+            return ("exclamationmark.circle.fill", .red, "Error", false)
         }
         if torrent.desiredState == .paused || torrent.isPausedInEngine {
-            return ("circle.fill", .secondary, "Paused")
+            return ("circle.fill", .secondary, "Paused", false)
         }
         if torrent.progress >= 1 {
             if torrent.uploadBps > 1 {
-                return ("arrow.up.circle.fill", .green, "Seeding")
+                return ("arrow.up.circle.fill", .green, "Seeding", true)
             }
-            return ("checkmark.circle.fill", .green, "Complete")
+            return ("checkmark.circle.fill", .green, "Complete", true)
         }
         if torrent.downloadBps > 1 {
-            return ("arrow.down.circle.fill", .blue, "Downloading")
+            return ("arrow.down.circle.fill", .blue, "Downloading", true)
         }
-        return ("circle.dotted", .secondary, "Waiting")
+        return ("circle.dotted", .secondary, "Waiting", false)
     }
 }
 
 private struct TorrentProgressCell: View {
     let torrent: Torrent
+    let isSelected: Bool
     let mode: ProgressColumnMode
     let onOptionClick: () -> Void
 
@@ -341,6 +369,7 @@ private struct TorrentProgressCell: View {
                 runs: torrent.pieceRuns,
                 fallbackProgress: torrent.progress,
                 state: torrent.statusLabel,
+                isSelected: isSelected,
                 height: mode == .barOnly ? 16 : 8
             )
             if mode == .detailed {
@@ -357,11 +386,11 @@ private struct TorrentProgressCell: View {
             }
         }
         .contentShape(Rectangle())
-        .onTapGesture {
+        .simultaneousGesture(TapGesture().onEnded {
             if NSEvent.modifierFlags.contains(.option) {
                 onOptionClick()
             }
-        }
+        })
     }
 }
 
@@ -369,6 +398,7 @@ struct SegmentedProgressView: View {
     let runs: [TorrentPieceRun]
     let fallbackProgress: Double
     let state: String
+    var isSelected = false
     var height: CGFloat = 8
 
     var body: some View {
@@ -422,7 +452,7 @@ struct SegmentedProgressView: View {
         case .downloaded:
             statusFillColor
         case .downloading:
-            .cyan
+            isSelected ? .secondary : .cyan
         case .needed:
             Color.secondary.opacity(0.24)
         case .skipped:
@@ -433,6 +463,9 @@ struct SegmentedProgressView: View {
     }
 
     private var statusFillColor: Color {
+        if isSelected, state != "Paused", state != "Pausing", state != "Error" {
+            return .primary
+        }
         if state == "Complete" {
             return .green
         }
@@ -450,6 +483,12 @@ struct SegmentedProgressView: View {
             return Color.red.opacity(0.10)
         }
         return Color.secondary.opacity(0.14)
+    }
+}
+
+private extension TorrentPeer {
+    var isLiveConnection: Bool {
+        state == "live" || connections > 0
     }
 }
 

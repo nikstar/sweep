@@ -81,10 +81,10 @@ struct ContentView: View {
                 Button {
                     inspectorPanelPresenter.show(store: store)
                 } label: {
-                    Label("Inspector", systemImage: "info.circle")
+                    Label("Inspector", systemImage: "info")
                         .labelStyle(.iconOnly)
                 }
-                .disabled(store.selectedTorrent == nil)
+                .disabled(store.selectedTorrent == nil && !inspectorPanelPresenter.isPresented)
                 .help("Show Inspector")
             }
         }

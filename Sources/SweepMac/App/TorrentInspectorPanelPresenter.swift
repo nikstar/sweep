@@ -4,11 +4,19 @@ import SweepCore
 
 @MainActor
 final class TorrentInspectorPanelPresenter: ObservableObject {
+    @Published private(set) var isPresented = false
+
     private var controller: TorrentInspectorWindowController?
 
     func show(store: TorrentStore) {
-        let controller = controller ?? TorrentInspectorWindowController(store: store)
+        let controller = controller ?? TorrentInspectorWindowController(
+            store: store,
+            onClose: { [weak self] in
+                self?.isPresented = false
+            }
+        )
         self.controller = controller
+        isPresented = true
         controller.show()
     }
 }
@@ -16,8 +24,10 @@ final class TorrentInspectorPanelPresenter: ObservableObject {
 @MainActor
 private final class TorrentInspectorWindowController: NSWindowController, NSWindowDelegate {
     private static let frameAutosaveName = "TorrentInspectorWindow"
+    private let onClose: () -> Void
 
-    init(store: TorrentStore) {
+    init(store: TorrentStore, onClose: @escaping () -> Void) {
+        self.onClose = onClose
         let hostingController = NSHostingController(
             rootView: TorrentInspectorWindowView()
                 .environmentObject(store)
@@ -57,5 +67,9 @@ private final class TorrentInspectorWindowController: NSWindowController, NSWind
         guard let window else { return }
         showWindow(nil)
         window.makeKeyAndOrderFront(nil)
+    }
+
+    func windowWillClose(_ notification: Notification) {
+        onClose()
     }
 }
