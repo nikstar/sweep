@@ -1,7 +1,7 @@
 name: Sweep
 
 options:
-  bundleIdPrefix: com.nikstar
+  bundleIdPrefix: me.nikstar
   deploymentTarget:
     macOS: "15.0"
     iOS: "26.0"
@@ -33,7 +33,7 @@ targets:
         product: SQLiteData
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.nikstar.sweep.core
+        PRODUCT_BUNDLE_IDENTIFIER: me.nikstar.sweep.core
         PRODUCT_NAME: SweepCore
 
   SweepRQBitBridge:
@@ -46,7 +46,7 @@ targets:
         embed: false
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.nikstar.sweep.rqbitbridge
+        PRODUCT_BUNDLE_IDENTIFIER: me.nikstar.sweep.rqbitbridge
         PRODUCT_NAME: SweepRQBitBridge
         SWIFT_INCLUDE_PATHS: "$(SRCROOT)/Sources/SweepRQBitBridge/Generated"
         HEADER_SEARCH_PATHS: "$(SRCROOT)/Sources/SweepRQBitBridge/Generated"
@@ -102,7 +102,7 @@ targets:
           fi
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.nikstar.sweep
+        PRODUCT_BUNDLE_IDENTIFIER: me.nikstar.sweep
         PRODUCT_NAME: Sweep
         GENERATE_INFOPLIST_FILE: NO
         INFOPLIST_FILE: Sources/SweepMac/Resources/Info.plist
@@ -110,9 +110,10 @@ targets:
         HEADER_SEARCH_PATHS: "$(SRCROOT)/Sources/SweepRQBitBridge/Generated"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ENABLE_HARDENED_RUNTIME: NO
-        CODE_SIGN_STYLE: Manual
-        CODE_SIGN_IDENTITY: "-"
-        DEVELOPMENT_TEAM: ""
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_IDENTITY: Apple Development
+        DEVELOPMENT_TEAM: 6RX8GEVB43
+        PROVISIONING_PROFILE_SPECIFIER: ""
 
   SweepCoreTests:
     type: bundle.unit-test
@@ -124,7 +125,7 @@ targets:
         embed: false
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.nikstar.sweep.core.tests
+        PRODUCT_BUNDLE_IDENTIFIER: me.nikstar.sweep.core.tests
         PRODUCT_NAME: SweepCoreTests
 
   SweepCore_iOS:
@@ -137,7 +138,7 @@ targets:
         product: SQLiteData
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.nikstar.sweep.core.ios
+        PRODUCT_BUNDLE_IDENTIFIER: me.nikstar.sweep.core.ios
         PRODUCT_NAME: SweepCore
         PRODUCT_MODULE_NAME: SweepCore
 
@@ -151,7 +152,7 @@ targets:
         embed: false
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.nikstar.sweep.rqbitbridge.ios
+        PRODUCT_BUNDLE_IDENTIFIER: me.nikstar.sweep.rqbitbridge.ios
         PRODUCT_NAME: SweepRQBitBridge
         PRODUCT_MODULE_NAME: SweepRQBitBridge
         SWIFT_INCLUDE_PATHS: "$(SRCROOT)/Sources/SweepRQBitBridge/Generated"

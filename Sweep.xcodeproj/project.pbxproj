@@ -628,8 +628,8 @@
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
 					171DEA5DD3E9A0D3CC068E28 = {
-						DevelopmentTeam = "";
-						ProvisioningStyle = Manual;
+						DevelopmentTeam = 6RX8GEVB43;
+						ProvisioningStyle = Automatic;
 					};
 					40420A501246C292C13EF3F4 = {
 						DevelopmentTeam = 6RX8GEVB43;
@@ -889,10 +889,10 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CODE_SIGN_IDENTITY = "-";
-				CODE_SIGN_STYLE = Manual;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = 6RX8GEVB43;
 				ENABLE_HARDENED_RUNTIME = NO;
 				GENERATE_INFOPLIST_FILE = NO;
 				HEADER_SEARCH_PATHS = "$(SRCROOT)/Sources/SweepRQBitBridge/Generated";
@@ -901,8 +901,9 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.nikstar.sweep;
+				PRODUCT_BUNDLE_IDENTIFIER = me.nikstar.sweep;
 				PRODUCT_NAME = Sweep;
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				SDKROOT = macosx;
 				SWIFT_INCLUDE_PATHS = "$(SRCROOT)/Sources/SweepRQBitBridge/Generated";
 			};
@@ -912,10 +913,10 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CODE_SIGN_IDENTITY = "-";
-				CODE_SIGN_STYLE = Manual;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = 6RX8GEVB43;
 				ENABLE_HARDENED_RUNTIME = NO;
 				GENERATE_INFOPLIST_FILE = NO;
 				HEADER_SEARCH_PATHS = "$(SRCROOT)/Sources/SweepRQBitBridge/Generated";
@@ -924,8 +925,9 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.nikstar.sweep;
+				PRODUCT_BUNDLE_IDENTIFIER = me.nikstar.sweep;
 				PRODUCT_NAME = Sweep;
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				SDKROOT = macosx;
 				SWIFT_INCLUDE_PATHS = "$(SRCROOT)/Sources/SweepRQBitBridge/Generated";
 			};
@@ -951,7 +953,7 @@
 				OTHER_LDFLAGS = "$(inherited) -framework Security -framework CoreFoundation -liconv";
 				"OTHER_LDFLAGS[sdk=iphoneos*]" = "$(inherited) $(SRCROOT)/rust/target/aarch64-apple-ios/release/libsweep_rqbit.a -framework Security -framework CoreFoundation -liconv";
 				"OTHER_LDFLAGS[sdk=iphonesimulator*]" = "$(inherited) $(SRCROOT)/rust/target/aarch64-apple-ios-sim/release/libsweep_rqbit.a -framework Security -framework CoreFoundation -liconv";
-				PRODUCT_BUNDLE_IDENTIFIER = com.nikstar.sweep.rqbitbridge.ios;
+				PRODUCT_BUNDLE_IDENTIFIER = me.nikstar.sweep.rqbitbridge.ios;
 				PRODUCT_MODULE_NAME = SweepRQBitBridge;
 				PRODUCT_NAME = SweepRQBitBridge;
 				SDKROOT = iphoneos;
@@ -977,7 +979,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.nikstar.sweep.core;
+				PRODUCT_BUNDLE_IDENTIFIER = me.nikstar.sweep.core;
 				PRODUCT_NAME = SweepCore;
 				SDKROOT = macosx;
 				SKIP_INSTALL = YES;
@@ -999,7 +1001,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.nikstar.sweep.core.ios;
+				PRODUCT_BUNDLE_IDENTIFIER = me.nikstar.sweep.core.ios;
 				PRODUCT_MODULE_NAME = SweepCore;
 				PRODUCT_NAME = SweepCore;
 				SDKROOT = iphoneos;
@@ -1089,7 +1091,7 @@
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @loader_path/../../.. @executable_path/../Frameworks";
 				LIBRARY_SEARCH_PATHS = "$(SRCROOT)/rust/target/debug";
 				OTHER_LDFLAGS = "$(inherited) -lsweep_rqbit";
-				PRODUCT_BUNDLE_IDENTIFIER = com.nikstar.sweep.rqbitbridge;
+				PRODUCT_BUNDLE_IDENTIFIER = me.nikstar.sweep.rqbitbridge;
 				PRODUCT_NAME = SweepRQBitBridge;
 				SDKROOT = macosx;
 				SKIP_INSTALL = YES;
@@ -1108,7 +1110,7 @@
 					"@executable_path/../Frameworks",
 					"@loader_path/../Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.nikstar.sweep.core.tests;
+				PRODUCT_BUNDLE_IDENTIFIER = me.nikstar.sweep.core.tests;
 				PRODUCT_NAME = SweepCoreTests;
 				SDKROOT = macosx;
 			};
@@ -1175,7 +1177,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.nikstar.sweep.core;
+				PRODUCT_BUNDLE_IDENTIFIER = me.nikstar.sweep.core;
 				PRODUCT_NAME = SweepCore;
 				SDKROOT = macosx;
 				SKIP_INSTALL = YES;
@@ -1251,7 +1253,7 @@
 					"@executable_path/../Frameworks",
 					"@loader_path/../Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.nikstar.sweep.core.tests;
+				PRODUCT_BUNDLE_IDENTIFIER = me.nikstar.sweep.core.tests;
 				PRODUCT_NAME = SweepCoreTests;
 				SDKROOT = macosx;
 			};
@@ -1277,7 +1279,7 @@
 				OTHER_LDFLAGS = "$(inherited) -framework Security -framework CoreFoundation -liconv";
 				"OTHER_LDFLAGS[sdk=iphoneos*]" = "$(inherited) $(SRCROOT)/rust/target/aarch64-apple-ios/debug/libsweep_rqbit.a -framework Security -framework CoreFoundation -liconv";
 				"OTHER_LDFLAGS[sdk=iphonesimulator*]" = "$(inherited) $(SRCROOT)/rust/target/aarch64-apple-ios-sim/debug/libsweep_rqbit.a -framework Security -framework CoreFoundation -liconv";
-				PRODUCT_BUNDLE_IDENTIFIER = com.nikstar.sweep.rqbitbridge.ios;
+				PRODUCT_BUNDLE_IDENTIFIER = me.nikstar.sweep.rqbitbridge.ios;
 				PRODUCT_MODULE_NAME = SweepRQBitBridge;
 				PRODUCT_NAME = SweepRQBitBridge;
 				SDKROOT = iphoneos;
@@ -1303,7 +1305,7 @@
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @loader_path/../../.. @executable_path/../Frameworks";
 				LIBRARY_SEARCH_PATHS = "$(SRCROOT)/rust/target/release";
 				OTHER_LDFLAGS = "$(inherited) -lsweep_rqbit";
-				PRODUCT_BUNDLE_IDENTIFIER = com.nikstar.sweep.rqbitbridge;
+				PRODUCT_BUNDLE_IDENTIFIER = me.nikstar.sweep.rqbitbridge;
 				PRODUCT_NAME = SweepRQBitBridge;
 				SDKROOT = macosx;
 				SKIP_INSTALL = YES;
@@ -1326,7 +1328,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.nikstar.sweep.core.ios;
+				PRODUCT_BUNDLE_IDENTIFIER = me.nikstar.sweep.core.ios;
 				PRODUCT_MODULE_NAME = SweepCore;
 				PRODUCT_NAME = SweepCore;
 				SDKROOT = iphoneos;
