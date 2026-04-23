@@ -168,6 +168,7 @@
 		327F2196E59BC4B6BD68F7BB /* IOSAddTorrentSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IOSAddTorrentSheet.swift; sourceTree = "<group>"; };
 		38279D6731F809CC9F9C42D1 /* IOSDisplayFormat.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IOSDisplayFormat.swift; sourceTree = "<group>"; };
 		4796DCD769973A3113B4295E /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		4C61406C6F91B25AC424B2DD /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		4C8067146BA5FED910D86366 /* IOSSegmentedProgressView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IOSSegmentedProgressView.swift; sourceTree = "<group>"; };
 		4FF8965A756198D6E04161E4 /* TorrentFileLocation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TorrentFileLocation.swift; sourceTree = "<group>"; };
 		52378E5ED0495B1FB7D987F5 /* TorrentOptionsInspector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TorrentOptionsInspector.swift; sourceTree = "<group>"; };
@@ -327,6 +328,7 @@
 			isa = PBXGroup;
 			children = (
 				77507DD6854E5D90D6A368D4 /* App */,
+				9D2713B7D977E23432418EDA /* Resources */,
 			);
 			path = SweepIOS;
 			sourceTree = "<group>";
@@ -394,6 +396,14 @@
 				ECB16E2FD9B69FA3BAB8D424 /* SweepRQBitBridge */,
 			);
 			path = Sources;
+			sourceTree = "<group>";
+		};
+		9D2713B7D977E23432418EDA /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				4C61406C6F91B25AC424B2DD /* Info.plist */,
+			);
+			path = Resources;
 			sourceTree = "<group>";
 		};
 		B5775A64EE0333B725F8F194 /* SweepCoreTests */ = {
@@ -1101,9 +1111,9 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = 6RX8GEVB43;
+				GENERATE_INFOPLIST_FILE = NO;
 				HEADER_SEARCH_PATHS = "$(SRCROOT)/Sources/SweepRQBitBridge/Generated";
-				INFOPLIST_KEY_CFBundleDisplayName = Sweep;
-				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_FILE = Sources/SweepIOS/Resources/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -1124,9 +1134,9 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = 6RX8GEVB43;
+				GENERATE_INFOPLIST_FILE = NO;
 				HEADER_SEARCH_PATHS = "$(SRCROOT)/Sources/SweepRQBitBridge/Generated";
-				INFOPLIST_KEY_CFBundleDisplayName = Sweep;
-				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_FILE = Sources/SweepIOS/Resources/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",

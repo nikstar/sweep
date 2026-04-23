@@ -9,10 +9,6 @@ struct IOSTorrentDownloadLocationSnapshot {
     let itemIsDirectory: Bool
     let itemSize: UInt64?
 
-    var shareURL: URL {
-        itemExists ? expectedItemURL : directoryURL
-    }
-
     var displayKind: String {
         if itemExists {
             itemIsDirectory ? "Folder" : "File"

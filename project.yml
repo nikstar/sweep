@@ -192,8 +192,8 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: me.nikstar.sweep.ios
         PRODUCT_NAME: Sweep
-        INFOPLIST_KEY_CFBundleDisplayName: Sweep
-        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        GENERATE_INFOPLIST_FILE: NO
+        INFOPLIST_FILE: Sources/SweepIOS/Resources/Info.plist
         SWIFT_INCLUDE_PATHS: "$(SRCROOT)/Sources/SweepRQBitBridge/Generated"
         HEADER_SEARCH_PATHS: "$(SRCROOT)/Sources/SweepRQBitBridge/Generated"
         CODE_SIGN_STYLE: Automatic

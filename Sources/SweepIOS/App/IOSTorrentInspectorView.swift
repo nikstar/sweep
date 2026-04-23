@@ -51,14 +51,6 @@ struct IOSTorrentInspectorView: View {
                                 Label("Refresh", systemImage: "arrow.clockwise")
                             }
 
-                            if let shareURL = shareURL(for: torrent) {
-                                ShareLink(item: shareURL) {
-                                    Label("Share Download", systemImage: "square.and.arrow.up")
-                                }
-                            }
-
-                            Divider()
-
                             Button(role: .destructive) {
                                 store.removeSelectedTorrent()
                             } label: {
@@ -129,14 +121,6 @@ struct IOSTorrentInspectorView: View {
         }
     }
 
-    private func shareURL(for torrent: Torrent) -> URL? {
-        let snapshot = IOSTorrentFileLocation.snapshot(
-            for: torrent,
-            defaultDirectory: store.downloadDirectory
-        )
-        guard snapshot.itemExists || snapshot.directoryExists else { return nil }
-        return snapshot.shareURL
-    }
 }
 
 private enum IOSInspectorTab: String, CaseIterable, Identifiable {
@@ -512,13 +496,6 @@ private struct IOSTorrentFilesInspector: View {
                 if let itemSize = snapshot.itemSize {
                     IOSInspectorRow("On Disk", value: ByteFormatter.bytes(itemSize))
                 }
-                if snapshot.itemExists || snapshot.directoryExists {
-                    ShareLink(item: snapshot.shareURL) {
-                        Label("Share Download", systemImage: "square.and.arrow.up")
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                }
             }
 
             if torrent.files.isEmpty {
@@ -655,13 +632,7 @@ private struct IOSTorrentOptionsInspector: View {
             }
 
             IOSInspectorGroup("Files") {
-                if snapshot.itemExists || snapshot.directoryExists {
-                    ShareLink(item: snapshot.shareURL) {
-                        Label("Share Download", systemImage: "square.and.arrow.up")
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                } else {
+                if !snapshot.itemExists && !snapshot.directoryExists {
                     IOSInspectorEmptyState("No downloaded files on this device")
                 }
             }

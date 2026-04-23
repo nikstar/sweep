@@ -46,8 +46,8 @@ private enum IOSAppEnvironment {
     }
 
     private static func defaultDownloadDirectory() -> String {
-        FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-            .appending(path: "SweepDownloads", directoryHint: .isDirectory)
+        FileManager.default
+            .urls(for: .documentDirectory, in: .userDomainMask)[0]
             .path
     }
 
