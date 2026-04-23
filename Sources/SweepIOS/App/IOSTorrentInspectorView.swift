@@ -522,8 +522,6 @@ private struct IOSTorrentFileRow: View {
     let file: TorrentFile
     let includedCount: Int
 
-    @State private var showingFileActions = false
-
     var body: some View {
         let fileSnapshot = IOSTorrentFileLocation.fileSnapshot(
             for: file,
@@ -577,7 +575,7 @@ private struct IOSTorrentFileRow: View {
                             Button {
                                 open(fileSnapshot.url)
                             } label: {
-                                Label("Open In...", systemImage: "arrow.up.forward.app")
+                                Label("Open...", systemImage: "square.and.arrow.up")
                             }
                             Divider()
                         }
@@ -597,27 +595,11 @@ private struct IOSTorrentFileRow: View {
             }
             .contentShape(Rectangle())
             .onTapGesture {
-                showingFileActions = true
-            }
-        }
-        .confirmationDialog(file.name, isPresented: $showingFileActions, titleVisibility: .visible) {
-            if fileSnapshot.isOpenable {
-                Button {
+                if fileSnapshot.isOpenable {
                     open(fileSnapshot.url)
-                } label: {
-                    Label("Open In...", systemImage: "arrow.up.forward.app")
+                } else {
+                    store.lastError = "\(file.name) is not available on this device yet."
                 }
-            }
-
-            Button(file.included ? "Skip" : "Download") {
-                store.setFile(file, included: !file.included, in: torrent)
-            }
-            .disabled(file.included && includedCount <= 1)
-
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            if !fileSnapshot.isOpenable {
-                Text("File is not available on this device yet.")
             }
         }
     }

@@ -1,10 +1,8 @@
 import UIKit
 
 @MainActor
-final class IOSOpenInPresenter: NSObject, @preconcurrency UIDocumentInteractionControllerDelegate {
+final class IOSOpenInPresenter {
     static let shared = IOSOpenInPresenter()
-
-    private var documentController: UIDocumentInteractionController?
 
     func present(url: URL) -> Bool {
         guard
@@ -14,9 +12,10 @@ final class IOSOpenInPresenter: NSObject, @preconcurrency UIDocumentInteractionC
             return false
         }
 
-        let documentController = UIDocumentInteractionController(url: url)
-        documentController.delegate = self
-        self.documentController = documentController
+        let activityViewController = UIActivityViewController(
+            activityItems: [url],
+            applicationActivities: nil
+        )
 
         let anchor = CGRect(
             x: view.bounds.midX,
@@ -24,27 +23,11 @@ final class IOSOpenInPresenter: NSObject, @preconcurrency UIDocumentInteractionC
             width: 1,
             height: 1
         )
-        let didPresent = documentController.presentOptionsMenu(from: anchor, in: view, animated: true)
-        if !didPresent {
-            self.documentController = nil
-        }
-        return didPresent
-    }
+        activityViewController.popoverPresentationController?.sourceView = view
+        activityViewController.popoverPresentationController?.sourceRect = anchor
 
-    func documentInteractionControllerDidDismissOptionsMenu(
-        _ controller: UIDocumentInteractionController
-    ) {
-        if controller === documentController {
-            documentController = nil
-        }
-    }
-
-    func documentInteractionControllerDidEndPreview(
-        _ controller: UIDocumentInteractionController
-    ) {
-        if controller === documentController {
-            documentController = nil
-        }
+        viewController.present(activityViewController, animated: true)
+        return true
     }
 }
 
