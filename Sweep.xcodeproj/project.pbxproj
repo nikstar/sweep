@@ -37,6 +37,7 @@
 		6503C13C8AB3C22BFCFA2FAC /* Torrent.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2CC8AE1906D477CFAEAE167 /* Torrent.swift */; };
 		6680E773C820ACDD155576EF /* TorrentStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1325158D6B5505635C6C8553 /* TorrentStore.swift */; };
 		6E9A69FC2AF509B868419216 /* AppPersistence.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8502601AC92AD223E2C71A06 /* AppPersistence.swift */; };
+		72B710E0642A1F8481C537F6 /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = 6CD1D298556F1FD84F62ADF3 /* AppIcon.icon */; };
 		794C0E1898B7BFCDAC036416 /* sweep_rqbit.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CE4A9D1BFE35B1723754F52 /* sweep_rqbit.swift */; };
 		7A895CE3BB483860D2C5A0B1 /* SweepIOSApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 275B892DB00D6893E87DF9CE /* SweepIOSApp.swift */; };
 		7A95253052EDFF4A6C0A7A75 /* IOSContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 193A77A37E82D3DE990B59CC /* IOSContentView.swift */; };
@@ -62,7 +63,6 @@
 		BC62EFFB02C2811CDD6B8E66 /* AppPersistence.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8502601AC92AD223E2C71A06 /* AppPersistence.swift */; };
 		BF77C7FF72FBBFD72E010809 /* SegmentedProgressView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 840CE357D496397EBDF619B4 /* SegmentedProgressView.swift */; };
 		C2D7225637D9139E1C759DCA /* SweepRQBitBridge.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = BFC5C2F202CC8BD9FBD5B831 /* SweepRQBitBridge.framework */; };
-		C6ED771B2146501BB1A131E3 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 748AAC61D7620A187720717A /* Assets.xcassets */; };
 		CFB32C3551B95A669DE7FB79 /* RqbitEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0AB33B659911EDE481BF26F8 /* RqbitEngine.swift */; };
 		D36901AB342198A1648C9D63 /* SweepRQBitBridge_iOS.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FC35C98FE8B930B86A72588A /* SweepRQBitBridge_iOS.framework */; };
 		D9B1E1B909C9EB9465DB5F7C /* SweepApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 775FB611A4949E814D2C806F /* SweepApp.swift */; };
@@ -179,8 +179,8 @@
 		5FD102098775082BC04F9CF9 /* SweepCoreTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SweepCoreTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		6B11DE283104B5AACAF8815C /* IOSOpenInPresenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IOSOpenInPresenter.swift; sourceTree = "<group>"; };
 		6BD9A07B80CFAA4D1D8AD378 /* Sweep_iOS.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Sweep_iOS.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		6CD1D298556F1FD84F62ADF3 /* AppIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = wrapper.icon; path = AppIcon.icon; sourceTree = "<group>"; };
 		6E8D80BB3EAC6640C921EED9 /* IOSTorrentInspectorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IOSTorrentInspectorView.swift; sourceTree = "<group>"; };
-		748AAC61D7620A187720717A /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		775FB611A4949E814D2C806F /* SweepApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SweepApp.swift; sourceTree = "<group>"; };
 		7771F16E8BA28B1EFC005001 /* TorrentInspectorControls.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TorrentInspectorControls.swift; sourceTree = "<group>"; };
 		7CE4A9D1BFE35B1723754F52 /* sweep_rqbit.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = sweep_rqbit.swift; sourceTree = "<group>"; };
@@ -406,7 +406,7 @@
 		9D2713B7D977E23432418EDA /* Resources */ = {
 			isa = PBXGroup;
 			children = (
-				748AAC61D7620A187720717A /* Assets.xcassets */,
+				6CD1D298556F1FD84F62ADF3 /* AppIcon.icon */,
 				4C61406C6F91B25AC424B2DD /* Info.plist */,
 			);
 			path = Resources;
@@ -669,7 +669,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				C6ED771B2146501BB1A131E3 /* Assets.xcassets in Resources */,
+				72B710E0642A1F8481C537F6 /* AppIcon.icon in Resources */,
 				503F4C6350C6D87AFD39EEE6 /* magnet.txt in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
