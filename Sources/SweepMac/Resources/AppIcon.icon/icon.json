@@ -4,12 +4,78 @@
   },
   "groups" : [
     {
+      "blur-material" : 0.3,
+      "hidden" : false,
+      "layers" : [
+        {
+          "blend-mode" : "normal",
+          "glass" : true,
+          "hidden" : false,
+          "image-name" : "SVG Image.svg",
+          "name" : "ArrowShape",
+          "position" : {
+            "scale" : 1,
+            "translation-in-points" : [
+              0.07899999999995089,
+              -174.53387900000007
+            ]
+          }
+        }
+      ],
+      "name" : "ForegroundGroup",
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.5
+      },
+      "specular" : true,
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0
+      }
+    },
+    {
+      "blur-material-specializations" : [
+        {
+          "value" : null
+        },
+        {
+          "appearance" : "tinted",
+          "value" : 0.5
+        }
+      ],
+      "hidden" : false,
       "layers" : [
         {
           "glass" : false,
+          "hidden" : true,
+          "image-name" : "CompositedIcon.png",
+          "name" : "CompositedIcon"
+        },
+        {
+          "blend-mode-specializations" : [
+            {
+              "appearance" : "tinted",
+              "value" : "normal"
+            }
+          ],
+          "glass-specializations" : [
+            {
+              "value" : false
+            },
+            {
+              "appearance" : "tinted",
+              "value" : true
+            }
+          ],
           "hidden" : false,
           "image-name" : "ChatGPT Image Apr 21, 2026, 11_34_29 PM.png",
-          "name" : "ChatGPT Image Apr 21, 2026, 11_34_29 PM",
+          "name" : "BackgroundImage",
+          "opacity-specializations" : [
+            {
+              "appearance" : "tinted",
+              "value" : 0.7
+            }
+          ],
           "position" : {
             "scale" : 0.9,
             "translation-in-points" : [
@@ -20,15 +86,27 @@
         }
       ],
       "lighting" : "individual",
+      "name" : "BackgroundGroup",
       "shadow" : {
         "kind" : "none",
         "opacity" : 0.5
       },
       "specular" : false,
-      "translucency" : {
-        "enabled" : false,
-        "value" : 0.5
-      }
+      "translucency-specializations" : [
+        {
+          "value" : {
+            "enabled" : false,
+            "value" : 0.5
+          }
+        },
+        {
+          "appearance" : "tinted",
+          "value" : {
+            "enabled" : true,
+            "value" : 0.5
+          }
+        }
+      ]
     }
   ],
   "supported-platforms" : {

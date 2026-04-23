@@ -194,6 +194,7 @@ targets:
         PRODUCT_NAME: Sweep
         GENERATE_INFOPLIST_FILE: NO
         INFOPLIST_FILE: Sources/SweepIOS/Resources/Info.plist
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         SWIFT_INCLUDE_PATHS: "$(SRCROOT)/Sources/SweepRQBitBridge/Generated"
         HEADER_SEARCH_PATHS: "$(SRCROOT)/Sources/SweepRQBitBridge/Generated"
         CODE_SIGN_STYLE: Automatic
