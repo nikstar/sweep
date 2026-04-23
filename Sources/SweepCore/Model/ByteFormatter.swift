@@ -9,10 +9,12 @@ public enum ByteFormatter {
     }
 
     public static func bytes(_ value: UInt64) -> String {
-        makeFormatter().string(fromByteCount: Int64(value))
+        guard value > 0 else { return "0 KB" }
+        return makeFormatter().string(fromByteCount: Int64(value))
     }
 
     public static func rate(_ value: Double) -> String {
-        "\(makeFormatter().string(fromByteCount: Int64(value)))/s"
+        guard value > 0 else { return "0 KB/s" }
+        return "\(makeFormatter().string(fromByteCount: Int64(value)))/s"
     }
 }

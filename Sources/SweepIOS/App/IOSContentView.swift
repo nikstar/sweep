@@ -1,212 +1,395 @@
 import SwiftUI
-import Observation
-import OSLog
+import UIKit
+import UniformTypeIdentifiers
 import SweepCore
-import SweepRQBitBridge
 
 struct IOSContentView: View {
-    @State private var probe = IOSDownloadProbe()
+    @Environment(TorrentStore.self) private var store
+
+    @State private var isImportingTorrent = false
+    @State private var confirmingRemoveData = false
 
     var body: some View {
+        @Bindable var store = store
+
         NavigationStack {
-            List {
-                Section("Transfer") {
-                    LabeledContent("Source", value: probe.sourceName)
-                    LabeledContent("State", value: probe.status)
-                    LabeledContent("Name", value: probe.torrentName)
-                    LabeledContent("Downloaded", value: ByteFormatter.bytes(probe.progressBytes))
-                    LabeledContent("Total", value: ByteFormatter.bytes(probe.totalBytes))
-                    LabeledContent("Down", value: ByteFormatter.rate(probe.downloadBps))
-                    LabeledContent("Up", value: ByteFormatter.rate(probe.uploadBps))
-                }
+            Group {
+                if store.torrents.isEmpty {
+                    ContentUnavailableView {
+                        Label("No Torrents", systemImage: "tray")
+                    } actions: {
+                        Button {
+                            isImportingTorrent = true
+                        } label: {
+                            Label("Add File", systemImage: "doc.badge.plus")
+                        }
 
-                Section("Destination") {
-                    Text(probe.downloadDirectory)
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
+                        Button {
+                            store.beginAddingMagnet("")
+                        } label: {
+                            Label("Add URL", systemImage: "link.badge.plus")
+                        }
+                    }
+                } else {
+                    List {
+                        ForEach(store.torrents) { torrent in
+                            NavigationLink {
+                                IOSTorrentInspectorView(torrentID: torrent.id)
+                                    .environment(store)
+                            } label: {
+                                IOSTorrentRow(torrent: torrent)
+                            }
+                            .simultaneousGesture(TapGesture().onEnded {
+                                store.selection = torrent.id
+                            })
+                            .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                                Button {
+                                    togglePause(torrent)
+                                } label: {
+                                    Label(
+                                        torrent.desiredState == .paused ? "Resume" : "Pause",
+                                        systemImage: torrent.desiredState == .paused ? "play.fill" : "pause.fill"
+                                    )
+                                }
+                                .tint(torrent.desiredState == .paused ? .green : .orange)
+                            }
+                            .swipeActions(edge: .trailing) {
+                                Button(role: .destructive) {
+                                    store.selection = torrent.id
+                                    store.removeSelectedTorrent()
+                                } label: {
+                                    Label("Remove", systemImage: "xmark")
+                                }
 
-                if let message = probe.message {
-                    Section("Log") {
-                        Text(message)
-                            .font(.footnote)
-                            .foregroundStyle(probe.didVerifyDownload ? .green : .secondary)
+                                Button(role: .destructive) {
+                                    store.selection = torrent.id
+                                    confirmingRemoveData = true
+                                } label: {
+                                    Label("Delete Data", systemImage: "trash")
+                                }
+                            }
+                            .contextMenu {
+                                Button {
+                                    togglePause(torrent)
+                                } label: {
+                                    Label(
+                                        torrent.desiredState == .paused ? "Resume" : "Pause",
+                                        systemImage: torrent.desiredState == .paused ? "play.fill" : "pause.fill"
+                                    )
+                                }
+
+                                Button {
+                                    store.selection = torrent.id
+                                    store.refresh()
+                                } label: {
+                                    Label("Refresh", systemImage: "arrow.clockwise")
+                                }
+
+                                Divider()
+
+                                Button(role: .destructive) {
+                                    store.selection = torrent.id
+                                    store.removeSelectedTorrent()
+                                } label: {
+                                    Label("Remove", systemImage: "xmark")
+                                }
+
+                                Button(role: .destructive) {
+                                    store.selection = torrent.id
+                                    confirmingRemoveData = true
+                                } label: {
+                                    Label("Delete Data", systemImage: "trash")
+                                }
+                            }
+                        }
+                    }
+                    .listStyle(.plain)
+                    .refreshable {
+                        await store.refreshNow()
                     }
                 }
             }
-            .navigationTitle("Sweep iOS")
+            .navigationTitle("Sweep")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                Button {
-                    probe.start()
-                } label: {
-                    Label("Restart", systemImage: "arrow.clockwise")
+                ToolbarItem(placement: .topBarTrailing) {
+                    Menu {
+                        Button {
+                            isImportingTorrent = true
+                        } label: {
+                            Label("Add File", systemImage: "doc.badge.plus")
+                        }
+
+                        Button {
+                            store.beginAddingMagnet("")
+                        } label: {
+                            Label("Add URL", systemImage: "link.badge.plus")
+                        }
+
+                        Button {
+                            addFromClipboard()
+                        } label: {
+                            Label("Add from Clipboard", systemImage: "doc.on.clipboard")
+                        }
+
+                        Divider()
+
+                        Button {
+                            store.refresh()
+                        } label: {
+                            Label("Refresh", systemImage: "arrow.clockwise")
+                        }
+                    } label: {
+                        Label("Add", systemImage: "plus")
+                    }
                 }
             }
+            .safeAreaInset(edge: .bottom) {
+                IOSSessionStatusBar()
+                    .environment(store)
+            }
+            .fileImporter(
+                isPresented: $isImportingTorrent,
+                allowedContentTypes: [torrentContentType],
+                allowsMultipleSelection: false,
+                onCompletion: importTorrentFile
+            )
+            .sheet(isPresented: $store.showingAddSheet) {
+                IOSAddTorrentSheet(
+                    source: store.pendingAddSource,
+                    downloadDirectory: store.downloadDirectory
+                )
+                .environment(store)
+            }
+            .removeTorrentDataConfirmation(isPresented: $confirmingRemoveData, store: store)
+            .task {
+                store.startPolling()
+            }
         }
-        .task {
-            probe.start()
+    }
+
+    private var torrentContentType: UTType {
+        UTType(filenameExtension: "torrent") ?? .data
+    }
+
+    private func importTorrentFile(_ result: Result<[URL], Error>) {
+        do {
+            guard let url = try result.get().first else { return }
+            let didStartAccessing = url.startAccessingSecurityScopedResource()
+            defer {
+                if didStartAccessing {
+                    url.stopAccessingSecurityScopedResource()
+                }
+            }
+            store.beginAddingTorrentFile(try TorrentFileSource(contentsOf: url))
+        } catch {
+            store.lastError = error.localizedDescription
+        }
+    }
+
+    private func addFromClipboard() {
+        guard let text = UIPasteboard.general.string?.trimmingCharacters(in: .whitespacesAndNewlines),
+              text.lowercased().hasPrefix("magnet:")
+        else {
+            store.lastError = "Clipboard does not contain a magnet link."
+            return
+        }
+        store.beginAddingMagnet(text)
+    }
+
+    private func togglePause(_ torrent: Torrent) {
+        store.selection = torrent.id
+        if torrent.desiredState == .paused {
+            store.resumeSelectedTorrent()
+        } else {
+            store.pauseSelectedTorrent()
         }
     }
 }
 
-@MainActor
-@Observable
-final class IOSDownloadProbe {
-    var status = "Idle"
-    var sourceName = "magnet.txt"
-    var torrentName = "Sample Magnet"
-    var progressBytes: UInt64 = 0
-    var totalBytes: UInt64 = 0
-    var downloadBps: Double = 0
-    var uploadBps: Double = 0
-    var message: String?
-    var didVerifyDownload = false
+private struct IOSTorrentRow: View {
+    let torrent: Torrent
 
-    let downloadDirectory: String
+    var body: some View {
+        HStack(alignment: .center, spacing: 10) {
+            IOSTorrentStatusIcon(torrent: torrent)
 
-    @ObservationIgnored
-    private var task: Task<Void, Never>?
-    @ObservationIgnored
-    private var engine: RqbitEngine?
-    @ObservationIgnored
-    private let logger = Logger(subsystem: "com.nikstar.sweep.ios", category: "Probe")
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(torrent.name)
+                        .font(.body)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
 
-    init() {
-        downloadDirectory = FileManager.default
-            .urls(for: .documentDirectory, in: .userDomainMask)[0]
-            .appending(path: "SweepDownloads", directoryHint: .isDirectory)
-            .path
-    }
+                    Spacer(minLength: 8)
 
-    deinit {
-        task?.cancel()
-    }
-
-    func start() {
-        task?.cancel()
-        didVerifyDownload = false
-        task = Task { [downloadDirectory] in
-            await run(downloadDirectory: downloadDirectory)
-        }
-    }
-
-    private func run(downloadDirectory: String) async {
-        do {
-            let sample = try sampleSource()
-            sourceName = sample.name
-            log("SWEEP_IOS_SAMPLE_SOURCE \(sample.name)")
-
-            try? FileManager.default.removeItem(at: URL(filePath: downloadDirectory, directoryHint: .isDirectory))
-            try FileManager.default.createDirectory(
-                at: URL(filePath: downloadDirectory, directoryHint: .isDirectory),
-                withIntermediateDirectories: true
-            )
-
-            status = "Starting"
-            message = "Creating rqbit engine"
-            let engine = try RqbitEngine(downloadDirectory: downloadDirectory)
-            self.engine = engine
-
-            message = "Adding \(sample.name)"
-            let addedTorrent = try await engine.addTorrent(
-                sample.source,
-                downloadDirectory: downloadDirectory,
-                startPaused: false
-            )
-            update(from: addedTorrent)
-            log("SWEEP_IOS_TORRENT_ADDED \(addedTorrent.infoHash)")
-
-            var lastProgressBytes: UInt64 = 0
-            while !Task.isCancelled {
-                try await Task.sleep(for: .seconds(2))
-
-                let torrents = try await engine.list()
-                guard let torrent = torrents.first(where: { $0.id == addedTorrent.id }) ?? torrents.first else {
-                    continue
+                    Text(IOSDisplayFormat.percent(torrent.progress))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .monospacedDigit()
                 }
-                update(from: torrent)
-                log(
-                    "SWEEP_IOS_PROGRESS state=\(torrent.statusLabel) progressBytes=\(torrent.progressBytes) totalBytes=\(torrent.totalBytes) downBps=\(torrent.downloadBps)"
+
+                IOSSegmentedProgressView(
+                    runs: torrent.pieceRuns,
+                    fallbackProgress: torrent.progress,
+                    state: torrent.statusLabel,
+                    height: 8
                 )
 
-                let didMakeProgress = torrent.progressBytes > lastProgressBytes
-                if didVerifyDownload == false, didMakeProgress || torrent.downloadBps > 0 {
-                    didVerifyDownload = true
-                    message = "Verified rqbit download activity in iOS simulator"
-                    log("SWEEP_IOS_DOWNLOAD_VERIFIED progressBytes=\(torrent.progressBytes)")
-                }
+                Text(statusText)
+                    .font(.caption)
+                    .foregroundStyle(torrent.error == nil ? Color.secondary : Color.red)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
 
-                if torrent.totalBytes > 0, torrent.progressBytes >= torrent.totalBytes {
-                    message = "Downloaded \(ByteFormatter.bytes(torrent.totalBytes)) in iOS simulator"
-                    log("SWEEP_IOS_DOWNLOAD_COMPLETED progressBytes=\(torrent.progressBytes) totalBytes=\(torrent.totalBytes)")
-                    return
+                HStack(spacing: 12) {
+                    TransferMetric(systemImage: "arrow.down", value: ByteFormatter.rate(torrent.downloadBps), isActive: torrent.downloadBps > 1)
+                    TransferMetric(systemImage: "arrow.up", value: ByteFormatter.rate(torrent.uploadBps), isActive: torrent.uploadBps > 1)
+                    PeerMetric(torrent: torrent)
                 }
-
-                lastProgressBytes = max(lastProgressBytes, torrent.progressBytes)
+                .font(.caption2)
             }
-        } catch {
-            status = "Error"
-            message = error.localizedDescription
-            log("SWEEP_IOS_DOWNLOAD_FAILED \(error.localizedDescription)")
         }
+        .padding(.vertical, 5)
     }
 
-    private func sampleSource() throws -> (source: TorrentAddSource, name: String) {
-        if let torrentURL = try localTorrentFileURL() {
-            let data = try Data(contentsOf: torrentURL)
-            return (
-                .torrentFile(TorrentFileSource(fileName: torrentURL.lastPathComponent, bytes: Array(data))),
-                torrentURL.lastPathComponent
-            )
+    private var statusText: String {
+        if let error = torrent.error, !error.isEmpty {
+            return error
         }
 
-        let magnet = try sampleMagnet()
-        return (.magnet(magnet), "magnet.txt")
-    }
-
-    private func localTorrentFileURL() throws -> URL? {
-        let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        return try FileManager.default
-            .contentsOfDirectory(at: documentsURL, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles])
-            .filter { $0.pathExtension.lowercased() == "torrent" }
-            .sorted { $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending }
-            .first
-    }
-
-    private func update(from torrent: Torrent) {
-        torrentName = torrent.name
-        progressBytes = torrent.progressBytes
-        totalBytes = torrent.totalBytes
-        downloadBps = torrent.downloadBps
-        uploadBps = torrent.uploadBps
-        status = torrent.statusLabel
-        if message == nil || didVerifyDownload == false {
-            message = torrent.error
+        var parts = [torrent.statusLabel]
+        if torrent.totalBytes > 0 {
+            parts.append("\(IOSDisplayFormat.percent(torrent.progress)) of \(ByteFormatter.bytes(torrent.totalBytes))")
+        } else {
+            parts.append("Waiting for metadata")
         }
-    }
 
-    private func sampleMagnet() throws -> String {
-        guard let url = Bundle.main.url(forResource: "magnet", withExtension: "txt") else {
-            throw IOSProbeError(message: "magnet.txt is missing from the app bundle")
+        if torrent.remainingBytes > 0 {
+            parts.append("\(ByteFormatter.bytes(torrent.remainingBytes)) remaining")
         }
-        let magnet = try String(contentsOf: url, encoding: .utf8)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        guard magnet.lowercased().hasPrefix("magnet:") else {
-            throw IOSProbeError(message: "magnet.txt does not contain a magnet link")
+        if let eta = torrent.etaSeconds {
+            parts.append("\(IOSDisplayFormat.duration(eta)) left")
         }
-        return magnet
-    }
-
-    private func log(_ message: String) {
-        print(message)
-        logger.notice("\(message, privacy: .public)")
+        return parts.joined(separator: " - ")
     }
 }
 
-private struct IOSProbeError: LocalizedError {
-    let message: String
+private struct IOSTorrentStatusIcon: View {
+    let torrent: Torrent
 
-    var errorDescription: String? {
-        message
+    var body: some View {
+        Image(systemName: status.systemImage)
+            .font(.system(size: 14, weight: .semibold))
+            .foregroundStyle(status.color)
+            .frame(width: 20, height: 40)
+            .accessibilityLabel(status.label)
+    }
+
+    private var status: (systemImage: String, color: Color, label: String) {
+        if torrent.error != nil {
+            return ("exclamationmark.circle.fill", .red, "Error")
+        }
+        if torrent.desiredState == .paused || torrent.isPausedInEngine {
+            return ("circle.fill", .secondary, "Paused")
+        }
+        if torrent.progress >= 1 {
+            if torrent.uploadBps > 1 {
+                return ("arrow.up.circle.fill", .green, "Seeding")
+            }
+            return ("checkmark.circle.fill", .green, "Complete")
+        }
+        if torrent.downloadBps > 1 {
+            return ("arrow.down.circle.fill", .blue, "Downloading")
+        }
+        return ("circle.dotted", .secondary, "Waiting")
+    }
+}
+
+private struct TransferMetric: View {
+    let systemImage: String
+    let value: String
+    let isActive: Bool
+
+    var body: some View {
+        Label {
+            Text(value)
+                .monospacedDigit()
+        } icon: {
+            Image(systemName: systemImage)
+        }
+        .foregroundStyle(isActive ? .primary : .secondary)
+    }
+}
+
+private struct PeerMetric: View {
+    let torrent: Torrent
+
+    var body: some View {
+        let livePeers = torrent.peers.filter(\.isLiveConnection)
+        Label {
+            Text("\(livePeers.count)")
+                .monospacedDigit()
+        } icon: {
+            Image(systemName: "person.2")
+        }
+        .foregroundStyle(livePeers.isEmpty ? .secondary : .primary)
+    }
+}
+
+private struct IOSSessionStatusBar: View {
+    @Environment(TorrentStore.self) private var store
+
+    var body: some View {
+        HStack(spacing: 14) {
+            Label(ByteFormatter.rate(store.sessionStats.downloadBps), systemImage: "arrow.down")
+            Label(ByteFormatter.rate(store.sessionStats.uploadBps), systemImage: "arrow.up")
+            Label("\(store.sessionStats.livePeers)", systemImage: "person.2")
+
+            Spacer(minLength: 8)
+
+            if let error = store.lastError {
+                Text(error)
+                    .foregroundStyle(.red)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            } else if let torrent = store.selectedTorrent {
+                Text(torrent.statusLabel)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+        }
+        .font(.caption)
+        .monospacedDigit()
+        .padding(.horizontal, 14)
+        .frame(height: 34)
+        .background(.bar)
+    }
+}
+
+extension View {
+    func removeTorrentDataConfirmation(
+        isPresented: Binding<Bool>,
+        store: TorrentStore
+    ) -> some View {
+        confirmationDialog(
+            removeTorrentDataConfirmationTitle(for: store.selectedTorrent),
+            isPresented: isPresented,
+            titleVisibility: .visible
+        ) {
+            Button("Delete Torrent and Files", role: .destructive) {
+                store.removeSelectedTorrent(deleteData: true)
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Downloaded files for this torrent will be deleted from this device.")
+        }
+    }
+
+    private func removeTorrentDataConfirmationTitle(for torrent: Torrent?) -> String {
+        guard let name = torrent?.name else {
+            return "Delete the selected torrent and its downloaded files?"
+        }
+        return "Delete \"\(name)\" and its downloaded files?"
     }
 }

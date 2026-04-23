@@ -6,7 +6,7 @@ let package = Package(
     name: "Sweep",
     platforms: [
         .macOS(.v15),
-        .iOS(.v17)
+        .iOS("26.0")
     ],
     products: [
         .library(name: "SweepCore", targets: ["SweepCore"]),

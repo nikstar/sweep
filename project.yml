@@ -4,7 +4,7 @@ options:
   bundleIdPrefix: com.nikstar
   deploymentTarget:
     macOS: "15.0"
-    iOS: "17.0"
+    iOS: "26.0"
   createIntermediateGroups: true
   generateEmptyDirectories: true
 
@@ -19,7 +19,7 @@ settings:
     CLANG_ENABLE_MODULES: YES
     GENERATE_INFOPLIST_FILE: YES
     MACOSX_DEPLOYMENT_TARGET: "15.0"
-    IPHONEOS_DEPLOYMENT_TARGET: "17.0"
+    IPHONEOS_DEPLOYMENT_TARGET: "26.0"
     LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/../Frameworks"
 
 targets:
