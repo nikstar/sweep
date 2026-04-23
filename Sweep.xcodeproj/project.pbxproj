@@ -14,6 +14,7 @@
 		0E22E6DCFE894119DBDDB914 /* DemoTorrentEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBCF7F63A1752C2A9AF65A00 /* DemoTorrentEngine.swift */; };
 		0E6DB3E8DDF2947642AF5DAD /* SQLiteData in Frameworks */ = {isa = PBXBuildFile; productRef = F60DF72F4094A7A79C99A03B /* SQLiteData */; };
 		0F7CCF4CCFAEBF56A0845AA7 /* SweepRQBitBridge_iOS.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = FC35C98FE8B930B86A72588A /* SweepRQBitBridge_iOS.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		110758FC1E31ABD4A9EB4F21 /* ClassicAppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = F4F8144C9CB2D86DE3006667 /* ClassicAppIcon.icon */; };
 		13399D2ABC6290FB61C6C36E /* AddTorrentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F80B63B37D4FE59E26F637E /* AddTorrentView.swift */; };
 		145D58ADFB21EBF7261B3939 /* TorrentOptionsInspector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52378E5ED0495B1FB7D987F5 /* TorrentOptionsInspector.swift */; };
 		27C3FB0CC63F9B46A41112A1 /* SweepCore_iOS.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E9AA3930F0AD69B5C0C8BB12 /* SweepCore_iOS.framework */; };
@@ -207,6 +208,7 @@
 		E9AA3930F0AD69B5C0C8BB12 /* SweepCore_iOS.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = SweepCore_iOS.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		EBCF7F63A1752C2A9AF65A00 /* DemoTorrentEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoTorrentEngine.swift; sourceTree = "<group>"; };
 		EC7DA44B71E17BB508D7805C /* TorrentStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TorrentStoreTests.swift; sourceTree = "<group>"; };
+		F4F8144C9CB2D86DE3006667 /* ClassicAppIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = wrapper.icon; path = ClassicAppIcon.icon; sourceTree = "<group>"; };
 		F74065F3916933E9CD1B2C81 /* module.modulemap */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.module-map"; path = module.modulemap; sourceTree = "<group>"; };
 		FC35C98FE8B930B86A72588A /* SweepRQBitBridge_iOS.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = SweepRQBitBridge_iOS.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -407,6 +409,7 @@
 			isa = PBXGroup;
 			children = (
 				6CD1D298556F1FD84F62ADF3 /* AppIcon.icon */,
+				F4F8144C9CB2D86DE3006667 /* ClassicAppIcon.icon */,
 				4C61406C6F91B25AC424B2DD /* Info.plist */,
 			);
 			path = Resources;
@@ -671,6 +674,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				72B710E0642A1F8481C537F6 /* AppIcon.icon in Resources */,
+				110758FC1E31ABD4A9EB4F21 /* ClassicAppIcon.icon in Resources */,
 				503F4C6350C6D87AFD39EEE6 /* magnet.txt in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

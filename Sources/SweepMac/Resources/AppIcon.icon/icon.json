@@ -9,10 +9,24 @@
       "layers" : [
         {
           "blend-mode" : "normal",
+          "fill-specializations" : [
+            {
+              "appearance" : "dark",
+              "value" : {
+                "automatic-gradient" : "display-p3:0.14298,0.33372,0.69040,1.00000"
+              }
+            }
+          ],
           "glass" : true,
           "hidden" : false,
           "image-name" : "SVG Image.svg",
           "name" : "ArrowShape",
+          "opacity-specializations" : [
+            {
+              "appearance" : "dark",
+              "value" : 1
+            }
+          ],
           "position" : {
             "scale" : 1,
             "translation-in-points" : [
@@ -46,10 +60,16 @@
       "hidden" : false,
       "layers" : [
         {
-          "glass" : false,
-          "hidden" : true,
-          "image-name" : "CompositedIcon.png",
-          "name" : "CompositedIcon"
+          "hidden" : false,
+          "image-name" : "Alt7.png",
+          "name" : "Alt7",
+          "position" : {
+            "scale" : 0.85,
+            "translation-in-points" : [
+              -20,
+              -15
+            ]
+          }
         },
         {
           "blend-mode-specializations" : [
@@ -67,7 +87,7 @@
               "value" : true
             }
           ],
-          "hidden" : false,
+          "hidden" : true,
           "image-name" : "ChatGPT Image Apr 21, 2026, 11_34_29 PM.png",
           "name" : "BackgroundImage",
           "opacity-specializations" : [
