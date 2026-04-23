@@ -37,16 +37,71 @@ else
   CARGO_RUN_PROFILE=""
 fi
 
-build_host_bridge() {
-  apply_rqbit_patches
+host_sdk_root() {
+  xcrun --sdk macosx --show-sdk-path
+}
 
-  if [ "${RUST_PROFILE}" = "release" ]; then
-    "$CARGO" build --release --manifest-path "$MANIFEST_PATH"
-  else
-    "$CARGO" build --manifest-path "$MANIFEST_PATH"
+run_host_cargo() {
+  HOST_SDKROOT="${SWEEP_HOST_SDKROOT:-$(host_sdk_root)}"
+  HOST_MACOS_DEPLOYMENT_TARGET="${SWEEP_HOST_MACOSX_DEPLOYMENT_TARGET:-15.0}"
+
+  env \
+    SDKROOT="$HOST_SDKROOT" \
+    MACOSX_DEPLOYMENT_TARGET="$HOST_MACOS_DEPLOYMENT_TARGET" \
+    PATH="$PATH" \
+    HOME="$HOME" \
+    CARGO_HOME="${CARGO_HOME:-$HOME/.cargo}" \
+    RUSTUP_HOME="${RUSTUP_HOME:-$HOME/.rustup}" \
+    "$@"
+}
+
+host_rust_target() {
+  case "$(uname -m)" in
+    arm64)
+      echo "aarch64-apple-darwin"
+      ;;
+    x86_64)
+      echo "x86_64-apple-darwin"
+      ;;
+    *)
+      echo "error: unsupported host architecture '$(uname -m)'" >&2
+      exit 1
+      ;;
+  esac
+}
+
+ensure_rust_target_installed() {
+  rust_target="$1"
+
+  if command -v rustup >/dev/null 2>&1; then
+    if rustup target list --installed | grep -qx "$rust_target"; then
+      return
+    fi
+
+    rustup target add "$rust_target"
+    return
   fi
 
-  BRIDGE_PATH="$ROOT_DIR/rust/target/$RUST_PROFILE/libsweep_rqbit.dylib"
+  echo "error: Rust target '$rust_target' is not installed." >&2
+  echo "Install it with: rustup target add $rust_target" >&2
+  exit 1
+}
+
+build_macos_target() {
+  rust_target="$1"
+
+  ensure_rust_target_installed "$rust_target"
+
+  if [ "${RUST_PROFILE}" = "release" ]; then
+    run_host_cargo "$CARGO" build --release --target "$rust_target" --manifest-path "$MANIFEST_PATH"
+  else
+    run_host_cargo "$CARGO" build --target "$rust_target" --manifest-path "$MANIFEST_PATH"
+  fi
+}
+
+generate_swift_bindings() {
+  bridge_target="$1"
+  BRIDGE_PATH="$ROOT_DIR/rust/target/$bridge_target/$RUST_PROFILE/libsweep_rqbit.dylib"
 
   if command -v install_name_tool >/dev/null 2>&1; then
     install_name_tool -id "@rpath/libsweep_rqbit.dylib" "$BRIDGE_PATH"
@@ -57,7 +112,7 @@ build_host_bridge() {
 
   cd "$CRATE_DIR"
   if [ -n "$CARGO_RUN_PROFILE" ]; then
-    "$CARGO" run --quiet "$CARGO_RUN_PROFILE" --manifest-path "$MANIFEST_PATH" --bin uniffi-bindgen-swift -- \
+    run_host_cargo "$CARGO" run --quiet "$CARGO_RUN_PROFILE" --manifest-path "$MANIFEST_PATH" --bin uniffi-bindgen-swift -- \
       "$BRIDGE_PATH" "$GENERATED_DIR" \
       --swift-sources \
       --headers \
@@ -65,7 +120,7 @@ build_host_bridge() {
       --module-name sweep_rqbitFFI \
       --modulemap-filename module.modulemap
   else
-    "$CARGO" run --quiet --manifest-path "$MANIFEST_PATH" --bin uniffi-bindgen-swift -- \
+    run_host_cargo "$CARGO" run --quiet --manifest-path "$MANIFEST_PATH" --bin uniffi-bindgen-swift -- \
       "$BRIDGE_PATH" "$GENERATED_DIR" \
       --swift-sources \
       --headers \
@@ -75,6 +130,41 @@ build_host_bridge() {
   fi
 
   perl -pi -e 's/[ \t]+$//' "$GENERATED_DIR/sweep_rqbit.swift" "$GENERATED_DIR/sweep_rqbitFFI.h"
+}
+
+build_host_bridge() {
+  apply_rqbit_patches
+  HOST_RUST_TARGET="${SWEEP_HOST_RUST_TARGET:-$(host_rust_target)}"
+
+  build_macos_target "$HOST_RUST_TARGET"
+  generate_swift_bindings "$HOST_RUST_TARGET"
+}
+
+build_macos_bridge() {
+  apply_rqbit_patches
+
+  HOST_RUST_TARGET="${SWEEP_HOST_RUST_TARGET:-$(host_rust_target)}"
+  MACOS_ARM64_TARGET="${SWEEP_MACOS_ARM64_TARGET:-aarch64-apple-darwin}"
+  MACOS_X86_64_TARGET="${SWEEP_MACOS_X86_64_TARGET:-x86_64-apple-darwin}"
+  UNIVERSAL_DIR="$ROOT_DIR/rust/target/universal-apple-darwin/$RUST_PROFILE"
+
+  build_macos_target "$HOST_RUST_TARGET"
+
+  if [ "$HOST_RUST_TARGET" != "$MACOS_ARM64_TARGET" ]; then
+    build_macos_target "$MACOS_ARM64_TARGET"
+  fi
+
+  if [ "$HOST_RUST_TARGET" != "$MACOS_X86_64_TARGET" ]; then
+    build_macos_target "$MACOS_X86_64_TARGET"
+  fi
+
+  mkdir -p "$UNIVERSAL_DIR"
+  lipo -create \
+    "$ROOT_DIR/rust/target/$MACOS_ARM64_TARGET/$RUST_PROFILE/libsweep_rqbit.a" \
+    "$ROOT_DIR/rust/target/$MACOS_X86_64_TARGET/$RUST_PROFILE/libsweep_rqbit.a" \
+    -output "$UNIVERSAL_DIR/libsweep_rqbit.a"
+
+  generate_swift_bindings "$HOST_RUST_TARGET"
 }
 
 build_ios_bridge() {
@@ -184,5 +274,5 @@ case "${PLATFORM_NAME:-macosx}" in
     ;;
 esac
 
-build_host_bridge
+build_macos_bridge
 exit 0
