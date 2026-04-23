@@ -79,7 +79,6 @@ public enum TorrentListColumn: String, CaseIterable, Codable, Hashable, Identifi
     case size
     case eta
     case progress
-    case percent
     case remaining
     case speed
     case peers
@@ -89,7 +88,6 @@ public enum TorrentListColumn: String, CaseIterable, Codable, Hashable, Identifi
     public static let defaultVisible: Set<TorrentListColumn> = [
         .size,
         .progress,
-        .percent,
         .remaining,
         .speed,
         .peers
