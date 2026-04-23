@@ -22,12 +22,16 @@ ROOT_DIR="${SRCROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
 MANIFEST_PATH="$ROOT_DIR/rust/sweep-rqbit/Cargo.toml"
 CRATE_DIR="$ROOT_DIR/rust/sweep-rqbit"
 GENERATED_DIR="$ROOT_DIR/Sources/SweepRQBitBridge/Generated"
+ARTIFACTS_DIR="$ROOT_DIR/BuildArtifacts"
+XCFRAMEWORK_PATH="$ARTIFACTS_DIR/SweepRustFFI.xcframework"
+XCFRAMEWORK_HEADERS_DIR="$ARTIFACTS_DIR/SweepRustFFIHeaders"
 RQBIT_DIR="$ROOT_DIR/references/rqbit"
 RQBIT_URL="${SWEEP_RQBIT_URL:-https://github.com/ikatson/rqbit.git}"
 RQBIT_REVISION="${SWEEP_RQBIT_REVISION:-f9b4aee8}"
 RQBIT_TRACKER_COMPAT_PATCH="$ROOT_DIR/rust/patches/rqbit-tracker-compat.patch"
 RQBIT_PIECE_SNAPSHOT_PATCH="$ROOT_DIR/rust/patches/rqbit-piece-snapshot.patch"
 RQBIT_INSPECTOR_STATS_PATCH="$ROOT_DIR/rust/patches/rqbit-inspector-stats.patch"
+IOS_DEPLOYMENT_TARGET="${SWEEP_IOS_DEPLOYMENT_TARGET:-26.0}"
 
 if [ "${CONFIGURATION:-Debug}" = "Release" ]; then
   RUST_PROFILE="release"
@@ -41,18 +45,36 @@ host_sdk_root() {
   xcrun --sdk macosx --show-sdk-path
 }
 
-run_host_cargo() {
-  HOST_SDKROOT="${SWEEP_HOST_SDKROOT:-$(host_sdk_root)}"
-  HOST_MACOS_DEPLOYMENT_TARGET="${SWEEP_HOST_MACOSX_DEPLOYMENT_TARGET:-15.0}"
+run_cargo() {
+  sdk_root="$1"
+  deployment_var="$2"
+  deployment_target="$3"
+  shift 3
 
   env \
-    SDKROOT="$HOST_SDKROOT" \
-    MACOSX_DEPLOYMENT_TARGET="$HOST_MACOS_DEPLOYMENT_TARGET" \
+    SDKROOT="$sdk_root" \
+    "$deployment_var=$deployment_target" \
     PATH="$PATH" \
     HOME="$HOME" \
     CARGO_HOME="${CARGO_HOME:-$HOME/.cargo}" \
     RUSTUP_HOME="${RUSTUP_HOME:-$HOME/.rustup}" \
     "$@"
+}
+
+run_host_cargo() {
+  HOST_SDKROOT="${SWEEP_HOST_SDKROOT:-$(host_sdk_root)}"
+  HOST_MACOS_DEPLOYMENT_TARGET="${SWEEP_HOST_MACOSX_DEPLOYMENT_TARGET:-15.0}"
+
+  run_cargo "$HOST_SDKROOT" MACOSX_DEPLOYMENT_TARGET "$HOST_MACOS_DEPLOYMENT_TARGET" "$@"
+}
+
+run_ios_cargo() {
+  sdk="$1"
+  shift
+
+  IOS_SDKROOT="${SWEEP_IOS_SDKROOT:-$(xcrun --sdk "$sdk" --show-sdk-path)}"
+
+  run_cargo "$IOS_SDKROOT" IPHONEOS_DEPLOYMENT_TARGET "$IOS_DEPLOYMENT_TARGET" "$@"
 }
 
 host_rust_target() {
@@ -99,6 +121,19 @@ build_macos_target() {
   fi
 }
 
+build_ios_target() {
+  rust_target="$1"
+  sdk="$2"
+
+  ensure_rust_target_installed "$rust_target"
+
+  if [ "${RUST_PROFILE}" = "release" ]; then
+    run_ios_cargo "$sdk" "$CARGO" build --release --target "$rust_target" --manifest-path "$MANIFEST_PATH"
+  else
+    run_ios_cargo "$sdk" "$CARGO" build --target "$rust_target" --manifest-path "$MANIFEST_PATH"
+  fi
+}
+
 generate_swift_bindings() {
   bridge_target="$1"
   BRIDGE_PATH="$ROOT_DIR/rust/target/$bridge_target/$RUST_PROFILE/libsweep_rqbit.dylib"
@@ -132,21 +167,61 @@ generate_swift_bindings() {
   perl -pi -e 's/[ \t]+$//' "$GENERATED_DIR/sweep_rqbit.swift" "$GENERATED_DIR/sweep_rqbitFFI.h"
 }
 
-build_host_bridge() {
-  apply_rqbit_patches
-  HOST_RUST_TARGET="${SWEEP_HOST_RUST_TARGET:-$(host_rust_target)}"
+create_rust_xcframework() {
+  MACOS_ARM64_TARGET="${SWEEP_MACOS_ARM64_TARGET:-aarch64-apple-darwin}"
+  MACOS_X86_64_TARGET="${SWEEP_MACOS_X86_64_TARGET:-x86_64-apple-darwin}"
+  IOS_DEVICE_TARGET="${SWEEP_IOS_DEVICE_TARGET:-aarch64-apple-ios}"
+  IOS_SIMULATOR_ARM64_TARGET="${SWEEP_IOS_SIMULATOR_ARM64_TARGET:-aarch64-apple-ios-sim}"
+  IOS_SIMULATOR_X86_64_TARGET="${SWEEP_IOS_SIMULATOR_X86_64_TARGET:-x86_64-apple-ios}"
+  UNIVERSAL_DIR="$ROOT_DIR/rust/target/universal-apple-darwin/$RUST_PROFILE"
+  UNIVERSAL_SIMULATOR_DIR="$ROOT_DIR/rust/target/universal-apple-ios-simulator/$RUST_PROFILE"
+  TMP_DIR=""
 
-  build_macos_target "$HOST_RUST_TARGET"
-  generate_swift_bindings "$HOST_RUST_TARGET"
+  mkdir -p "$ARTIFACTS_DIR"
+  TMP_DIR="$(mktemp -d "$ARTIFACTS_DIR/.sweep-rust-xcframework.XXXXXX")"
+  TMP_HEADERS_DIR="$TMP_DIR/Headers"
+  TMP_XCFRAMEWORK_PATH="$TMP_DIR/SweepRustFFI.xcframework"
+
+  cleanup_temp_artifacts() {
+    if [ -n "$TMP_DIR" ] && [ -d "$TMP_DIR" ]; then
+      rm -rf "$TMP_DIR"
+    fi
+  }
+
+  trap cleanup_temp_artifacts EXIT INT TERM
+
+  mkdir -p "$TMP_HEADERS_DIR"
+  cp "$GENERATED_DIR/sweep_rqbitFFI.h" "$TMP_HEADERS_DIR/"
+  cp "$GENERATED_DIR/module.modulemap" "$TMP_HEADERS_DIR/"
+
+  xcodebuild -create-xcframework \
+    -library "$UNIVERSAL_DIR/libsweep_rqbit.a" \
+    -headers "$TMP_HEADERS_DIR" \
+    -library "$ROOT_DIR/rust/target/$IOS_DEVICE_TARGET/$RUST_PROFILE/libsweep_rqbit.a" \
+    -headers "$TMP_HEADERS_DIR" \
+    -library "$UNIVERSAL_SIMULATOR_DIR/libsweep_rqbit.a" \
+    -headers "$TMP_HEADERS_DIR" \
+    -output "$TMP_XCFRAMEWORK_PATH" >/dev/null
+
+  rm -rf "$XCFRAMEWORK_PATH" "$XCFRAMEWORK_HEADERS_DIR"
+  mv "$TMP_HEADERS_DIR" "$XCFRAMEWORK_HEADERS_DIR"
+  mv "$TMP_XCFRAMEWORK_PATH" "$XCFRAMEWORK_PATH"
+
+  trap - EXIT INT TERM
+  cleanup_temp_artifacts
 }
 
-build_macos_bridge() {
+build_binary_artifacts() {
   apply_rqbit_patches
 
   HOST_RUST_TARGET="${SWEEP_HOST_RUST_TARGET:-$(host_rust_target)}"
   MACOS_ARM64_TARGET="${SWEEP_MACOS_ARM64_TARGET:-aarch64-apple-darwin}"
   MACOS_X86_64_TARGET="${SWEEP_MACOS_X86_64_TARGET:-x86_64-apple-darwin}"
+  IOS_DEVICE_TARGET="${SWEEP_IOS_DEVICE_TARGET:-aarch64-apple-ios}"
+  IOS_SIMULATOR_ARM64_TARGET="${SWEEP_IOS_SIMULATOR_ARM64_TARGET:-aarch64-apple-ios-sim}"
+  IOS_SIMULATOR_X86_64_TARGET="${SWEEP_IOS_SIMULATOR_X86_64_TARGET:-x86_64-apple-ios}"
   UNIVERSAL_DIR="$ROOT_DIR/rust/target/universal-apple-darwin/$RUST_PROFILE"
+  UNIVERSAL_SIMULATOR_DIR="$ROOT_DIR/rust/target/universal-apple-ios-simulator/$RUST_PROFILE"
 
   build_macos_target "$HOST_RUST_TARGET"
 
@@ -164,30 +239,18 @@ build_macos_bridge() {
     "$ROOT_DIR/rust/target/$MACOS_X86_64_TARGET/$RUST_PROFILE/libsweep_rqbit.a" \
     -output "$UNIVERSAL_DIR/libsweep_rqbit.a"
 
+  build_ios_target "$IOS_DEVICE_TARGET" iphoneos
+  build_ios_target "$IOS_SIMULATOR_ARM64_TARGET" iphonesimulator
+  build_ios_target "$IOS_SIMULATOR_X86_64_TARGET" iphonesimulator
+
+  mkdir -p "$UNIVERSAL_SIMULATOR_DIR"
+  lipo -create \
+    "$ROOT_DIR/rust/target/$IOS_SIMULATOR_ARM64_TARGET/$RUST_PROFILE/libsweep_rqbit.a" \
+    "$ROOT_DIR/rust/target/$IOS_SIMULATOR_X86_64_TARGET/$RUST_PROFILE/libsweep_rqbit.a" \
+    -output "$UNIVERSAL_SIMULATOR_DIR/libsweep_rqbit.a"
+
   generate_swift_bindings "$HOST_RUST_TARGET"
-}
-
-build_ios_bridge() {
-  apply_rqbit_patches
-
-  case "${PLATFORM_NAME:-}" in
-    iphonesimulator)
-      RUST_TARGET="${SWEEP_RUST_TARGET:-aarch64-apple-ios-sim}"
-      ;;
-    iphoneos)
-      RUST_TARGET="${SWEEP_RUST_TARGET:-aarch64-apple-ios}"
-      ;;
-    *)
-      echo "error: unsupported iOS platform '${PLATFORM_NAME:-unknown}'" >&2
-      exit 1
-      ;;
-  esac
-
-  if [ "${RUST_PROFILE}" = "release" ]; then
-    "$CARGO" build --release --target "$RUST_TARGET" --manifest-path "$MANIFEST_PATH"
-  else
-    "$CARGO" build --target "$RUST_TARGET" --manifest-path "$MANIFEST_PATH"
-  fi
+  create_rust_xcframework
 }
 
 apply_rqbit_patches() {
@@ -266,13 +329,5 @@ apply_rqbit_patch() {
   exit 1
 }
 
-case "${PLATFORM_NAME:-macosx}" in
-  iphoneos | iphonesimulator)
-    build_host_bridge
-    build_ios_bridge
-    exit 0
-    ;;
-esac
-
-build_macos_bridge
+build_binary_artifacts
 exit 0
