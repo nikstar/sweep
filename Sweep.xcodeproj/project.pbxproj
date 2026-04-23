@@ -928,7 +928,9 @@
 				);
 				"LIBRARY_SEARCH_PATHS[sdk=iphoneos*]" = "$(SRCROOT)/rust/target/aarch64-apple-ios/release";
 				"LIBRARY_SEARCH_PATHS[sdk=iphonesimulator*]" = "$(SRCROOT)/rust/target/aarch64-apple-ios-sim/release";
-				OTHER_LDFLAGS = "$(inherited) -lsweep_rqbit -framework Security -framework CoreFoundation -liconv";
+				OTHER_LDFLAGS = "$(inherited) -framework Security -framework CoreFoundation -liconv";
+				"OTHER_LDFLAGS[sdk=iphoneos*]" = "$(inherited) $(SRCROOT)/rust/target/aarch64-apple-ios/release/libsweep_rqbit.a -framework Security -framework CoreFoundation -liconv";
+				"OTHER_LDFLAGS[sdk=iphonesimulator*]" = "$(inherited) $(SRCROOT)/rust/target/aarch64-apple-ios-sim/release/libsweep_rqbit.a -framework Security -framework CoreFoundation -liconv";
 				PRODUCT_BUNDLE_IDENTIFIER = com.nikstar.sweep.rqbitbridge.ios;
 				PRODUCT_MODULE_NAME = SweepRQBitBridge;
 				PRODUCT_NAME = SweepRQBitBridge;
@@ -1252,7 +1254,9 @@
 				);
 				"LIBRARY_SEARCH_PATHS[sdk=iphoneos*]" = "$(SRCROOT)/rust/target/aarch64-apple-ios/debug";
 				"LIBRARY_SEARCH_PATHS[sdk=iphonesimulator*]" = "$(SRCROOT)/rust/target/aarch64-apple-ios-sim/debug";
-				OTHER_LDFLAGS = "$(inherited) -lsweep_rqbit -framework Security -framework CoreFoundation -liconv";
+				OTHER_LDFLAGS = "$(inherited) -framework Security -framework CoreFoundation -liconv";
+				"OTHER_LDFLAGS[sdk=iphoneos*]" = "$(inherited) $(SRCROOT)/rust/target/aarch64-apple-ios/debug/libsweep_rqbit.a -framework Security -framework CoreFoundation -liconv";
+				"OTHER_LDFLAGS[sdk=iphonesimulator*]" = "$(inherited) $(SRCROOT)/rust/target/aarch64-apple-ios-sim/debug/libsweep_rqbit.a -framework Security -framework CoreFoundation -liconv";
 				PRODUCT_BUNDLE_IDENTIFIER = com.nikstar.sweep.rqbitbridge.ios;
 				PRODUCT_MODULE_NAME = SweepRQBitBridge;
 				PRODUCT_NAME = SweepRQBitBridge;

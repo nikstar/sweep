@@ -156,14 +156,18 @@ targets:
         PRODUCT_MODULE_NAME: SweepRQBitBridge
         SWIFT_INCLUDE_PATHS: "$(SRCROOT)/Sources/SweepRQBitBridge/Generated"
         HEADER_SEARCH_PATHS: "$(SRCROOT)/Sources/SweepRQBitBridge/Generated"
-        OTHER_LDFLAGS: "$(inherited) -lsweep_rqbit -framework Security -framework CoreFoundation -liconv"
+        OTHER_LDFLAGS: "$(inherited) -framework Security -framework CoreFoundation -liconv"
       configs:
         Debug:
           LIBRARY_SEARCH_PATHS[sdk=iphonesimulator*]: "$(SRCROOT)/rust/target/aarch64-apple-ios-sim/debug"
           LIBRARY_SEARCH_PATHS[sdk=iphoneos*]: "$(SRCROOT)/rust/target/aarch64-apple-ios/debug"
+          OTHER_LDFLAGS[sdk=iphonesimulator*]: "$(inherited) $(SRCROOT)/rust/target/aarch64-apple-ios-sim/debug/libsweep_rqbit.a -framework Security -framework CoreFoundation -liconv"
+          OTHER_LDFLAGS[sdk=iphoneos*]: "$(inherited) $(SRCROOT)/rust/target/aarch64-apple-ios/debug/libsweep_rqbit.a -framework Security -framework CoreFoundation -liconv"
         Release:
           LIBRARY_SEARCH_PATHS[sdk=iphonesimulator*]: "$(SRCROOT)/rust/target/aarch64-apple-ios-sim/release"
           LIBRARY_SEARCH_PATHS[sdk=iphoneos*]: "$(SRCROOT)/rust/target/aarch64-apple-ios/release"
+          OTHER_LDFLAGS[sdk=iphonesimulator*]: "$(inherited) $(SRCROOT)/rust/target/aarch64-apple-ios-sim/release/libsweep_rqbit.a -framework Security -framework CoreFoundation -liconv"
+          OTHER_LDFLAGS[sdk=iphoneos*]: "$(inherited) $(SRCROOT)/rust/target/aarch64-apple-ios/release/libsweep_rqbit.a -framework Security -framework CoreFoundation -liconv"
     preBuildScripts:
       - name: Build Rust rqbit Bridge
         basedOnDependencyAnalysis: false
