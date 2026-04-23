@@ -23,6 +23,8 @@ MANIFEST_PATH="$ROOT_DIR/rust/sweep-rqbit/Cargo.toml"
 CRATE_DIR="$ROOT_DIR/rust/sweep-rqbit"
 GENERATED_DIR="$ROOT_DIR/Sources/SweepRQBitBridge/Generated"
 RQBIT_DIR="$ROOT_DIR/references/rqbit"
+RQBIT_URL="${SWEEP_RQBIT_URL:-https://github.com/ikatson/rqbit.git}"
+RQBIT_REVISION="${SWEEP_RQBIT_REVISION:-f9b4aee8}"
 RQBIT_TRACKER_COMPAT_PATCH="$ROOT_DIR/rust/patches/rqbit-tracker-compat.patch"
 RQBIT_PIECE_SNAPSHOT_PATCH="$ROOT_DIR/rust/patches/rqbit-piece-snapshot.patch"
 RQBIT_INSPECTOR_STATS_PATCH="$ROOT_DIR/rust/patches/rqbit-inspector-stats.patch"
@@ -99,6 +101,8 @@ build_ios_bridge() {
 }
 
 apply_rqbit_patches() {
+  ensure_rqbit_checkout
+
   if [ ! -d "$RQBIT_DIR/.git" ]; then
     echo "error: expected rqbit reference checkout at $RQBIT_DIR" >&2
     exit 1
@@ -119,6 +123,26 @@ apply_rqbit_patches() {
     "inspector stats" \
     "crates/tracker_comms/src/tracker_comms.rs" \
     "pub struct TrackerCommsState"
+}
+
+ensure_rqbit_checkout() {
+  if [ -d "$RQBIT_DIR/.git" ]; then
+    return
+  fi
+
+  if [ -e "$RQBIT_DIR" ]; then
+    echo "error: $RQBIT_DIR exists but is not a git checkout." >&2
+    exit 1
+  fi
+
+  if ! command -v git >/dev/null 2>&1; then
+    echo "error: git was not found and rqbit checkout is missing at $RQBIT_DIR." >&2
+    exit 127
+  fi
+
+  mkdir -p "$(dirname "$RQBIT_DIR")"
+  git clone "$RQBIT_URL" "$RQBIT_DIR"
+  git -C "$RQBIT_DIR" checkout "$RQBIT_REVISION"
 }
 
 apply_rqbit_patch_if_missing() {
