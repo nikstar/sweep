@@ -1,6 +1,16 @@
 import Foundation
 import SweepCore
 
+struct IOSDownloadedTorrentFileSnapshot {
+    let url: URL
+    let exists: Bool
+    let isDirectory: Bool
+
+    var isOpenable: Bool {
+        exists && !isDirectory
+    }
+}
+
 struct IOSTorrentDownloadLocationSnapshot {
     let directoryURL: URL
     let expectedItemURL: URL
@@ -33,6 +43,33 @@ enum IOSTorrentFileLocation {
             .appending(path: torrent.name)
     }
 
+    static func fileURL(
+        for file: TorrentFile,
+        in torrent: Torrent,
+        defaultDirectory: String
+    ) -> URL {
+        var url = directoryURL(for: torrent, defaultDirectory: defaultDirectory)
+        for component in safeRelativePathComponents(file.path) {
+            url.append(path: component)
+        }
+        return url
+    }
+
+    static func fileSnapshot(
+        for file: TorrentFile,
+        in torrent: Torrent,
+        defaultDirectory: String
+    ) -> IOSDownloadedTorrentFileSnapshot {
+        let url = fileURL(for: file, in: torrent, defaultDirectory: defaultDirectory)
+        var isDirectory = ObjCBool(false)
+        let exists = FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory)
+        return IOSDownloadedTorrentFileSnapshot(
+            url: url,
+            exists: exists,
+            isDirectory: isDirectory.boolValue
+        )
+    }
+
     static func snapshot(for torrent: Torrent, defaultDirectory: String) -> IOSTorrentDownloadLocationSnapshot {
         let directoryURL = directoryURL(for: torrent, defaultDirectory: defaultDirectory)
         let itemURL = expectedItemURL(for: torrent, defaultDirectory: defaultDirectory)
@@ -58,5 +95,15 @@ enum IOSTorrentFileLocation {
             itemIsDirectory: isDirectory.boolValue,
             itemSize: itemSize
         )
+    }
+
+    private static func safeRelativePathComponents(_ path: String) -> [String] {
+        path.split { character in
+            character == "/" || character == "\\"
+        }
+        .compactMap { component in
+            let value = String(component)
+            return value == "." || value == ".." ? nil : value
+        }
     }
 }

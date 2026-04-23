@@ -522,7 +522,15 @@ private struct IOSTorrentFileRow: View {
     let file: TorrentFile
     let includedCount: Int
 
+    @State private var showingFileActions = false
+
     var body: some View {
+        let fileSnapshot = IOSTorrentFileLocation.fileSnapshot(
+            for: file,
+            in: torrent,
+            defaultDirectory: store.downloadDirectory
+        )
+
         HStack(alignment: .top, spacing: 9) {
             Button {
                 store.setFile(file, included: !file.included, in: torrent)
@@ -565,6 +573,14 @@ private struct IOSTorrentFileRow: View {
                         .foregroundStyle(file.included ? Color.secondary : Color.orange)
                     Spacer(minLength: 8)
                     Menu {
+                        if fileSnapshot.isOpenable {
+                            Button {
+                                open(fileSnapshot.url)
+                            } label: {
+                                Label("Open In...", systemImage: "arrow.up.forward.app")
+                            }
+                            Divider()
+                        }
                         Button("Download") {
                             store.setFile(file, included: true, in: torrent)
                         }
@@ -579,7 +595,39 @@ private struct IOSTorrentFileRow: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
             }
+            .contentShape(Rectangle())
+            .onTapGesture {
+                showingFileActions = true
+            }
         }
+        .confirmationDialog(file.name, isPresented: $showingFileActions, titleVisibility: .visible) {
+            if fileSnapshot.isOpenable {
+                Button {
+                    open(fileSnapshot.url)
+                } label: {
+                    Label("Open In...", systemImage: "arrow.up.forward.app")
+                }
+            }
+
+            Button(file.included ? "Skip" : "Download") {
+                store.setFile(file, included: !file.included, in: torrent)
+            }
+            .disabled(file.included && includedCount <= 1)
+
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            if !fileSnapshot.isOpenable {
+                Text("File is not available on this device yet.")
+            }
+        }
+    }
+
+    private func open(_ url: URL) {
+        guard IOSOpenInPresenter.shared.present(url: url) else {
+            store.lastError = "No app is available to open \(url.lastPathComponent)."
+            return
+        }
+        store.lastError = nil
     }
 }
 
