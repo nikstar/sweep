@@ -9,9 +9,8 @@ options:
   generateEmptyDirectories: true
 
 packages:
-  SQLiteData:
-    url: https://github.com/pointfreeco/sqlite-data
-    from: "1.6.1"
+  SweepPackage:
+    path: .
 
 settings:
   base:
@@ -31,48 +30,17 @@ aggregateTargets:
         basedOnDependencyAnalysis: false
         outputFiles:
           - $(SRCROOT)/BuildArtifacts/SweepRustFFI.xcframework/Info.plist
-          - $(SRCROOT)/BuildArtifacts/SweepRustFFIHeaders/module.modulemap
-          - $(SRCROOT)/BuildArtifacts/SweepRustFFIHeaders/sweep_rqbitFFI.h
           - $(SRCROOT)/Sources/SweepRQBitBridge/Generated/module.modulemap
           - $(SRCROOT)/Sources/SweepRQBitBridge/Generated/sweep_rqbit.swift
           - $(SRCROOT)/Sources/SweepRQBitBridge/Generated/sweep_rqbitFFI.h
+          - $(SRCROOT)/Sources/SweepRustFFI/module.modulemap
+          - $(SRCROOT)/Sources/SweepRustFFI/sweep_rqbitFFI.h
         script: |
           set -euo pipefail
 
           "${SRCROOT}/Scripts/build_rust_bridge.sh"
 
 targets:
-  SweepCore:
-    type: framework.static
-    platform: macOS
-    sources:
-      - Sources/SweepCore
-    dependencies:
-      - package: SQLiteData
-        product: SQLiteData
-    settings:
-      base:
-        PRODUCT_BUNDLE_IDENTIFIER: me.nikstar.sweep.core
-        PRODUCT_NAME: SweepCore
-
-  SweepRQBitBridge:
-    type: framework.static
-    platform: macOS
-    sources:
-      - Sources/SweepRQBitBridge
-    dependencies:
-      - target: SweepRustArtifacts
-      - target: SweepCore
-        embed: false
-      - package: SQLiteData
-        product: SQLiteData
-      - framework: Vendor/SweepRustFFI.xcframework
-        embed: false
-    settings:
-      base:
-        PRODUCT_BUNDLE_IDENTIFIER: me.nikstar.sweep.rqbitbridge
-        PRODUCT_NAME: SweepRQBitBridge
-
   Sweep:
     type: application
     platform: macOS
@@ -80,9 +48,11 @@ targets:
       - Sources/SweepMac
     dependencies:
       - target: SweepRustArtifacts
-      - target: SweepCore
+      - package: SweepPackage
+        product: SweepCore
         embed: false
-      - target: SweepRQBitBridge
+      - package: SweepPackage
+        product: SweepRQBitBridge
         embed: false
       - sdk: Security.framework
       - sdk: CoreFoundation.framework
@@ -106,45 +76,13 @@ targets:
     sources:
       - Tests/SweepCoreTests
     dependencies:
-      - target: SweepCore
+      - package: SweepPackage
+        product: SweepCore
         embed: false
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: me.nikstar.sweep.core.tests
         PRODUCT_NAME: SweepCoreTests
-
-  SweepCore_iOS:
-    type: framework.static
-    platform: iOS
-    sources:
-      - Sources/SweepCore
-    dependencies:
-      - package: SQLiteData
-        product: SQLiteData
-    settings:
-      base:
-        PRODUCT_BUNDLE_IDENTIFIER: me.nikstar.sweep.core.ios
-        PRODUCT_NAME: SweepCore
-        PRODUCT_MODULE_NAME: SweepCore
-
-  SweepRQBitBridge_iOS:
-    type: framework.static
-    platform: iOS
-    sources:
-      - Sources/SweepRQBitBridge
-    dependencies:
-      - target: SweepRustArtifacts
-      - target: SweepCore_iOS
-        embed: false
-      - package: SQLiteData
-        product: SQLiteData
-      - framework: Vendor/SweepRustFFI.xcframework
-        embed: false
-    settings:
-      base:
-        PRODUCT_BUNDLE_IDENTIFIER: me.nikstar.sweep.rqbitbridge.ios
-        PRODUCT_NAME: SweepRQBitBridge
-        PRODUCT_MODULE_NAME: SweepRQBitBridge
 
   Sweep_iOS:
     type: application
@@ -155,9 +93,11 @@ targets:
         buildPhase: resources
     dependencies:
       - target: SweepRustArtifacts
-      - target: SweepCore_iOS
+      - package: SweepPackage
+        product: SweepCore
         embed: false
-      - target: SweepRQBitBridge_iOS
+      - package: SweepPackage
+        product: SweepRQBitBridge
         embed: false
       - sdk: Security.framework
       - sdk: CoreFoundation.framework
@@ -168,6 +108,11 @@ targets:
         GENERATE_INFOPLIST_FILE: NO
         INFOPLIST_FILE: Sources/SweepIOS/Resources/Info.plist
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES: ClassicAppIcon
+        TARGETED_DEVICE_FAMILY: "1"
+        SUPPORTS_MACCATALYST: NO
+        SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: NO
+        SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD: NO
         CODE_SIGN_STYLE: Automatic
         CODE_SIGN_IDENTITY: Apple Development
         DEVELOPMENT_TEAM: 6RX8GEVB43

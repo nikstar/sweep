@@ -10,13 +10,16 @@ let package = Package(
     ],
     products: [
         .library(name: "SweepCore", targets: ["SweepCore"]),
-        .library(name: "SweepRQBitBridge", targets: ["SweepRQBitBridge"]),
-        .executable(name: "Sweep", targets: ["Sweep"])
+        .library(name: "SweepRQBitBridge", targets: ["SweepRQBitBridge"])
     ],
     dependencies: [
         .package(url: "https://github.com/pointfreeco/sqlite-data", from: "1.6.1")
     ],
     targets: [
+        .systemLibrary(
+            name: "sweep_rqbitFFI",
+            path: "Sources/SweepRustFFI"
+        ),
         .target(
             name: "SweepCore",
             dependencies: [
@@ -26,33 +29,14 @@ let package = Package(
         ),
         .target(
             name: "SweepRQBitBridge",
-            dependencies: ["SweepCore"],
-            path: "Sources/SweepRQBitBridge",
-            swiftSettings: [
-                .unsafeFlags([
-                    "-I", "Sources/SweepRQBitBridge/Generated",
-                    "-Xcc", "-fmodule-map-file=Sources/SweepRQBitBridge/Generated/module.modulemap"
-                ])
+            dependencies: [
+                "SweepCore",
+                "sweep_rqbitFFI"
             ],
-            linkerSettings: [
-                .unsafeFlags([
-                    "-L", "rust/target/debug",
-                    "-lsweep_rqbit",
-                    "-Xlinker", "-rpath",
-                    "-Xlinker", "@executable_path/../../../rust/target/debug"
-                ])
-            ]
-        ),
-        .executableTarget(
-            name: "Sweep",
-            dependencies: ["SweepCore", "SweepRQBitBridge"],
-            path: "Sources/SweepMac",
-            exclude: ["Resources"],
-            swiftSettings: [
-                .unsafeFlags([
-                    "-I", "Sources/SweepRQBitBridge/Generated",
-                    "-Xcc", "-fmodule-map-file=Sources/SweepRQBitBridge/Generated/module.modulemap"
-                ])
+            path: "Sources/SweepRQBitBridge",
+            sources: [
+                "Generated/sweep_rqbit.swift",
+                "RqbitEngine.swift"
             ]
         ),
         .testTarget(

@@ -22,9 +22,9 @@ ROOT_DIR="${SRCROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
 MANIFEST_PATH="$ROOT_DIR/rust/sweep-rqbit/Cargo.toml"
 CRATE_DIR="$ROOT_DIR/rust/sweep-rqbit"
 GENERATED_DIR="$ROOT_DIR/Sources/SweepRQBitBridge/Generated"
+FFI_MODULE_DIR="$ROOT_DIR/Sources/SweepRustFFI"
 ARTIFACTS_DIR="$ROOT_DIR/BuildArtifacts"
 XCFRAMEWORK_PATH="$ARTIFACTS_DIR/SweepRustFFI.xcframework"
-XCFRAMEWORK_HEADERS_DIR="$ARTIFACTS_DIR/SweepRustFFIHeaders"
 RQBIT_DIR="$ROOT_DIR/references/rqbit"
 RQBIT_URL="${SWEEP_RQBIT_URL:-https://github.com/ikatson/rqbit.git}"
 RQBIT_REVISION="${SWEEP_RQBIT_REVISION:-f9b4aee8}"
@@ -165,6 +165,10 @@ generate_swift_bindings() {
   fi
 
   perl -pi -e 's/[ \t]+$//' "$GENERATED_DIR/sweep_rqbit.swift" "$GENERATED_DIR/sweep_rqbitFFI.h"
+
+  mkdir -p "$FFI_MODULE_DIR"
+  cp "$GENERATED_DIR/sweep_rqbitFFI.h" "$FFI_MODULE_DIR/"
+  cp "$GENERATED_DIR/module.modulemap" "$FFI_MODULE_DIR/"
 }
 
 create_rust_xcframework() {
@@ -203,8 +207,7 @@ create_rust_xcframework() {
     -headers "$TMP_HEADERS_DIR" \
     -output "$TMP_XCFRAMEWORK_PATH" >/dev/null
 
-  rm -rf "$XCFRAMEWORK_PATH" "$XCFRAMEWORK_HEADERS_DIR"
-  mv "$TMP_HEADERS_DIR" "$XCFRAMEWORK_HEADERS_DIR"
+  rm -rf "$XCFRAMEWORK_PATH"
   mv "$TMP_XCFRAMEWORK_PATH" "$XCFRAMEWORK_PATH"
 
   trap - EXIT INT TERM
