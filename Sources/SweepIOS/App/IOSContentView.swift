@@ -11,6 +11,7 @@ struct IOSContentView: View {
         NavigationStack {
             List {
                 Section("Transfer") {
+                    LabeledContent("Source", value: probe.sourceName)
                     LabeledContent("State", value: probe.status)
                     LabeledContent("Name", value: probe.torrentName)
                     LabeledContent("Downloaded", value: ByteFormatter.bytes(probe.progressBytes))
@@ -52,6 +53,7 @@ struct IOSContentView: View {
 @Observable
 final class IOSDownloadProbe {
     var status = "Idle"
+    var sourceName = "magnet.txt"
     var torrentName = "Sample Magnet"
     var progressBytes: UInt64 = 0
     var totalBytes: UInt64 = 0
@@ -90,9 +92,11 @@ final class IOSDownloadProbe {
 
     private func run(downloadDirectory: String) async {
         do {
-            let magnet = try sampleMagnet()
-            log("SWEEP_IOS_SAMPLE_MAGNET \(magnet)")
+            let sample = try sampleSource()
+            sourceName = sample.name
+            log("SWEEP_IOS_SAMPLE_SOURCE \(sample.name)")
 
+            try? FileManager.default.removeItem(at: URL(filePath: downloadDirectory, directoryHint: .isDirectory))
             try FileManager.default.createDirectory(
                 at: URL(filePath: downloadDirectory, directoryHint: .isDirectory),
                 withIntermediateDirectories: true
@@ -103,15 +107,16 @@ final class IOSDownloadProbe {
             let engine = try RqbitEngine(downloadDirectory: downloadDirectory)
             self.engine = engine
 
-            message = "Adding sample magnet"
+            message = "Adding \(sample.name)"
             let addedTorrent = try await engine.addTorrent(
-                .magnet(magnet),
+                sample.source,
                 downloadDirectory: downloadDirectory,
                 startPaused: false
             )
             update(from: addedTorrent)
             log("SWEEP_IOS_TORRENT_ADDED \(addedTorrent.infoHash)")
 
+            var lastProgressBytes: UInt64 = 0
             while !Task.isCancelled {
                 try await Task.sleep(for: .seconds(2))
 
@@ -124,18 +129,48 @@ final class IOSDownloadProbe {
                     "SWEEP_IOS_PROGRESS state=\(torrent.statusLabel) progressBytes=\(torrent.progressBytes) totalBytes=\(torrent.totalBytes) downBps=\(torrent.downloadBps)"
                 )
 
-                if torrent.progressBytes > 0 || torrent.downloadBps > 0 {
+                let didMakeProgress = torrent.progressBytes > lastProgressBytes
+                if didVerifyDownload == false, didMakeProgress || torrent.downloadBps > 0 {
                     didVerifyDownload = true
                     message = "Verified rqbit download activity in iOS simulator"
                     log("SWEEP_IOS_DOWNLOAD_VERIFIED progressBytes=\(torrent.progressBytes)")
+                }
+
+                if torrent.totalBytes > 0, torrent.progressBytes >= torrent.totalBytes {
+                    message = "Downloaded \(ByteFormatter.bytes(torrent.totalBytes)) in iOS simulator"
+                    log("SWEEP_IOS_DOWNLOAD_COMPLETED progressBytes=\(torrent.progressBytes) totalBytes=\(torrent.totalBytes)")
                     return
                 }
+
+                lastProgressBytes = max(lastProgressBytes, torrent.progressBytes)
             }
         } catch {
             status = "Error"
             message = error.localizedDescription
             log("SWEEP_IOS_DOWNLOAD_FAILED \(error.localizedDescription)")
         }
+    }
+
+    private func sampleSource() throws -> (source: TorrentAddSource, name: String) {
+        if let torrentURL = try localTorrentFileURL() {
+            let data = try Data(contentsOf: torrentURL)
+            return (
+                .torrentFile(TorrentFileSource(fileName: torrentURL.lastPathComponent, bytes: Array(data))),
+                torrentURL.lastPathComponent
+            )
+        }
+
+        let magnet = try sampleMagnet()
+        return (.magnet(magnet), "magnet.txt")
+    }
+
+    private func localTorrentFileURL() throws -> URL? {
+        let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        return try FileManager.default
+            .contentsOfDirectory(at: documentsURL, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles])
+            .filter { $0.pathExtension.lowercased() == "torrent" }
+            .sorted { $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending }
+            .first
     }
 
     private func update(from torrent: Torrent) {
