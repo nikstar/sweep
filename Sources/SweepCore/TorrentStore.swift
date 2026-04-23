@@ -15,11 +15,6 @@ public final class TorrentStore {
     public var lastError: String?
     public var downloadDirectory: String
     public var sessionStats: TorrentSessionStats = .empty
-    public var visibleColumns: Set<TorrentListColumn> {
-        didSet {
-            persistVisibleColumns()
-        }
-    }
 
     private let engine: TorrentEngine
     private let persistence: AppPersistence?
@@ -38,7 +33,6 @@ public final class TorrentStore {
         self.engine = engine
         self.persistence = persistence
         self.downloadDirectory = initialState?.downloadDirectory ?? downloadDirectory
-        self.visibleColumns = initialState?.visibleTorrentColumns ?? TorrentListColumn.defaultVisible
         self.lastError = initialError
         if let initialState {
             self.torrents = normalized(torrents: initialState.torrents, downloadDirectory: self.downloadDirectory)
@@ -61,18 +55,6 @@ public final class TorrentStore {
     public var selectedTorrent: Torrent? {
         guard let selection else { return nil }
         return torrents.first { $0.id == selection }
-    }
-
-    public func isColumnVisible(_ column: TorrentListColumn) -> Bool {
-        visibleColumns.contains(column)
-    }
-
-    public func setColumn(_ column: TorrentListColumn, visible: Bool) {
-        if visible {
-            visibleColumns.insert(column)
-        } else {
-            visibleColumns.remove(column)
-        }
     }
 
     public var canPauseSelectedTorrent: Bool {
@@ -255,9 +237,6 @@ public final class TorrentStore {
             } else {
                 try? await persistence?.saveSetting(.downloadDirectory, value: downloadDirectory)
             }
-            if let visibleTorrentColumns = state.visibleTorrentColumns {
-                visibleColumns = visibleTorrentColumns
-            }
             if !state.torrents.isEmpty {
                 torrents = normalized(torrents: state.torrents, downloadDirectory: self.downloadDirectory)
             }
@@ -427,13 +406,6 @@ public final class TorrentStore {
         }
     }
 
-    private func persistVisibleColumns() {
-        let visibleColumns = visibleColumns
-        Task {
-            try? await persistence?.saveVisibleTorrentColumns(visibleColumns)
-        }
-    }
-
     private func normalized(torrents: [Torrent], downloadDirectory: String) -> [Torrent] {
         torrents
             .map { torrent in
@@ -581,12 +553,6 @@ private extension Torrent {
     ) -> Double? {
         guard currentBytes >= previousBytes else { return nil }
         return Double(currentBytes - previousBytes) / elapsed
-    }
-}
-
-private extension TorrentPeer {
-    var isLiveConnection: Bool {
-        state == "live" || connections > 0
     }
 }
 

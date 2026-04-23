@@ -1,33 +1,32 @@
 import Foundation
-import SweepCore
 
-enum IOSDisplayFormat {
-    static func percent(_ value: Double) -> String {
+public enum TorrentDisplayFormat {
+    public static func percent(_ value: Double) -> String {
         let formatter = NumberFormatter()
         formatter.numberStyle = .percent
         formatter.maximumFractionDigits = value < 1 ? 1 : 0
         return formatter.string(from: NSNumber(value: value)) ?? "0%"
     }
 
-    static func date(_ value: Date) -> String {
+    public static func date(_ value: Date) -> String {
         value.formatted(date: .abbreviated, time: .shortened)
     }
 
-    static func bytesOrUnknown(_ value: UInt64) -> String {
+    public static func bytesOrUnknown(_ value: UInt64) -> String {
         value == 0 ? "Unknown" : ByteFormatter.bytes(value)
     }
 
-    static func remainingBytes(_ torrent: Torrent) -> String {
+    public static func remainingBytes(_ torrent: Torrent) -> String {
         guard torrent.totalBytes > 0 else { return "Unknown" }
         return ByteFormatter.bytes(torrent.remainingBytes)
     }
 
-    static func ratio(_ torrent: Torrent) -> String {
+    public static func ratio(_ torrent: Torrent) -> String {
         guard torrent.progressBytes > 0 else { return "0.00" }
         return String(format: "%.2f", Double(torrent.uploadedBytes) / Double(torrent.progressBytes))
     }
 
-    static func sourceType(_ torrent: Torrent) -> String {
+    public static func sourceType(_ torrent: Torrent) -> String {
         if torrent.magnet != nil {
             return "Magnet"
         }
@@ -37,7 +36,7 @@ enum IOSDisplayFormat {
         return "Unknown"
     }
 
-    static func peerConnection(_ peer: TorrentPeer) -> String {
+    public static func peerConnection(_ peer: TorrentPeer) -> String {
         if let connectionKind = peer.connectionKind, !connectionKind.isEmpty {
             return connectionKind
         }
@@ -47,11 +46,11 @@ enum IOSDisplayFormat {
         return "Queued"
     }
 
-    static func optionalCount<T: BinaryInteger>(_ value: T?) -> String {
+    public static func optionalCount<T: BinaryInteger>(_ value: T?) -> String {
         value.map { String($0) } ?? "-"
     }
 
-    static func eta(_ torrent: Torrent) -> String {
+    public static func eta(_ torrent: Torrent) -> String {
         if torrent.progress >= 1 {
             return "Done"
         }
@@ -64,7 +63,7 @@ enum IOSDisplayFormat {
         return duration(seconds)
     }
 
-    static func duration(_ seconds: UInt64) -> String {
+    public static func duration(_ seconds: UInt64) -> String {
         let hours = seconds / 3600
         let minutes = (seconds % 3600) / 60
         let seconds = seconds % 60
@@ -78,18 +77,12 @@ enum IOSDisplayFormat {
         return "\(seconds)s"
     }
 
-    static func abbreviatedPath(_ path: String) -> String {
+    public static func abbreviatedPath(_ path: String) -> String {
         (path as NSString).abbreviatingWithTildeInPath
     }
 }
 
-extension TorrentPeer {
-    var isLiveConnection: Bool {
-        state == "live" || connections > 0
-    }
-}
-
-extension Comparable {
+public extension Comparable {
     func clamped(to range: ClosedRange<Self>) -> Self {
         min(max(self, range.lowerBound), range.upperBound)
     }

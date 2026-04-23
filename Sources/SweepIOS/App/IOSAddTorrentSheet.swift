@@ -24,7 +24,7 @@ struct IOSAddTorrentSheet: View {
                 Section {
                     sourceInput
                     LabeledContent("Save To") {
-                        Text(IOSDisplayFormat.abbreviatedPath(downloadDirectory))
+                        Text(TorrentDisplayFormat.abbreviatedPath(downloadDirectory))
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
                             .truncationMode(.middle)

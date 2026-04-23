@@ -75,25 +75,6 @@ public struct TorrentSessionStats: Hashable, Codable, Sendable {
     }
 }
 
-public enum TorrentListColumn: String, CaseIterable, Codable, Hashable, Identifiable, Sendable {
-    case size
-    case eta
-    case progress
-    case remaining
-    case speed
-    case peers
-
-    public var id: String { rawValue }
-
-    public static let defaultVisible: Set<TorrentListColumn> = [
-        .size,
-        .progress,
-        .remaining,
-        .speed,
-        .peers
-    ]
-}
-
 public struct TorrentFileSource: Hashable, Codable, Sendable {
     public let fileName: String?
     public let bytes: [UInt8]
@@ -398,6 +379,10 @@ public struct TorrentPeer: Identifiable, Hashable, Codable, Sendable {
             connections: connections,
             errors: errors
         )
+    }
+
+    public var isLiveConnection: Bool {
+        state == "live" || connections > 0
     }
 }
 

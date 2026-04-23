@@ -28,7 +28,7 @@ struct IOSSegmentedProgressView: View {
         }
         .frame(height: height)
         .accessibilityLabel("Progress")
-        .accessibilityValue(IOSDisplayFormat.percent(fallbackProgress))
+        .accessibilityValue(TorrentDisplayFormat.percent(fallbackProgress))
     }
 
     private var displayRuns: [TorrentPieceRun] {

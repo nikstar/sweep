@@ -223,7 +223,7 @@ private struct IOSTorrentRow: View {
 
                     Spacer(minLength: 8)
 
-                    Text(IOSDisplayFormat.percent(torrent.progress))
+                    Text(TorrentDisplayFormat.percent(torrent.progress))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .monospacedDigit()
@@ -260,7 +260,7 @@ private struct IOSTorrentRow: View {
 
         var parts = [torrent.statusLabel]
         if torrent.totalBytes > 0 {
-            parts.append("\(IOSDisplayFormat.percent(torrent.progress)) of \(ByteFormatter.bytes(torrent.totalBytes))")
+            parts.append("\(TorrentDisplayFormat.percent(torrent.progress)) of \(ByteFormatter.bytes(torrent.totalBytes))")
         } else {
             parts.append("Waiting for metadata")
         }
@@ -269,7 +269,7 @@ private struct IOSTorrentRow: View {
             parts.append("\(ByteFormatter.bytes(torrent.remainingBytes)) remaining")
         }
         if let eta = torrent.etaSeconds {
-            parts.append("\(IOSDisplayFormat.duration(eta)) left")
+            parts.append("\(TorrentDisplayFormat.duration(eta)) left")
         }
         return parts.joined(separator: " - ")
     }

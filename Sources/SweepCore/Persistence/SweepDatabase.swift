@@ -128,6 +128,10 @@ public enum SweepDatabase {
             try #sql("ALTER TABLE \"torrents\" ADD COLUMN \"trackers\" TEXT")
                 .execute(db)
         }
+        migrator.registerMigration("Remove UI display settings") { db in
+            try #sql("DELETE FROM \"appSettings\" WHERE \"id\" = 'visibleTorrentColumns'")
+                .execute(db)
+        }
         try migrator.migrate(database)
         return database
     }

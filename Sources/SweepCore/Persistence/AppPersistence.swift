@@ -5,25 +5,21 @@ public struct PersistedAppState: Sendable {
     public let torrents: [Torrent]
     public let selectedTorrentID: Torrent.ID?
     public let downloadDirectory: String?
-    public let visibleTorrentColumns: Set<TorrentListColumn>?
 
     public init(
         torrents: [Torrent],
         selectedTorrentID: Torrent.ID?,
-        downloadDirectory: String?,
-        visibleTorrentColumns: Set<TorrentListColumn>? = nil
+        downloadDirectory: String?
     ) {
         self.torrents = torrents
         self.selectedTorrentID = selectedTorrentID
         self.downloadDirectory = downloadDirectory
-        self.visibleTorrentColumns = visibleTorrentColumns
     }
 }
 
 public enum AppSettingKey: String, Sendable {
     case selectedTorrentID
     case downloadDirectory
-    case visibleTorrentColumns
 }
 
 public actor AppPersistence {
@@ -87,12 +83,6 @@ public actor AppPersistence {
         }
     }
 
-    public func saveVisibleTorrentColumns(_ columns: Set<TorrentListColumn>) async throws {
-        try await saveSetting(
-            .visibleTorrentColumns,
-            value: encodeVisibleTorrentColumns(columns)
-        )
-    }
 }
 
 private func readPersistedAppState(_ db: Database) throws -> PersistedAppState {
@@ -112,10 +102,7 @@ private func readPersistedAppState(_ db: Database) throws -> PersistedAppState {
     return PersistedAppState(
         torrents: torrents,
         selectedTorrentID: validSelection,
-        downloadDirectory: settings[AppSettingKey.downloadDirectory.rawValue],
-        visibleTorrentColumns: decodeVisibleTorrentColumns(
-            settings[AppSettingKey.visibleTorrentColumns.rawValue]
-        )
+        downloadDirectory: settings[AppSettingKey.downloadDirectory.rawValue]
     )
 }
 
@@ -217,21 +204,6 @@ private func encodeTorrentTrackers(_ trackers: [TorrentTracker]) -> String? {
 private func decodeTorrentTrackers(_ trackers: String?) -> [TorrentTracker] {
     guard let trackers, let data = trackers.data(using: .utf8) else { return [] }
     return (try? JSONDecoder().decode([TorrentTracker].self, from: data)) ?? []
-}
-
-private func encodeVisibleTorrentColumns(_ columns: Set<TorrentListColumn>) -> String {
-    columns
-        .map(\.rawValue)
-        .sorted()
-        .joined(separator: ",")
-}
-
-private func decodeVisibleTorrentColumns(_ value: String?) -> Set<TorrentListColumn>? {
-    guard let value else { return nil }
-    let columns = value
-        .split(separator: ",")
-        .compactMap { TorrentListColumn(rawValue: String($0)) }
-    return Set(columns)
 }
 
 private extension Int64 {

@@ -162,8 +162,8 @@ private struct IOSTorrentInfoInspector: View {
                     IOSCopyableValue(torrent.name)
                 }
                 IOSInspectorRow("Status", value: torrent.statusLabel)
-                IOSInspectorRow("Progress", value: IOSDisplayFormat.percent(torrent.progress))
-                IOSInspectorRow("Size", value: IOSDisplayFormat.bytesOrUnknown(torrent.totalBytes))
+                IOSInspectorRow("Progress", value: TorrentDisplayFormat.percent(torrent.progress))
+                IOSInspectorRow("Size", value: TorrentDisplayFormat.bytesOrUnknown(torrent.totalBytes))
                 IOSInspectorRow("Engine ID", value: torrent.engineID.map(String.init) ?? "None")
             }
 
@@ -193,21 +193,21 @@ private struct IOSTorrentInfoInspector: View {
 
                 IOSInspectorRow("Save To") {
                     IOSCopyableValue(
-                        IOSDisplayFormat.abbreviatedPath(directory.path),
+                        TorrentDisplayFormat.abbreviatedPath(directory.path),
                         copyValue: directory.path
                     )
                 }
                 IOSInspectorRow("Item") {
                     IOSCopyableValue(
-                        IOSDisplayFormat.abbreviatedPath(item.path),
+                        TorrentDisplayFormat.abbreviatedPath(item.path),
                         copyValue: item.path
                     )
                 }
             }
 
             IOSInspectorGroup("Dates") {
-                IOSInspectorRow("Added", value: IOSDisplayFormat.date(torrent.addedAt))
-                IOSInspectorRow("Updated", value: IOSDisplayFormat.date(torrent.updatedAt))
+                IOSInspectorRow("Added", value: TorrentDisplayFormat.date(torrent.addedAt))
+                IOSInspectorRow("Updated", value: TorrentDisplayFormat.date(torrent.updatedAt))
             }
 
             if let error = torrent.error, !error.isEmpty {
@@ -236,7 +236,7 @@ private struct IOSTorrentActivityInspector: View {
                         height: 10
                     )
                     HStack {
-                        Text(IOSDisplayFormat.percent(torrent.progress))
+                        Text(TorrentDisplayFormat.percent(torrent.progress))
                         Spacer()
                         Text(torrent.statusLabel)
                             .foregroundStyle(.secondary)
@@ -246,22 +246,22 @@ private struct IOSTorrentActivityInspector: View {
                 }
 
                 IOSInspectorRow("Downloaded", value: ByteFormatter.bytes(torrent.progressBytes))
-                IOSInspectorRow("Remaining", value: IOSDisplayFormat.remainingBytes(torrent))
-                IOSInspectorRow("Total Size", value: IOSDisplayFormat.bytesOrUnknown(torrent.totalBytes))
+                IOSInspectorRow("Remaining", value: TorrentDisplayFormat.remainingBytes(torrent))
+                IOSInspectorRow("Total Size", value: TorrentDisplayFormat.bytesOrUnknown(torrent.totalBytes))
             }
 
             IOSInspectorGroup("Transfer") {
                 IOSInspectorRow("Download", value: ByteFormatter.rate(torrent.downloadBps))
                 IOSInspectorRow("Upload", value: ByteFormatter.rate(torrent.uploadBps))
                 IOSInspectorRow("Uploaded", value: ByteFormatter.bytes(torrent.uploadedBytes))
-                IOSInspectorRow("Ratio", value: IOSDisplayFormat.ratio(torrent))
-                IOSInspectorRow("ETA", value: torrent.etaSeconds.map(IOSDisplayFormat.duration) ?? "Unknown")
+                IOSInspectorRow("Ratio", value: TorrentDisplayFormat.ratio(torrent))
+                IOSInspectorRow("ETA", value: torrent.etaSeconds.map(TorrentDisplayFormat.duration) ?? "Unknown")
             }
 
             IOSInspectorGroup("State") {
                 IOSInspectorRow("Engine", value: torrent.state)
                 IOSInspectorRow("Desired", value: torrent.desiredState.rawValue.capitalized)
-                IOSInspectorRow("Last Update", value: IOSDisplayFormat.date(torrent.updatedAt))
+                IOSInspectorRow("Last Update", value: TorrentDisplayFormat.date(torrent.updatedAt))
             }
         }
     }
@@ -276,8 +276,8 @@ private struct IOSTorrentTrackersInspector: View {
                 IOSInspectorMetricLine {
                     IOSInspectorMetric("Total", String(torrent.trackers.count))
                     IOSInspectorMetric("Working", String(torrent.trackers.filter { $0.status == "Working" }.count))
-                    IOSInspectorMetric("Seeds", IOSDisplayFormat.optionalCount(torrent.trackers.compactMap(\.seeders).max()))
-                    IOSInspectorMetric("Leechers", IOSDisplayFormat.optionalCount(torrent.trackers.compactMap(\.leechers).max()))
+                    IOSInspectorMetric("Seeds", TorrentDisplayFormat.optionalCount(torrent.trackers.compactMap(\.seeders).max()))
+                    IOSInspectorMetric("Leechers", TorrentDisplayFormat.optionalCount(torrent.trackers.compactMap(\.leechers).max()))
                 }
             }
 
@@ -331,10 +331,10 @@ private struct IOSTorrentTrackerRow: View {
 
                 IOSInspectorTextLine {
                     if let lastAnnounceAt = tracker.lastAnnounceAt {
-                        Text("Last \(IOSDisplayFormat.date(lastAnnounceAt))")
+                        Text("Last \(TorrentDisplayFormat.date(lastAnnounceAt))")
                     }
                     if let nextAnnounceAt = tracker.nextAnnounceAt {
-                        Text("Next \(IOSDisplayFormat.date(nextAnnounceAt))")
+                        Text("Next \(TorrentDisplayFormat.date(nextAnnounceAt))")
                     }
                 }
 
@@ -404,7 +404,7 @@ private struct IOSTorrentPeerRow: View {
                         .truncationMode(.middle)
                         .textSelection(.enabled)
                     Spacer(minLength: 8)
-                    Text(IOSDisplayFormat.peerConnection(peer))
+                    Text(TorrentDisplayFormat.peerConnection(peer))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -415,7 +415,7 @@ private struct IOSTorrentPeerRow: View {
                         Text(countryCode)
                     }
                     if let availability = peer.availability {
-                        Text("\(IOSDisplayFormat.percent(availability)) available")
+                        Text("\(TorrentDisplayFormat.percent(availability)) available")
                     }
                     if let availablePieces = peer.availablePieces {
                         Text("\(availablePieces) pieces")
@@ -483,13 +483,13 @@ private struct IOSTorrentFilesInspector: View {
                 IOSInspectorRow("Files", value: String(torrent.files.count))
                 IOSInspectorRow("Save To") {
                     IOSCopyableValue(
-                        IOSDisplayFormat.abbreviatedPath(snapshot.directoryURL.path),
+                        TorrentDisplayFormat.abbreviatedPath(snapshot.directoryURL.path),
                         copyValue: snapshot.directoryURL.path
                     )
                 }
                 IOSInspectorRow("Item") {
                     IOSCopyableValue(
-                        IOSDisplayFormat.abbreviatedPath(snapshot.expectedItemURL.path),
+                        TorrentDisplayFormat.abbreviatedPath(snapshot.expectedItemURL.path),
                         copyValue: snapshot.expectedItemURL.path
                     )
                 }
@@ -564,7 +564,7 @@ private struct IOSTorrentFileRow: View {
                 )
 
                 HStack(spacing: 8) {
-                    Text(IOSDisplayFormat.percent(file.progress))
+                    Text(TorrentDisplayFormat.percent(file.progress))
                         .monospacedDigit()
                     Text("\(ByteFormatter.bytes(file.progressBytes)) downloaded")
                     Text(file.included ? file.priority.capitalized : "Skipped")
@@ -657,7 +657,7 @@ private struct IOSTorrentOptionsInspector: View {
             }
 
             IOSInspectorGroup("Source") {
-                IOSInspectorRow("Type", value: IOSDisplayFormat.sourceType(torrent))
+                IOSInspectorRow("Type", value: TorrentDisplayFormat.sourceType(torrent))
                 IOSInspectorRow("Restorable", value: torrent.addSource == nil ? "No" : "Yes")
             }
 

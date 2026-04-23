@@ -51,13 +51,11 @@ struct AppPersistenceTests {
         try await persistence.save(torrent: torrent)
         try await persistence.saveSetting(.downloadDirectory, value: "/tmp/Sweep")
         try await persistence.saveSetting(.selectedTorrentID, value: torrent.id)
-        try await persistence.saveVisibleTorrentColumns([.eta, .size])
 
         let state = try await persistence.loadState()
         #expect(state.torrents == [torrent])
         #expect(state.downloadDirectory == "/tmp/Sweep")
         #expect(state.selectedTorrentID == torrent.id)
-        #expect(state.visibleTorrentColumns == [.eta, .size])
 
         try await persistence.saveSetting(.selectedTorrentID, value: nil)
         let stateAfterSelectionClear = try await persistence.loadState()
