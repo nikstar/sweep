@@ -122,6 +122,86 @@ struct TorrentStoreTests {
         #expect(store.torrents.isEmpty)
         #expect(try await persistence.loadState().torrents.isEmpty)
     }
+
+    @Test
+    @MainActor
+    func removeTorrentWithDataDeletesPayloadFiles() async throws {
+        let downloadDirectoryURL = FileManager.default
+            .temporaryDirectory
+            .appending(path: UUID().uuidString, directoryHint: .isDirectory)
+        let rootFileURL = downloadDirectoryURL.appending(path: "Root File.txt")
+        let nestedFileURL = downloadDirectoryURL
+            .appending(path: "Linux ISO", directoryHint: .isDirectory)
+            .appending(path: "disk.iso")
+        let unrelatedFileURL = downloadDirectoryURL.appending(path: "Keep.txt")
+
+        defer {
+            try? FileManager.default.removeItem(at: downloadDirectoryURL)
+        }
+
+        try FileManager.default.createDirectory(
+            at: nestedFileURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try Data("root".utf8).write(to: rootFileURL)
+        try Data("nested".utf8).write(to: nestedFileURL)
+        try Data("keep".utf8).write(to: unrelatedFileURL)
+
+        let torrent = Torrent(
+            name: "Linux ISO",
+            infoHash: "cab507494d02ebb1178b38f2e9d7be299c86b862",
+            magnet: "magnet:?xt=urn:btih:cab507494d02ebb1178b38f2e9d7be299c86b862",
+            downloadDirectory: downloadDirectoryURL.path,
+            state: "live",
+            files: [
+                TorrentFile(
+                    id: 0,
+                    path: "Root File.txt",
+                    length: 4,
+                    progressBytes: 4
+                ),
+                TorrentFile(
+                    id: 1,
+                    path: "Linux ISO/disk.iso",
+                    length: 6,
+                    progressBytes: 6
+                )
+            ],
+            progressBytes: 10,
+            totalBytes: 10,
+            uploadedBytes: 0,
+            downloadBps: 0,
+            uploadBps: 0,
+            error: nil
+        )
+
+        let engine = RecordingTorrentEngine(torrents: [torrent])
+        let store = TorrentStore(
+            engine: engine,
+            downloadDirectory: downloadDirectoryURL.path,
+            initialState: PersistedAppState(
+                torrents: [torrent],
+                selectedTorrentID: torrent.id,
+                downloadDirectory: downloadDirectoryURL.path
+            )
+        )
+
+        store.selection = torrent.id
+        store.removeSelectedTorrent(deleteData: true)
+
+        let didRemove = await waitUntil {
+            await engine.removeRequests() == [
+                RecordedRemoveRequest(id: torrent.id, deleteData: true)
+            ]
+                && !FileManager.default.fileExists(atPath: rootFileURL.path)
+                && !FileManager.default.fileExists(atPath: nestedFileURL.path)
+        }
+        #expect(didRemove)
+        #expect(!FileManager.default.fileExists(atPath: rootFileURL.path))
+        #expect(!FileManager.default.fileExists(atPath: nestedFileURL.path))
+        #expect(!FileManager.default.fileExists(atPath: nestedFileURL.deletingLastPathComponent().path))
+        #expect(FileManager.default.fileExists(atPath: unrelatedFileURL.path))
+    }
 }
 
 private struct RecordedAddRequest: Equatable, Sendable {

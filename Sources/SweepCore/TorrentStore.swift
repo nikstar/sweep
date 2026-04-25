@@ -391,11 +391,23 @@ public final class TorrentStore {
         do {
             try await engine.remove(id: torrent.id, deleteData: deleteData)
             try await persistence?.deleteTorrent(id: torrent.id)
-            lastError = nil
         } catch {
             locallyRemovedTorrentIDs.remove(torrent.id)
             upsert(torrent)
             try? await persistence?.save(torrent: torrent)
+            lastError = error.localizedDescription
+            return
+        }
+
+        guard deleteData else {
+            lastError = nil
+            return
+        }
+
+        do {
+            try deleteDownloadedData(for: torrent)
+            lastError = nil
+        } catch {
             lastError = error.localizedDescription
         }
     }
@@ -457,10 +469,77 @@ public final class TorrentStore {
             withIntermediateDirectories: true
         )
     }
+
+    private func deleteDownloadedData(for torrent: Torrent) throws {
+        let baseDirectory = torrent.downloadDirectory ?? downloadDirectory
+        guard !baseDirectory.isEmpty else { return }
+
+        let baseURL = URL(filePath: baseDirectory, directoryHint: .isDirectory)
+            .standardizedFileURL
+        let fileManager = FileManager.default
+        var candidateDirectories = Set<URL>()
+
+        for file in torrent.files where !file.isPadding {
+            let fileURL = try downloadedFileURL(for: file.path, under: baseURL)
+            if fileManager.fileExists(atPath: fileURL.path) {
+                try fileManager.removeItem(at: fileURL)
+            }
+            collectParentDirectories(of: fileURL, under: baseURL, into: &candidateDirectories)
+        }
+
+        for directory in candidateDirectories.sorted(by: { $0.path.count > $1.path.count }) {
+            try removeDirectoryIfEmpty(directory, fileManager: fileManager)
+        }
+    }
+
+    private func downloadedFileURL(for relativePath: String, under baseURL: URL) throws -> URL {
+        guard !relativePath.isEmpty, !relativePath.hasPrefix("/") else {
+            throw TorrentDataDeletionError(path: relativePath)
+        }
+
+        let fileURL = baseURL
+            .appending(path: relativePath)
+            .standardizedFileURL
+        guard isPath(fileURL.path, containedIn: baseURL.path) else {
+            throw TorrentDataDeletionError(path: relativePath)
+        }
+        return fileURL
+    }
+
+    private func collectParentDirectories(
+        of fileURL: URL,
+        under baseURL: URL,
+        into directories: inout Set<URL>
+    ) {
+        var directory = fileURL.deletingLastPathComponent().standardizedFileURL
+        while directory.path != baseURL.path, isPath(directory.path, containedIn: baseURL.path) {
+            directories.insert(directory)
+            directory = directory.deletingLastPathComponent().standardizedFileURL
+        }
+    }
+
+    private func removeDirectoryIfEmpty(_ directory: URL, fileManager: FileManager) throws {
+        guard fileManager.fileExists(atPath: directory.path) else { return }
+        let contents = try fileManager.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
+        guard contents.isEmpty else { return }
+        try fileManager.removeItem(at: directory)
+    }
+
+    private func isPath(_ path: String, containedIn basePath: String) -> Bool {
+        path == basePath || path.hasPrefix(basePath + "/")
+    }
 }
 
 private let transferRateSmoothingAlpha = 0.35
 private let activeTransferRateThreshold = 1.0
+
+private struct TorrentDataDeletionError: LocalizedError {
+    let path: String
+
+    var errorDescription: String? {
+        "Refusing to delete torrent data outside the download directory: \(path)"
+    }
+}
 
 private func smoothedRate(
     _ current: Double,
