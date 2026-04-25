@@ -4,7 +4,9 @@ import SweepRQBitBridge
 
 @main
 struct SweepIOSApp: App {
+    @Environment(\.scenePhase) private var scenePhase
     @State private var store = IOSAppEnvironment.makeTorrentStore()
+    @State private var backgroundDownloadService = IOSBackgroundDownloadService()
 
     var body: some Scene {
         WindowGroup {
@@ -13,6 +15,28 @@ struct SweepIOSApp: App {
                 .onOpenURL { url in
                     store.beginAdding(url: url)
                 }
+                .task {
+                    await backgroundDownloadService.prepareConfiguredMode()
+                }
+                .onChange(of: scenePhase) {
+                    handleScenePhaseChange()
+                }
+        }
+    }
+
+    private func handleScenePhaseChange() {
+        switch scenePhase {
+        case .active:
+            backgroundDownloadService.stop()
+
+        case .background:
+            backgroundDownloadService.startIfNeeded(store: store)
+
+        case .inactive:
+            break
+
+        @unknown default:
+            break
         }
     }
 }
