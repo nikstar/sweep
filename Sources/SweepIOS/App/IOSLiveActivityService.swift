@@ -1,23 +1,26 @@
 import ActivityKit
 import Foundation
+import OSLog
 import SweepActivities
 import SweepCore
 
 @MainActor
 final class IOSLiveActivityService {
     private let settings = IOSLiveActivitySettings()
+    private let logger = Logger(subsystem: "me.nikstar.sweep.ios", category: "LiveActivity")
     private var monitorTask: Task<Void, Never>?
     // ActivityKit owns the synchronization for update/end; Swift 6 cannot infer that from the handle.
     nonisolated(unsafe)
     private var activity: Activity<SweepDownloadActivityAttributes>?
     private var lastSnapshot: IOSLiveActivitySnapshot?
+    private var lastProblemMessage: String?
 
     func startMonitoring(store: TorrentStore) {
         guard monitorTask == nil else { return }
 
         monitorTask = Task { @MainActor in
             while !Task.isCancelled {
-                await updateActivity(from: store)
+                await updateActivity(from: store, reportingTo: store)
 
                 do {
                     try await Task.sleep(for: .seconds(2))
@@ -33,13 +36,26 @@ final class IOSLiveActivityService {
         monitorTask = nil
     }
 
-    private func updateActivity(from store: TorrentStore) async {
-        guard settings.isEnabled, ActivityAuthorizationInfo().areActivitiesEnabled else {
+    func refresh(store: TorrentStore) {
+        Task { @MainActor in
+            await updateActivity(from: store, reportingTo: store)
+        }
+    }
+
+    private func updateActivity(from store: TorrentStore, reportingTo reportingStore: TorrentStore?) async {
+        guard settings.isEnabled else {
+            await endActivity(dismissalPolicy: .immediate)
+            return
+        }
+
+        guard ActivityAuthorizationInfo().areActivitiesEnabled else {
+            reportProblem("Live Activities are disabled for Sweep in Settings.", to: reportingStore)
             await endActivity(dismissalPolicy: .immediate)
             return
         }
 
         guard let snapshot = IOSLiveActivitySnapshot(torrents: store.torrents, stats: store.sessionStats) else {
+            clearProblemIfNeeded(from: reportingStore)
             await endActivity(dismissalPolicy: .after(.now.addingTimeInterval(60)))
             return
         }
@@ -67,10 +83,14 @@ final class IOSLiveActivityService {
                     pushType: nil
                 )
             } catch {
+                let message = "Live Activity failed to start: \(error.localizedDescription)"
+                reportProblem(message, to: reportingStore)
+                logger.error("Activity.request failed: \(String(describing: error), privacy: .public)")
                 return
             }
         }
 
+        clearProblemIfNeeded(from: reportingStore)
         lastSnapshot = snapshot
     }
 
@@ -102,6 +122,22 @@ final class IOSLiveActivityService {
         }
         activity = restoredActivity
         return restoredActivity
+    }
+
+    private func reportProblem(_ message: String, to store: TorrentStore?) {
+        if lastProblemMessage != message {
+            logger.warning("\(message, privacy: .public)")
+        }
+        lastProblemMessage = message
+        store?.lastError = message
+    }
+
+    private func clearProblemIfNeeded(from store: TorrentStore?) {
+        guard let lastProblemMessage else { return }
+        if store?.lastError == lastProblemMessage {
+            store?.lastError = nil
+        }
+        self.lastProblemMessage = nil
     }
 
     private static let activityID = "active-downloads"

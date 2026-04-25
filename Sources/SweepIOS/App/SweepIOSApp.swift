@@ -21,6 +21,13 @@ struct SweepIOSApp: App {
                 }
                 .task {
                     liveActivityService.startMonitoring(store: store)
+                    liveActivityService.refresh(store: store)
+                }
+                .onChange(of: store.torrents) {
+                    liveActivityService.refresh(store: store)
+                }
+                .onChange(of: store.sessionStats) {
+                    liveActivityService.refresh(store: store)
                 }
                 .onChange(of: scenePhase) {
                     handleScenePhaseChange()
@@ -29,6 +36,8 @@ struct SweepIOSApp: App {
     }
 
     private func handleScenePhaseChange() {
+        liveActivityService.refresh(store: store)
+
         switch scenePhase {
         case .active:
             backgroundDownloadService.stop()
