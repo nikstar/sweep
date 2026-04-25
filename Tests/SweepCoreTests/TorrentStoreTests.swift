@@ -61,6 +61,67 @@ struct TorrentStoreTests {
         #expect(state.torrents.first?.desiredState == .paused)
         #expect(state.torrents.first?.addSource == source)
     }
+
+    @Test
+    @MainActor
+    func removedTorrentIgnoresStaleRefreshResults() async throws {
+        let databaseURL = FileManager.default
+            .temporaryDirectory
+            .appending(path: "\(UUID().uuidString).sqlite")
+        defer {
+            try? FileManager.default.removeItem(at: databaseURL)
+        }
+
+        let torrent = Torrent(
+            name: "Ubuntu Desktop ISO",
+            infoHash: "cab507494d02ebb1178b38f2e9d7be299c86b862",
+            magnet: "magnet:?xt=urn:btih:cab507494d02ebb1178b38f2e9d7be299c86b862",
+            downloadDirectory: "/tmp/Sweep",
+            state: "live",
+            progressBytes: 734_003_200,
+            totalBytes: 4_294_967_296,
+            uploadedBytes: 86_507_520,
+            downloadBps: 1_850_000,
+            uploadBps: 240_000,
+            error: nil
+        )
+
+        let database = try SweepDatabase.open(at: databaseURL)
+        let persistence = AppPersistence(database: database)
+        try await persistence.save(torrent: torrent)
+
+        let engine = RecordingTorrentEngine(torrents: [torrent])
+        let store = TorrentStore(
+            engine: engine,
+            persistence: persistence,
+            downloadDirectory: "/tmp/Sweep",
+            initialState: PersistedAppState(
+                torrents: [torrent],
+                selectedTorrentID: torrent.id,
+                downloadDirectory: "/tmp/Sweep"
+            )
+        )
+
+        _ = await waitUntil {
+            await engine.listCallCount() > 0
+        }
+
+        store.selection = torrent.id
+        store.removeSelectedTorrent(deleteData: true)
+
+        let didRemove = await waitUntil {
+            await engine.removeRequests() == [
+                RecordedRemoveRequest(id: torrent.id, deleteData: true)
+            ] && store.torrents.isEmpty
+        }
+        #expect(didRemove)
+
+        await engine.enqueueListResponse([torrent])
+        await store.refreshNow()
+
+        #expect(store.torrents.isEmpty)
+        #expect(try await persistence.loadState().torrents.isEmpty)
+    }
 }
 
 private struct RecordedAddRequest: Equatable, Sendable {
@@ -69,14 +130,34 @@ private struct RecordedAddRequest: Equatable, Sendable {
     let startPaused: Bool
 }
 
+private struct RecordedRemoveRequest: Equatable, Sendable {
+    let id: Torrent.ID
+    let deleteData: Bool
+}
+
 private actor RecordingTorrentEngine: TorrentEngine {
     nonisolated let name = "Recording"
 
     private var requests: [RecordedAddRequest] = []
+    private var removes: [RecordedRemoveRequest] = []
     private var torrents: [Torrent] = []
+    private var queuedListResponses: [[Torrent]] = []
+    private var listCalls = 0
+
+    init(torrents: [Torrent] = []) {
+        self.torrents = torrents
+    }
 
     func list() async throws -> [Torrent] {
-        torrents
+        listCalls += 1
+        if !queuedListResponses.isEmpty {
+            return queuedListResponses.removeFirst()
+        }
+        return torrents
+    }
+
+    func sessionStats() async throws -> TorrentSessionStats {
+        .empty
     }
 
     func addTorrent(
@@ -117,11 +198,24 @@ private actor RecordingTorrentEngine: TorrentEngine {
     }
 
     func remove(id: Torrent.ID, deleteData: Bool) async throws {
+        removes.append(RecordedRemoveRequest(id: id, deleteData: deleteData))
         torrents.removeAll { $0.id == id }
     }
 
     func addRequests() -> [RecordedAddRequest] {
         requests
+    }
+
+    func removeRequests() -> [RecordedRemoveRequest] {
+        removes
+    }
+
+    func enqueueListResponse(_ torrents: [Torrent]) {
+        queuedListResponses.append(torrents)
+    }
+
+    func listCallCount() -> Int {
+        listCalls
     }
 
     private func update(id: Torrent.ID, apply: (Torrent) -> Torrent) throws -> Torrent {
@@ -135,3 +229,14 @@ private actor RecordingTorrentEngine: TorrentEngine {
 }
 
 private struct RecordingTorrentEngineError: Error {}
+
+@MainActor
+private func waitUntil(_ condition: @MainActor () async -> Bool) async -> Bool {
+    for _ in 0..<100 {
+        if await condition() {
+            return true
+        }
+        try? await Task.sleep(for: .milliseconds(10))
+    }
+    return await condition()
+}

@@ -168,5 +168,6 @@ xcodebuild -project Sweep.xcodeproj -scheme Sweep-iOS -configuration Debug -dest
 ## Change Management
 
 - Commit significant changes in focused commits.
+- After making significant changes, commit them in a focused commit without asking or calling extra attention to the act of committing.
 - Keep generated project files in sync when `project.yml` changes.
 - Do not silently revert user work or unrelated local changes.

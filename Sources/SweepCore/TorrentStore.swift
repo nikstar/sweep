@@ -22,6 +22,8 @@ public final class TorrentStore {
     private var pollingTask: Task<Void, Never>?
     @ObservationIgnored
     private var launchTask: Task<Void, Never>?
+    @ObservationIgnored
+    private var locallyRemovedTorrentIDs: Set<Torrent.ID> = []
 
     public init(
         engine: TorrentEngine,
@@ -119,6 +121,7 @@ public final class TorrentStore {
                     downloadDirectory: downloadDirectory,
                     desiredState: startPaused ? .paused : .running
                 )
+            locallyRemovedTorrentIDs.remove(torrent.id)
             upsert(torrent)
             try await persistence?.save(torrent: torrent)
             selection = torrent.id
@@ -153,12 +156,14 @@ public final class TorrentStore {
     public func refreshNow() async {
         do {
             let liveTorrents = try await engine.list()
-            for torrent in liveTorrents {
+            let visibleLiveTorrents = filterVisibleLiveTorrents(from: liveTorrents)
+            for torrent in visibleLiveTorrents {
                 upsert(liveTorrent: torrent)
             }
             sessionStats = try await engine.sessionStats()
                 .smoothed(from: sessionStats)
-            try await enforceDesiredStates(for: Set(liveTorrents.map(\.id)))
+            try await enforceDesiredStates(for: Set(visibleLiveTorrents.map(\.id)))
+            discardLocallyRemovedTorrents()
             try await persistence?.save(torrents: torrents)
             lastError = nil
         } catch {
@@ -208,6 +213,8 @@ public final class TorrentStore {
     }
 
     private func upsert(_ torrent: Torrent) {
+        guard !locallyRemovedTorrentIDs.contains(torrent.id) else { return }
+
         if let index = torrents.firstIndex(where: { $0.id == torrent.id }) {
             torrents[index] = torrent
         } else {
@@ -217,6 +224,8 @@ public final class TorrentStore {
     }
 
     private func upsert(liveTorrent torrent: Torrent) {
+        guard !locallyRemovedTorrentIDs.contains(torrent.id) else { return }
+
         if let index = torrents.firstIndex(where: { $0.id == torrent.id }) {
             let cached = torrents[index]
             torrents[index] = torrent
@@ -255,13 +264,15 @@ public final class TorrentStore {
 
     private func reconcileWithEngine() async {
         do {
+            discardLocallyRemovedTorrents()
             let cachedTorrents = torrents
             let liveTorrents = try await engine.list()
-            for torrent in liveTorrents {
+            let visibleLiveTorrents = filterVisibleLiveTorrents(from: liveTorrents)
+            for torrent in visibleLiveTorrents {
                 upsert(liveTorrent: torrent)
             }
 
-            let liveTorrentIDs = Set(liveTorrents.map(\.id))
+            let liveTorrentIDs = Set(visibleLiveTorrents.map(\.id))
             let missingCachedTorrents = cachedTorrents.filter { torrent in
                 !liveTorrentIDs.contains(torrent.id) && torrent.addSource != nil
             }
@@ -291,12 +302,14 @@ public final class TorrentStore {
             }
 
             let reconciledLiveTorrents = try await engine.list()
-            for torrent in reconciledLiveTorrents {
+            let visibleReconciledLiveTorrents = filterVisibleLiveTorrents(from: reconciledLiveTorrents)
+            for torrent in visibleReconciledLiveTorrents {
                 upsert(liveTorrent: torrent)
             }
             sessionStats = try await engine.sessionStats()
                 .smoothed(from: sessionStats)
-            try await enforceDesiredStates(for: Set(reconciledLiveTorrents.map(\.id)))
+            try await enforceDesiredStates(for: Set(visibleReconciledLiveTorrents.map(\.id)))
+            discardLocallyRemovedTorrents()
             try await persistence?.save(torrents: torrents)
             lastError = nil
         } catch {
@@ -368,15 +381,21 @@ public final class TorrentStore {
     }
 
     private func remove(_ torrent: Torrent, deleteData: Bool) async {
+        locallyRemovedTorrentIDs.insert(torrent.id)
+        torrents.removeAll { $0.id == torrent.id }
+        if selection == torrent.id {
+            selection = torrents.first?.id
+        }
+        try? await persistence?.deleteTorrent(id: torrent.id)
+
         do {
             try await engine.remove(id: torrent.id, deleteData: deleteData)
-            torrents.removeAll { $0.id == torrent.id }
-            if selection == torrent.id {
-                selection = torrents.first?.id
-            }
             try await persistence?.deleteTorrent(id: torrent.id)
             lastError = nil
         } catch {
+            locallyRemovedTorrentIDs.remove(torrent.id)
+            upsert(torrent)
+            try? await persistence?.save(torrent: torrent)
             lastError = error.localizedDescription
         }
     }
@@ -422,6 +441,14 @@ public final class TorrentStore {
                 return torrent
             }
             .sorted { $0.addedAt < $1.addedAt }
+    }
+
+    private func filterVisibleLiveTorrents(from liveTorrents: [Torrent]) -> [Torrent] {
+        liveTorrents.filter { !locallyRemovedTorrentIDs.contains($0.id) }
+    }
+
+    private func discardLocallyRemovedTorrents() {
+        torrents.removeAll { locallyRemovedTorrentIDs.contains($0.id) }
     }
 
     private func createDownloadDirectory(at path: String) throws {
