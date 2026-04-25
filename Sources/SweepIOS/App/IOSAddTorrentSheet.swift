@@ -93,6 +93,7 @@ struct IOSAddTorrentSheet: View {
         let directory = downloadDirectory
         let startPaused = startPaused
         isAdding = true
+        IOSBackupExclusion.excludeItem(atPath: directory)
 
         Task {
             let torrent = await store.addTorrent(

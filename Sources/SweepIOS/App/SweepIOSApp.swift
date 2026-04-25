@@ -60,10 +60,12 @@ private enum IOSAppEnvironment {
         let fallbackDownloadDirectory = defaultDownloadDirectory()
 
         do {
+            prepareAppSupportDirectoryForBackupExclusion()
             let database = try SweepDatabase.openDefault()
             let persistedState = try AppPersistence.loadState(from: database)
             let downloadDirectory = persistedState.downloadDirectory ?? fallbackDownloadDirectory
-            createDownloadDirectory(at: downloadDirectory)
+            prepareDownloadDirectory(at: downloadDirectory)
+            excludePersistedTorrentDirectoriesFromBackup(persistedState)
             let persistence = AppPersistence(database: database)
             let engine = try RqbitEngine(downloadDirectory: downloadDirectory)
             return TorrentStore(
@@ -73,7 +75,7 @@ private enum IOSAppEnvironment {
                 initialState: persistedState
             )
         } catch {
-            createDownloadDirectory(at: fallbackDownloadDirectory)
+            prepareDownloadDirectory(at: fallbackDownloadDirectory)
             return TorrentStore(
                 engine: DemoTorrentEngine(downloadDirectory: fallbackDownloadDirectory),
                 downloadDirectory: fallbackDownloadDirectory,
@@ -88,10 +90,41 @@ private enum IOSAppEnvironment {
             .path
     }
 
-    private static func createDownloadDirectory(at path: String) {
+    private static func prepareDownloadDirectory(at path: String) {
         try? FileManager.default.createDirectory(
             at: URL(filePath: path, directoryHint: .isDirectory),
             withIntermediateDirectories: true
         )
+        IOSBackupExclusion.excludeItem(atPath: path)
+    }
+
+    private static func prepareAppSupportDirectoryForBackupExclusion() {
+        guard let appSupportDirectory = try? FileManager.default
+            .url(
+                for: .applicationSupportDirectory,
+                in: .userDomainMask,
+                appropriateFor: nil,
+                create: true
+            )
+            .appending(path: "Sweep", directoryHint: .isDirectory)
+        else {
+            return
+        }
+
+        try? FileManager.default.createDirectory(
+            at: appSupportDirectory,
+            withIntermediateDirectories: true
+        )
+        IOSBackupExclusion.excludeItem(at: appSupportDirectory)
+    }
+
+    private static func excludePersistedTorrentDirectoriesFromBackup(_ persistedState: PersistedAppState) {
+        let torrentDirectories = Set(
+            persistedState.torrents.compactMap(\.downloadDirectory).filter { !$0.isEmpty }
+        )
+
+        for directory in torrentDirectories {
+            IOSBackupExclusion.excludeItem(atPath: directory)
+        }
     }
 }
