@@ -31,6 +31,9 @@
 		13399D2ABC6290FB61C6C36E /* AddTorrentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F80B63B37D4FE59E26F637E /* AddTorrentView.swift */; };
 		145A209E413E63D6BF04372F /* SweepCore in Frameworks */ = {isa = PBXBuildFile; productRef = 4D0BE6C533E81778044F631F /* SweepCore */; };
 		145D58ADFB21EBF7261B3939 /* TorrentOptionsInspector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52378E5ED0495B1FB7D987F5 /* TorrentOptionsInspector.swift */; };
+		14A9038F650418D9D1BAF55F /* SweepDownloadLiveActivityWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7436925E4BEB0B1DC88185C4 /* SweepDownloadLiveActivityWidget.swift */; };
+		2467A416B843F3624B1F34C7 /* SweepLiveActivityExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 975579290E7E7A3DC7DAAB3E /* SweepLiveActivityExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		263849784CD1A3749660733B /* SweepLiveActivityWidgetBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = D72C043C982698240189A5D7 /* SweepLiveActivityWidgetBundle.swift */; };
 		2FDB3131F4201B15947A5F36 /* TorrentActivityInspector.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3F17CB43E1A23510040DA0F /* TorrentActivityInspector.swift */; };
 		31F807EE66CEA8022DB12BB2 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83C54817B7513419209B220D /* ContentView.swift */; };
 		3795B496E3B8B7BCE4F856CB /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = A5E1498FACE23FDE2E8078D3 /* AppIcon.icon */; };
@@ -51,6 +54,7 @@
 		7B97F6596103D43533AACDC2 /* TorrentFileLocation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FF8965A756198D6E04161E4 /* TorrentFileLocation.swift */; };
 		8010A5BD1E39900CAE8060EB /* IOSTorrentInspectorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E8D80BB3EAC6640C921EED9 /* IOSTorrentInspectorView.swift */; };
 		8D6F90DEE6DB75D0A509C5D4 /* SweepRQBitBridge in Frameworks */ = {isa = PBXBuildFile; productRef = 489BA7E8BD80981381B25C57 /* SweepRQBitBridge */; };
+		94AC282B29D5E3D8CD005113 /* SweepRQBitBridge in Frameworks */ = {isa = PBXBuildFile; productRef = FF9167535D32A3C793318993 /* SweepRQBitBridge */; };
 		9F3F6579451EB58FB84BD5DE /* TorrentPeersInspector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8146B3AE5CD49758ACD3829B /* TorrentPeersInspector.swift */; };
 		A276C33781257E6D5C6E4DAF /* TorrentInspectorControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7771F16E8BA28B1EFC005001 /* TorrentInspectorControls.swift */; };
 		A2945BECDF9F8CDA5C305E10 /* TorrentActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5AC6DA4D0C94091DD2DDF683 /* TorrentActions.swift */; };
@@ -58,11 +62,13 @@
 		BA064C4E4F69E27E5C0FF39F /* TorrentFilesInspector.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACCBBDD31948C776A77AD66D /* TorrentFilesInspector.swift */; };
 		BA848BDDBD4942CD5EBC7BF4 /* IOSOpenInPresenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B11DE283104B5AACAF8815C /* IOSOpenInPresenter.swift */; };
 		BF77C7FF72FBBFD72E010809 /* SegmentedProgressView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 840CE357D496397EBDF619B4 /* SegmentedProgressView.swift */; };
+		CD027EA59F96A09AC55C9457 /* SweepActivities in Frameworks */ = {isa = PBXBuildFile; productRef = 67346E2539236735728440A1 /* SweepActivities */; };
 		D49818FD5319CF3B1A56EAC3 /* Security.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 38BAA30A1485BC9D5E62B893 /* Security.framework */; };
 		D9B1E1B909C9EB9465DB5F7C /* SweepApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 775FB611A4949E814D2C806F /* SweepApp.swift */; };
-		DB738B79752ED9DFFDF77187 /* SweepRQBitBridge in Frameworks */ = {isa = PBXBuildFile; productRef = FF9167535D32A3C793318993 /* SweepRQBitBridge */; };
+		DB738B79752ED9DFFDF77187 /* SweepActivities in Frameworks */ = {isa = PBXBuildFile; productRef = 852C5B21295AA31BF519DDB7 /* SweepActivities */; };
 		DD256C572EE921F0BB7081E7 /* TorrentStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC7DA44B71E17BB508D7805C /* TorrentStoreTests.swift */; };
 		DD9A6D114CA5348F48AADB3B /* TorrentInfoInspector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8652865F18FF87F2FF368A7D /* TorrentInfoInspector.swift */; };
+		E23D8AD5B56DD6149517361E /* IOSLiveActivityService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2920AEAAEBEDE653480289FC /* IOSLiveActivityService.swift */; };
 		E7FAA83BB751263F4BAE4172 /* AppPersistenceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 034F76CBDB7DC7E5278B203E /* AppPersistenceTests.swift */; };
 		F34C570AE343CB4DC823EFB5 /* IOSBackgroundDownloadService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35862CE528C60EB5E5C36EFA /* IOSBackgroundDownloadService.swift */; };
 		F4C27E305533708EF5D3AB86 /* Security.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 38BAA30A1485BC9D5E62B893 /* Security.framework */; };
@@ -76,6 +82,13 @@
 			remoteGlobalIDString = AB913ED30FA1154D3FAFA0EE;
 			remoteInfo = SweepRustArtifacts;
 		};
+		65EE7C258E26616BAA146023 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A7E8E02F07F97E64774A4AF5 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 6BEBADF0736D16804B520D42;
+			remoteInfo = SweepLiveActivityExtension;
+		};
 		DBF796A4C985F94A8948216E /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = A7E8E02F07F97E64774A4AF5 /* Project object */;
@@ -85,6 +98,20 @@
 		};
 /* End PBXContainerItemProxy section */
 
+/* Begin PBXCopyFilesBuildPhase section */
+		AC375F892B42A057BEA2FDB8 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				2467A416B843F3624B1F34C7 /* SweepLiveActivityExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
 		034F76CBDB7DC7E5278B203E /* AppPersistenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppPersistenceTests.swift; sourceTree = "<group>"; };
 		193A77A37E82D3DE990B59CC /* IOSContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IOSContentView.swift; sourceTree = "<group>"; };
@@ -92,6 +119,8 @@
 		1E715F02C8E5279E2C7A6E15 /* Sweep.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Sweep.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		2170D7D5E1DE9A57C6877DE6 /* TorrentListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TorrentListView.swift; sourceTree = "<group>"; };
 		275B892DB00D6893E87DF9CE /* SweepIOSApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SweepIOSApp.swift; sourceTree = "<group>"; };
+		2885EA9BF5F988F86D8F2D7F /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		2920AEAAEBEDE653480289FC /* IOSLiveActivityService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IOSLiveActivityService.swift; sourceTree = "<group>"; };
 		2ADED88DFFC7D0D5293C377C /* sweep */ = {isa = PBXFileReference; lastKnownFileType = folder; name = sweep; path = .; sourceTree = SOURCE_ROOT; };
 		2C826FEFE14648185ECE544D /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		327F2196E59BC4B6BD68F7BB /* IOSAddTorrentSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IOSAddTorrentSheet.swift; sourceTree = "<group>"; };
@@ -109,6 +138,7 @@
 		6BD9A07B80CFAA4D1D8AD378 /* Sweep_iOS.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Sweep_iOS.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		6CD1D298556F1FD84F62ADF3 /* AppIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = wrapper.icon; path = AppIcon.icon; sourceTree = "<group>"; };
 		6E8D80BB3EAC6640C921EED9 /* IOSTorrentInspectorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IOSTorrentInspectorView.swift; sourceTree = "<group>"; };
+		7436925E4BEB0B1DC88185C4 /* SweepDownloadLiveActivityWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SweepDownloadLiveActivityWidget.swift; sourceTree = "<group>"; };
 		775FB611A4949E814D2C806F /* SweepApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SweepApp.swift; sourceTree = "<group>"; };
 		7771F16E8BA28B1EFC005001 /* TorrentInspectorControls.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TorrentInspectorControls.swift; sourceTree = "<group>"; };
 		7F80B63B37D4FE59E26F637E /* AddTorrentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddTorrentView.swift; sourceTree = "<group>"; };
@@ -118,12 +148,14 @@
 		840CE357D496397EBDF619B4 /* SegmentedProgressView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SegmentedProgressView.swift; sourceTree = "<group>"; };
 		8652865F18FF87F2FF368A7D /* TorrentInfoInspector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TorrentInfoInspector.swift; sourceTree = "<group>"; };
 		8B6E0A3B239F72062BF939B9 /* CoreFoundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreFoundation.framework; path = System/Library/Frameworks/CoreFoundation.framework; sourceTree = SDKROOT; };
+		975579290E7E7A3DC7DAAB3E /* SweepLiveActivityExtension.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = SweepLiveActivityExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		A5E1498FACE23FDE2E8078D3 /* AppIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = wrapper.icon; path = AppIcon.icon; sourceTree = "<group>"; };
 		A7DD29344354B70BB9CF9D24 /* magnet.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = magnet.txt; sourceTree = "<group>"; };
 		ACCBBDD31948C776A77AD66D /* TorrentFilesInspector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TorrentFilesInspector.swift; sourceTree = "<group>"; };
 		B3F17CB43E1A23510040DA0F /* TorrentActivityInspector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TorrentActivityInspector.swift; sourceTree = "<group>"; };
 		C0D50F7F08FCE2BF7AEFCB89 /* TorrentInspectorPanelPresenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TorrentInspectorPanelPresenter.swift; sourceTree = "<group>"; };
 		C5F7FE98E00117AFF6A1FB6D /* TorrentInspectorWindowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TorrentInspectorWindowView.swift; sourceTree = "<group>"; };
+		D72C043C982698240189A5D7 /* SweepLiveActivityWidgetBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SweepLiveActivityWidgetBundle.swift; sourceTree = "<group>"; };
 		D9ED0157451A46C834DB8AE6 /* TorrentTrackersInspector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TorrentTrackersInspector.swift; sourceTree = "<group>"; };
 		E771A408C187B2E380576EE2 /* TorrentInputHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TorrentInputHelpers.swift; sourceTree = "<group>"; };
 		EC7DA44B71E17BB508D7805C /* TorrentStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TorrentStoreTests.swift; sourceTree = "<group>"; };
@@ -136,7 +168,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				4E54E8F937BFF4BDEFCC2F0E /* SweepCore in Frameworks */,
-				DB738B79752ED9DFFDF77187 /* SweepRQBitBridge in Frameworks */,
+				DB738B79752ED9DFFDF77187 /* SweepActivities in Frameworks */,
+				94AC282B29D5E3D8CD005113 /* SweepRQBitBridge in Frameworks */,
 				D49818FD5319CF3B1A56EAC3 /* Security.framework in Frameworks */,
 				49A01D17B1835427A0151790 /* CoreFoundation.framework in Frameworks */,
 			);
@@ -158,6 +191,14 @@
 				8D6F90DEE6DB75D0A509C5D4 /* SweepRQBitBridge in Frameworks */,
 				F4C27E305533708EF5D3AB86 /* Security.framework in Frameworks */,
 				4F956ACE8EBCF67FB05EAF1D /* CoreFoundation.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C6F6B528DFDE15EC17C49D67 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				CD027EA59F96A09AC55C9457 /* SweepActivities in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -184,6 +225,16 @@
 				2C826FEFE14648185ECE544D /* Info.plist */,
 			);
 			path = Resources;
+			sourceTree = "<group>";
+		};
+		3606F98B8A2FB925C65E8B6F /* SweepLiveActivityExtension */ = {
+			isa = PBXGroup;
+			children = (
+				7436925E4BEB0B1DC88185C4 /* SweepDownloadLiveActivityWidget.swift */,
+				D72C043C982698240189A5D7 /* SweepLiveActivityWidgetBundle.swift */,
+				80DCF240CB19A5F36F3F19B4 /* Resources */,
+			);
+			path = SweepLiveActivityExtension;
 			sourceTree = "<group>";
 		};
 		3D5B43C792902C0284030788 /* Frameworks */ = {
@@ -218,6 +269,7 @@
 				327F2196E59BC4B6BD68F7BB /* IOSAddTorrentSheet.swift */,
 				35862CE528C60EB5E5C36EFA /* IOSBackgroundDownloadService.swift */,
 				193A77A37E82D3DE990B59CC /* IOSContentView.swift */,
+				2920AEAAEBEDE653480289FC /* IOSLiveActivityService.swift */,
 				6B11DE283104B5AACAF8815C /* IOSOpenInPresenter.swift */,
 				4C8067146BA5FED910D86366 /* IOSSegmentedProgressView.swift */,
 				7FE0ECC06A2448C3A2B48A91 /* IOSTorrentFileLocation.swift */,
@@ -225,6 +277,14 @@
 				275B892DB00D6893E87DF9CE /* SweepIOSApp.swift */,
 			);
 			path = App;
+			sourceTree = "<group>";
+		};
+		80DCF240CB19A5F36F3F19B4 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				2885EA9BF5F988F86D8F2D7F /* Info.plist */,
+			);
+			path = Resources;
 			sourceTree = "<group>";
 		};
 		8867D3C7852A4CC5B3FE156D /* App */ = {
@@ -258,6 +318,7 @@
 				6BD9A07B80CFAA4D1D8AD378 /* Sweep_iOS.app */,
 				1E715F02C8E5279E2C7A6E15 /* Sweep.app */,
 				5FD102098775082BC04F9CF9 /* SweepCoreTests.xctest */,
+				975579290E7E7A3DC7DAAB3E /* SweepLiveActivityExtension.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -274,6 +335,7 @@
 			isa = PBXGroup;
 			children = (
 				71BC70DA141BFBF59BAA03FE /* SweepIOS */,
+				3606F98B8A2FB925C65E8B6F /* SweepLiveActivityExtension */,
 				B661D399E8C06CE461F27CA7 /* SweepMac */,
 			);
 			path = Sources;
@@ -340,20 +402,42 @@
 				5DDFDAB5E158C719F793AE47 /* Sources */,
 				4E6568A6741C9BDA2099E386 /* Resources */,
 				15B7FFE0AC3842C13D06F53D /* Frameworks */,
+				AC375F892B42A057BEA2FDB8 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
 				EBEEAFA5A92A83B19CA9CF88 /* PBXTargetDependency */,
+				EB55C89E7D498EF93BDDA789 /* PBXTargetDependency */,
 			);
 			name = Sweep_iOS;
 			packageProductDependencies = (
 				43019AB36769834D7901F7E0 /* SweepCore */,
+				852C5B21295AA31BF519DDB7 /* SweepActivities */,
 				FF9167535D32A3C793318993 /* SweepRQBitBridge */,
 			);
 			productName = Sweep_iOS;
 			productReference = 6BD9A07B80CFAA4D1D8AD378 /* Sweep_iOS.app */;
 			productType = "com.apple.product-type.application";
+		};
+		6BEBADF0736D16804B520D42 /* SweepLiveActivityExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 2812CB35420F542B02EDC1C0 /* Build configuration list for PBXNativeTarget "SweepLiveActivityExtension" */;
+			buildPhases = (
+				6E67ADD01BF98B8B8194DF21 /* Sources */,
+				C6F6B528DFDE15EC17C49D67 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = SweepLiveActivityExtension;
+			packageProductDependencies = (
+				67346E2539236735728440A1 /* SweepActivities */,
+			);
+			productName = SweepLiveActivityExtension;
+			productReference = 975579290E7E7A3DC7DAAB3E /* SweepLiveActivityExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
 		};
 		6F3C617DB750B34FF2F6DB21 /* SweepCoreTests */ = {
 			isa = PBXNativeTarget;
@@ -391,6 +475,10 @@
 						DevelopmentTeam = 6RX8GEVB43;
 						ProvisioningStyle = Automatic;
 					};
+					6BEBADF0736D16804B520D42 = {
+						DevelopmentTeam = 6RX8GEVB43;
+						ProvisioningStyle = Automatic;
+					};
 				};
 			};
 			buildConfigurationList = 2C2DAA764C75297F79121678 /* Build configuration list for PBXProject "Sweep" */;
@@ -412,6 +500,7 @@
 			targets = (
 				171DEA5DD3E9A0D3CC068E28 /* Sweep */,
 				6F3C617DB750B34FF2F6DB21 /* SweepCoreTests */,
+				6BEBADF0736D16804B520D42 /* SweepLiveActivityExtension */,
 				AB913ED30FA1154D3FAFA0EE /* SweepRustArtifacts */,
 				40420A501246C292C13EF3F4 /* Sweep_iOS */,
 			);
@@ -486,6 +575,7 @@
 				B6A7238901B8EF5CF5A86D28 /* IOSAddTorrentSheet.swift in Sources */,
 				F34C570AE343CB4DC823EFB5 /* IOSBackgroundDownloadService.swift in Sources */,
 				7A95253052EDFF4A6C0A7A75 /* IOSContentView.swift in Sources */,
+				E23D8AD5B56DD6149517361E /* IOSLiveActivityService.swift in Sources */,
 				BA848BDDBD4942CD5EBC7BF4 /* IOSOpenInPresenter.swift in Sources */,
 				40276BCF259A3F0B2FF2B2EC /* IOSSegmentedProgressView.swift in Sources */,
 				3C4E76F7BAF7C51D011D5B9D /* IOSTorrentFileLocation.swift in Sources */,
@@ -519,6 +609,15 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		6E67ADD01BF98B8B8194DF21 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				14A9038F650418D9D1BAF55F /* SweepDownloadLiveActivityWidget.swift in Sources */,
+				263849784CD1A3749660733B /* SweepLiveActivityWidgetBundle.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -526,6 +625,11 @@
 			isa = PBXTargetDependency;
 			target = AB913ED30FA1154D3FAFA0EE /* SweepRustArtifacts */;
 			targetProxy = DBF796A4C985F94A8948216E /* PBXContainerItemProxy */;
+		};
+		EB55C89E7D498EF93BDDA789 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 6BEBADF0736D16804B520D42 /* SweepLiveActivityExtension */;
+			targetProxy = 65EE7C258E26616BAA146023 /* PBXContainerItemProxy */;
 		};
 		EBEEAFA5A92A83B19CA9CF88 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
@@ -647,6 +751,31 @@
 				SWIFT_VERSION = 6.0;
 			};
 			name = Debug;
+		};
+		7D5812DC7FE2DCE96642120A /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 6RX8GEVB43;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Sources/SweepLiveActivityExtension/Resources/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = me.nikstar.sweep.ios.liveactivity;
+				PRODUCT_NAME = SweepLiveActivityExtension;
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				SDKROOT = iphoneos;
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
 		};
 		86318BF5CA7CD3A6440AC6DE /* Release */ = {
 			isa = XCBuildConfiguration;
@@ -800,6 +929,31 @@
 			};
 			name = Debug;
 		};
+		C10F6438809E34725C6AA073 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 6RX8GEVB43;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Sources/SweepLiveActivityExtension/Resources/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = me.nikstar.sweep.ios.liveactivity;
+				PRODUCT_NAME = SweepLiveActivityExtension;
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				SDKROOT = iphoneos;
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
 		F49BC6DF538C1B56677C5606 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -809,6 +963,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		2812CB35420F542B02EDC1C0 /* Build configuration list for PBXNativeTarget "SweepLiveActivityExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C10F6438809E34725C6AA073 /* Debug */,
+				7D5812DC7FE2DCE96642120A /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
 		2C2DAA764C75297F79121678 /* Build configuration list for PBXProject "Sweep" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
@@ -875,6 +1038,14 @@
 		4D0BE6C533E81778044F631F /* SweepCore */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = SweepCore;
+		};
+		67346E2539236735728440A1 /* SweepActivities */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = SweepActivities;
+		};
+		852C5B21295AA31BF519DDB7 /* SweepActivities */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = SweepActivities;
 		};
 		C81076FDF5CD37526C3D683D /* SweepCore */ = {
 			isa = XCSwiftPackageProductDependency;

@@ -10,6 +10,7 @@ let package = Package(
     ],
     products: [
         .library(name: "SweepCore", targets: ["SweepCore"]),
+        .library(name: "SweepActivities", targets: ["SweepActivities"]),
         .library(name: "SweepRQBitBridge", targets: ["SweepRQBitBridge"])
     ],
     dependencies: [
@@ -26,6 +27,11 @@ let package = Package(
                 .product(name: "SQLiteData", package: "sqlite-data")
             ],
             path: "Sources/SweepCore"
+        ),
+        .target(
+            name: "SweepActivities",
+            dependencies: [],
+            path: "Sources/SweepActivities"
         ),
         .target(
             name: "SweepRQBitBridge",

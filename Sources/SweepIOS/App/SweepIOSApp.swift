@@ -7,6 +7,7 @@ struct SweepIOSApp: App {
     @Environment(\.scenePhase) private var scenePhase
     @State private var store = IOSAppEnvironment.makeTorrentStore()
     @State private var backgroundDownloadService = IOSBackgroundDownloadService()
+    @State private var liveActivityService = IOSLiveActivityService()
 
     var body: some Scene {
         WindowGroup {
@@ -17,6 +18,9 @@ struct SweepIOSApp: App {
                 }
                 .task {
                     await backgroundDownloadService.prepareConfiguredMode()
+                }
+                .task {
+                    liveActivityService.startMonitoring(store: store)
                 }
                 .onChange(of: scenePhase) {
                     handleScenePhaseChange()

@@ -93,8 +93,13 @@ targets:
         buildPhase: resources
     dependencies:
       - target: SweepRustArtifacts
+      - target: SweepLiveActivityExtension
+        embed: true
       - package: SweepPackage
         product: SweepCore
+        embed: false
+      - package: SweepPackage
+        product: SweepActivities
         embed: false
       - package: SweepPackage
         product: SweepRQBitBridge
@@ -124,6 +129,31 @@ targets:
         Release:
           OTHER_LDFLAGS[sdk=iphonesimulator*]: "$(inherited) $(SRCROOT)/BuildArtifacts/SweepRustFFI.xcframework/ios-arm64_x86_64-simulator/libsweep_rqbit.a -liconv"
           OTHER_LDFLAGS[sdk=iphoneos*]: "$(inherited) $(SRCROOT)/BuildArtifacts/SweepRustFFI.xcframework/ios-arm64/libsweep_rqbit.a -liconv"
+
+  SweepLiveActivityExtension:
+    type: app-extension
+    platform: iOS
+    sources:
+      - Sources/SweepLiveActivityExtension
+    dependencies:
+      - package: SweepPackage
+        product: SweepActivities
+        embed: false
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: me.nikstar.sweep.ios.liveactivity
+        PRODUCT_NAME: SweepLiveActivityExtension
+        GENERATE_INFOPLIST_FILE: NO
+        INFOPLIST_FILE: Sources/SweepLiveActivityExtension/Resources/Info.plist
+        APPLICATION_EXTENSION_API_ONLY: YES
+        TARGETED_DEVICE_FAMILY: "1"
+        SUPPORTS_MACCATALYST: NO
+        SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: NO
+        SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD: NO
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_IDENTITY: Apple Development
+        DEVELOPMENT_TEAM: 6RX8GEVB43
+        PROVISIONING_PROFILE_SPECIFIER: ""
 
 schemes:
   Sweep:
