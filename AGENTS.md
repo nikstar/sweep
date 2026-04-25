@@ -58,8 +58,8 @@ The current shape is intentional:
 Important:
 
 - Do not hand-edit `Sources/SweepRQBitBridge/Generated/*`.
-- Do not reintroduce embedded dynamic frameworks for the Rust bridge. Static linkage is the working App Store-safe shape.
-- TLS support is currently provided via `rustls`, not Apple-native TLS. That is deliberate to avoid private CommonCrypto symbol problems in App Store validation.
+- Do not reintroduce embedded dynamic frameworks for the Rust bridge. Static linkage is the current working packaging shape.
+- TLS support is currently provided via `rustls`, not Apple-native TLS. That is deliberate to avoid private CommonCrypto symbol problems in package validation.
 
 ## rqbit / Rust Patches
 
@@ -91,6 +91,7 @@ Do not commit `references/rqbit` itself unless there is a deliberate change in r
 - Bundle IDs:
   - macOS: `me.nikstar.sweep`
   - iOS: `me.nikstar.sweep.ios`
+- Distribution intent: this is a personal project distributed through GitHub, not the App Store. App Store review constraints are not a product requirement unless explicitly requested.
 - Automatic signing is enabled for both app targets.
 - iOS supports:
   - opening `magnet:` links
