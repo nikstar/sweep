@@ -1,0 +1,61 @@
+diff --git a/crates/librqbit/src/session.rs b/crates/librqbit/src/session.rs
+index 7352b29c..6dc862f9 100644
+--- a/crates/librqbit/src/session.rs
++++ b/crates/librqbit/src/session.rs
+@@ -1408,16 +1408,17 @@ impl Session {
+             (Err(e), true) => return Err(e).context("torrent deleted, but could not delete files"),
+             (Ok(storage), true) => {
+                 debug!("will delete files");
+-                remove_files_and_dirs(&metadata.file_infos, &storage);
++                let mut delete_files_result = remove_files_and_dirs(&metadata.file_infos, &storage);
+                 if removed.shared().options.output_folder != self.output_folder
+                     && let Err(e) = storage.remove_directory_if_empty(Path::new(""))
+                 {
+-                    warn!(
+-                        ?id,
++                    let message = format!(
+                         "error removing {:?}: {e:#}",
+                         removed.shared().options.output_folder
+-                    )
++                    );
++                    delete_files_result = delete_files_result.and_then(|_| Err(e).context(message));
+                 }
++                delete_files_result.with_context(|| format!("torrent {id} deleted, but could not delete files"))?;
+             }
+             (_, false) => {
+                 debug!("not deleting files")
+@@ -1650,8 +1651,9 @@ pub(crate) struct ResolveMagnetResult {
+     pub seen_peers: Vec<SocketAddr>,
+ }
+
+-fn remove_files_and_dirs(infos: &FileInfos, files: &dyn TorrentStorage) {
++fn remove_files_and_dirs(infos: &FileInfos, files: &dyn TorrentStorage) -> anyhow::Result<()> {
+     let mut all_dirs = HashSet::new();
++    let mut errors = Vec::new();
+     for (id, fi) in infos.iter().enumerate() {
+         if fi.attrs.padding {
+             continue;
+@@ -1659,6 +1661,7 @@ fn remove_files_and_dirs(infos: &FileInfos, files: &dyn TorrentStorage) {
+         let mut fname = &*fi.relative_filename;
+         if let Err(e) = files.remove_file(id, fname) {
+             warn!(?fi.relative_filename, error=?e, "could not delete file");
++            errors.push(format!("file {:?}: {e:#}", fi.relative_filename));
+         } else {
+             debug!(?fi.relative_filename, "deleted the file")
+         }
+@@ -1678,10 +1681,15 @@ fn remove_files_and_dirs(infos: &FileInfos, files: &dyn TorrentStorage) {
+     for dir in all_dirs {
+         if let Err(e) = files.remove_directory_if_empty(dir) {
+             warn!("error removing {dir:?}: {e:#}");
++            errors.push(format!("directory {dir:?}: {e:#}"));
+         } else {
+             debug!("removed {dir:?}")
+         }
+     }
++    if !errors.is_empty() {
++        bail!("could not delete all torrent payload files: {}", errors.join("; "));
++    }
++    Ok(())
+ }
+
+ // Ad adapter for converting stats into the format that tracker_comms accepts.

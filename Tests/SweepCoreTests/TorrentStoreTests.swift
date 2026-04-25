@@ -202,6 +202,95 @@ struct TorrentStoreTests {
         #expect(!FileManager.default.fileExists(atPath: nestedFileURL.deletingLastPathComponent().path))
         #expect(FileManager.default.fileExists(atPath: unrelatedFileURL.path))
     }
+
+    @Test
+    @MainActor
+    func partialEngineDataDeletionErrorDoesNotRestoreTorrent() async throws {
+        let databaseURL = FileManager.default
+            .temporaryDirectory
+            .appending(path: "\(UUID().uuidString).sqlite")
+        let downloadDirectoryURL = FileManager.default
+            .temporaryDirectory
+            .appending(path: UUID().uuidString, directoryHint: .isDirectory)
+        let payloadURL = downloadDirectoryURL
+            .appending(path: "Linux ISO", directoryHint: .isDirectory)
+            .appending(path: "disk.iso")
+
+        defer {
+            try? FileManager.default.removeItem(at: databaseURL)
+            try? FileManager.default.removeItem(at: downloadDirectoryURL)
+        }
+
+        try FileManager.default.createDirectory(
+            at: payloadURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try Data("payload".utf8).write(to: payloadURL)
+
+        let torrent = Torrent(
+            name: "Linux ISO",
+            infoHash: "cab507494d02ebb1178b38f2e9d7be299c86b862",
+            magnet: "magnet:?xt=urn:btih:cab507494d02ebb1178b38f2e9d7be299c86b862",
+            downloadDirectory: downloadDirectoryURL.path,
+            state: "live",
+            files: [
+                TorrentFile(
+                    id: 0,
+                    path: "Linux ISO/disk.iso",
+                    length: 7,
+                    progressBytes: 7
+                )
+            ],
+            progressBytes: 7,
+            totalBytes: 7,
+            uploadedBytes: 0,
+            downloadBps: 0,
+            uploadBps: 0,
+            error: nil
+        )
+
+        let database = try SweepDatabase.open(at: databaseURL)
+        let persistence = AppPersistence(database: database)
+        try await persistence.save(torrent: torrent)
+
+        let engine = RecordingTorrentEngine(
+            torrents: [torrent],
+            removeError: RecordingTorrentEngineError(
+                "torrent 1 deleted, but could not delete files: could not delete all torrent payload files"
+            )
+        )
+        let store = TorrentStore(
+            engine: engine,
+            persistence: persistence,
+            downloadDirectory: downloadDirectoryURL.path,
+            initialState: PersistedAppState(
+                torrents: [torrent],
+                selectedTorrentID: torrent.id,
+                downloadDirectory: downloadDirectoryURL.path
+            )
+        )
+
+        store.selection = torrent.id
+        store.removeSelectedTorrent(deleteData: true)
+
+        let didRemove = await waitUntil {
+            await engine.removeRequests().contains(
+                RecordedRemoveRequest(id: torrent.id, deleteData: true)
+            )
+                && store.torrents.isEmpty
+                && !FileManager.default.fileExists(atPath: payloadURL.path)
+        }
+        #expect(didRemove)
+        #expect(store.torrents.isEmpty)
+        #expect(try await persistence.loadState().torrents.isEmpty)
+        #expect(store.lastError?.contains("rqbit reported a file cleanup failure") == true)
+
+        await engine.enqueueListResponse([torrent])
+        await store.refreshNow()
+
+        #expect(store.torrents.isEmpty)
+        #expect(try await persistence.loadState().torrents.isEmpty)
+    }
 }
 
 private struct RecordedAddRequest: Equatable, Sendable {
@@ -222,10 +311,12 @@ private actor RecordingTorrentEngine: TorrentEngine {
     private var removes: [RecordedRemoveRequest] = []
     private var torrents: [Torrent] = []
     private var queuedListResponses: [[Torrent]] = []
+    private let removeError: (any Error & Sendable)?
     private var listCalls = 0
 
-    init(torrents: [Torrent] = []) {
+    init(torrents: [Torrent] = [], removeError: (any Error & Sendable)? = nil) {
         self.torrents = torrents
+        self.removeError = removeError
     }
 
     func list() async throws -> [Torrent] {
@@ -280,6 +371,9 @@ private actor RecordingTorrentEngine: TorrentEngine {
     func remove(id: Torrent.ID, deleteData: Bool) async throws {
         removes.append(RecordedRemoveRequest(id: id, deleteData: deleteData))
         torrents.removeAll { $0.id == id }
+        if let removeError {
+            throw removeError
+        }
     }
 
     func addRequests() -> [RecordedAddRequest] {
@@ -308,7 +402,17 @@ private actor RecordingTorrentEngine: TorrentEngine {
     }
 }
 
-private struct RecordingTorrentEngineError: Error {}
+private struct RecordingTorrentEngineError: LocalizedError, Sendable {
+    let message: String
+
+    init(_ message: String = "Recording torrent engine error") {
+        self.message = message
+    }
+
+    var errorDescription: String? {
+        message
+    }
+}
 
 @MainActor
 private func waitUntil(_ condition: @MainActor () async -> Bool) async -> Bool {

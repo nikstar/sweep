@@ -279,6 +279,7 @@ public final class TorrentStore {
 
             for cachedTorrent in missingCachedTorrents {
                 guard let source = cachedTorrent.addSource else { continue }
+                guard !locallyRemovedTorrentIDs.contains(cachedTorrent.id) else { continue }
                 do {
                     let restoredTorrent = try await engine
                         .addTorrent(
@@ -288,8 +289,13 @@ public final class TorrentStore {
                         )
                         .withAddSource(source)
                         .mergingCachedMetadata(from: cachedTorrent)
+                    if locallyRemovedTorrentIDs.contains(cachedTorrent.id) {
+                        try? await engine.remove(id: restoredTorrent.id, deleteData: false)
+                        continue
+                    }
                     upsert(restoredTorrent)
                 } catch {
+                    guard !locallyRemovedTorrentIDs.contains(cachedTorrent.id) else { continue }
                     upsert(
                         cachedTorrent.updating(
                             state: cachedTorrent.desiredState == .paused ? "paused" : "missing",
@@ -392,6 +398,11 @@ public final class TorrentStore {
             try await engine.remove(id: torrent.id, deleteData: deleteData)
             try await persistence?.deleteTorrent(id: torrent.id)
         } catch {
+            if deleteData, isEngineDataCleanupFailureAfterTorrentRemoval(error) {
+                await handlePartialEngineDataDeletionFailure(error, for: torrent)
+                return
+            }
+
             locallyRemovedTorrentIDs.remove(torrent.id)
             upsert(torrent)
             try? await persistence?.save(torrent: torrent)
@@ -410,6 +421,25 @@ public final class TorrentStore {
         } catch {
             lastError = error.localizedDescription
         }
+    }
+
+    private func handlePartialEngineDataDeletionFailure(_ engineError: Error, for torrent: Torrent) async {
+        let engineMessage = engineError.localizedDescription
+        try? await persistence?.deleteTorrent(id: torrent.id)
+
+        do {
+            try deleteDownloadedData(for: torrent)
+            lastError = "rqbit reported a file cleanup failure after removing the torrent; Sweep removed cached files locally. \(engineMessage)"
+        } catch {
+            lastError = "rqbit reported a file cleanup failure after removing the torrent: \(engineMessage). Sweep local cleanup also failed: \(error.localizedDescription)"
+        }
+    }
+
+    private func isEngineDataCleanupFailureAfterTorrentRemoval(_ error: Error) -> Bool {
+        let message = error.localizedDescription
+        return message.contains("torrent deleted, but could not delete files")
+            || message.contains("deleted, but could not delete files")
+            || message.contains("could not delete all torrent payload files")
     }
 
     private func setFileSelection(file: TorrentFile, included: Bool, in torrent: Torrent) async {

@@ -31,6 +31,7 @@ RQBIT_REVISION="${SWEEP_RQBIT_REVISION:-f9b4aee8}"
 RQBIT_TRACKER_COMPAT_PATCH="$ROOT_DIR/rust/patches/rqbit-tracker-compat.patch"
 RQBIT_PIECE_SNAPSHOT_PATCH="$ROOT_DIR/rust/patches/rqbit-piece-snapshot.patch"
 RQBIT_INSPECTOR_STATS_PATCH="$ROOT_DIR/rust/patches/rqbit-inspector-stats.patch"
+RQBIT_DELETE_FILE_ERRORS_PATCH="$ROOT_DIR/rust/patches/rqbit-delete-file-errors.patch"
 IOS_DEPLOYMENT_TARGET="${SWEEP_IOS_DEPLOYMENT_TARGET:-26.0}"
 
 if [ "${CONFIGURATION:-Debug}" = "Release" ]; then
@@ -279,6 +280,11 @@ apply_rqbit_patches() {
     "inspector stats" \
     "crates/tracker_comms/src/tracker_comms.rs" \
     "pub struct TrackerCommsState"
+  apply_rqbit_patch_if_missing \
+    "$RQBIT_DELETE_FILE_ERRORS_PATCH" \
+    "delete file errors" \
+    "crates/librqbit/src/session.rs" \
+    "could not delete all torrent payload files"
 }
 
 ensure_rqbit_checkout() {
