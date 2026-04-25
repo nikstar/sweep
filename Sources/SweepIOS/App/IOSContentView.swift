@@ -169,7 +169,7 @@ struct IOSContentView: View {
     }
 
     private var torrentContentType: UTType {
-        UTType(filenameExtension: "torrent") ?? .data
+        UTType(importedAs: "org.bittorrent.torrent")
     }
 
     private func importTorrentFile(_ result: Result<[URL], Error>) {

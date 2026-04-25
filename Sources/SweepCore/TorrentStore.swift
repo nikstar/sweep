@@ -76,6 +76,13 @@ public final class TorrentStore {
     }
 
     public func beginAddingTorrentFile(at url: URL) {
+        let didStartAccessing = url.startAccessingSecurityScopedResource()
+        defer {
+            if didStartAccessing {
+                url.stopAccessingSecurityScopedResource()
+            }
+        }
+
         do {
             beginAddingTorrentFile(try TorrentFileSource(contentsOf: url))
         } catch {
