@@ -32,10 +32,12 @@ else
 fi
 
 build_host_bridge() {
+  MACOS_SDKROOT="$(xcrun --sdk macosx --show-sdk-path)"
+
   if [ "${RUST_PROFILE}" = "release" ]; then
-    "$CARGO" build --release --manifest-path "$MANIFEST_PATH"
+    SDKROOT="$MACOS_SDKROOT" "$CARGO" build --release --manifest-path "$MANIFEST_PATH"
   else
-    "$CARGO" build --manifest-path "$MANIFEST_PATH"
+    SDKROOT="$MACOS_SDKROOT" "$CARGO" build --manifest-path "$MANIFEST_PATH"
   fi
 
   BRIDGE_PATH="$ROOT_DIR/rust/target/$RUST_PROFILE/libsweep_rqbit.dylib"
@@ -49,7 +51,7 @@ build_host_bridge() {
 
   cd "$CRATE_DIR"
   if [ -n "$CARGO_RUN_PROFILE" ]; then
-    "$CARGO" run --quiet "$CARGO_RUN_PROFILE" --manifest-path "$MANIFEST_PATH" --bin uniffi-bindgen-swift -- \
+    SDKROOT="$MACOS_SDKROOT" "$CARGO" run --quiet "$CARGO_RUN_PROFILE" --manifest-path "$MANIFEST_PATH" --bin uniffi-bindgen-swift -- \
       "$BRIDGE_PATH" "$GENERATED_DIR" \
       --swift-sources \
       --headers \
@@ -57,7 +59,7 @@ build_host_bridge() {
       --module-name sweep_rqbitFFI \
       --modulemap-filename module.modulemap
   else
-    "$CARGO" run --quiet --manifest-path "$MANIFEST_PATH" --bin uniffi-bindgen-swift -- \
+    SDKROOT="$MACOS_SDKROOT" "$CARGO" run --quiet --manifest-path "$MANIFEST_PATH" --bin uniffi-bindgen-swift -- \
       "$BRIDGE_PATH" "$GENERATED_DIR" \
       --swift-sources \
       --headers \
@@ -70,6 +72,8 @@ build_host_bridge() {
 }
 
 build_ios_bridge() {
+  MACOS_SDKROOT="$(xcrun --sdk macosx --show-sdk-path)"
+
   case "${PLATFORM_NAME:-}" in
     iphonesimulator)
       RUST_TARGET="${SWEEP_RUST_TARGET:-aarch64-apple-ios-sim}"
@@ -84,10 +88,15 @@ build_ios_bridge() {
   esac
 
   if [ "${RUST_PROFILE}" = "release" ]; then
-    "$CARGO" build --release --target "$RUST_TARGET" --manifest-path "$MANIFEST_PATH"
+    SDKROOT="$MACOS_SDKROOT" "$CARGO" build --release --target "$RUST_TARGET" --manifest-path "$MANIFEST_PATH"
   else
-    "$CARGO" build --target "$RUST_TARGET" --manifest-path "$MANIFEST_PATH"
+    SDKROOT="$MACOS_SDKROOT" "$CARGO" build --target "$RUST_TARGET" --manifest-path "$MANIFEST_PATH"
   fi
+
+  # Xcode links with -lsweep_rqbit; keep only the static archive available for iOS.
+  rm -f \
+    "$ROOT_DIR/rust/target/$RUST_TARGET/$RUST_PROFILE/libsweep_rqbit.dylib" \
+    "$ROOT_DIR/rust/target/$RUST_TARGET/$RUST_PROFILE/deps/libsweep_rqbit.dylib"
 }
 
 case "${PLATFORM_NAME:-macosx}" in
