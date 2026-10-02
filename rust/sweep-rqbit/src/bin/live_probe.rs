@@ -71,10 +71,21 @@ async fn async_main(
         }
         last_progress = Some(torrent.progress_bytes);
         last_peers = Some(peers);
+        if let Some(error) = &torrent.error {
+            anyhow::bail!("torrent failed: {error}");
+        }
         if torrent.state != "initializing" && torrent.progress_bytes >= min_bytes
             || (torrent.total_bytes > 0 && torrent.progress_bytes >= torrent.total_bytes)
         {
             return Ok(());
+        }
+        if second == max_seconds {
+            for tracker in &torrent.trackers {
+                eprintln!(
+                    "tracker={} status={} peers={:?} error={:?}",
+                    tracker.url, tracker.status, tracker.last_peer_count, tracker.last_error
+                );
+            }
         }
         tokio::time::sleep(Duration::from_secs(1)).await;
     }

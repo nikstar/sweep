@@ -27,12 +27,14 @@ ARTIFACTS_DIR="$ROOT_DIR/BuildArtifacts"
 XCFRAMEWORK_PATH="$ARTIFACTS_DIR/SweepRustFFI.xcframework"
 RQBIT_DIR="$ROOT_DIR/references/rqbit"
 RQBIT_URL="${SWEEP_RQBIT_URL:-https://github.com/ikatson/rqbit.git}"
-RQBIT_REVISION="${SWEEP_RQBIT_REVISION:-f9b4aee8}"
+RQBIT_REVISION="${SWEEP_RQBIT_REVISION:-f9b4aee85aff0fe52e206cfa3d3d5cc7e7d24947}"
 RQBIT_TRACKER_COMPAT_PATCH="$ROOT_DIR/rust/patches/rqbit-tracker-compat.patch"
 RQBIT_PIECE_SNAPSHOT_PATCH="$ROOT_DIR/rust/patches/rqbit-piece-snapshot.patch"
 RQBIT_INSPECTOR_STATS_PATCH="$ROOT_DIR/rust/patches/rqbit-inspector-stats.patch"
 RQBIT_DELETE_FILE_ERRORS_PATCH="$ROOT_DIR/rust/patches/rqbit-delete-file-errors.patch"
 IOS_DEPLOYMENT_TARGET="${SWEEP_IOS_DEPLOYMENT_TARGET:-26.0}"
+
+cd "$ROOT_DIR"
 
 if [ "${CONFIGURATION:-Debug}" = "Release" ]; then
   RUST_PROFILE="release"
@@ -116,9 +118,9 @@ build_macos_target() {
   ensure_rust_target_installed "$rust_target"
 
   if [ "${RUST_PROFILE}" = "release" ]; then
-    run_host_cargo "$CARGO" build --release --target "$rust_target" --manifest-path "$MANIFEST_PATH"
+    run_host_cargo "$CARGO" build --locked --lib --release --target "$rust_target" --manifest-path "$MANIFEST_PATH"
   else
-    run_host_cargo "$CARGO" build --target "$rust_target" --manifest-path "$MANIFEST_PATH"
+    run_host_cargo "$CARGO" build --locked --lib --target "$rust_target" --manifest-path "$MANIFEST_PATH"
   fi
 }
 
@@ -129,9 +131,9 @@ build_ios_target() {
   ensure_rust_target_installed "$rust_target"
 
   if [ "${RUST_PROFILE}" = "release" ]; then
-    run_ios_cargo "$sdk" "$CARGO" build --release --target "$rust_target" --manifest-path "$MANIFEST_PATH"
+    run_ios_cargo "$sdk" "$CARGO" build --locked --lib --release --target "$rust_target" --manifest-path "$MANIFEST_PATH"
   else
-    run_ios_cargo "$sdk" "$CARGO" build --target "$rust_target" --manifest-path "$MANIFEST_PATH"
+    run_ios_cargo "$sdk" "$CARGO" build --locked --lib --target "$rust_target" --manifest-path "$MANIFEST_PATH"
   fi
 }
 
@@ -148,7 +150,7 @@ generate_swift_bindings() {
 
   cd "$CRATE_DIR"
   if [ -n "$CARGO_RUN_PROFILE" ]; then
-    run_host_cargo "$CARGO" run --quiet "$CARGO_RUN_PROFILE" --manifest-path "$MANIFEST_PATH" --bin uniffi-bindgen-swift -- \
+    run_host_cargo "$CARGO" run --locked --quiet "$CARGO_RUN_PROFILE" --manifest-path "$MANIFEST_PATH" --bin uniffi-bindgen-swift -- \
       "$BRIDGE_PATH" "$GENERATED_DIR" \
       --swift-sources \
       --headers \
@@ -156,7 +158,7 @@ generate_swift_bindings() {
       --module-name sweep_rqbitFFI \
       --modulemap-filename module.modulemap
   else
-    run_host_cargo "$CARGO" run --quiet --manifest-path "$MANIFEST_PATH" --bin uniffi-bindgen-swift -- \
+    run_host_cargo "$CARGO" run --locked --quiet --manifest-path "$MANIFEST_PATH" --bin uniffi-bindgen-swift -- \
       "$BRIDGE_PATH" "$GENERATED_DIR" \
       --swift-sources \
       --headers \
@@ -289,6 +291,18 @@ apply_rqbit_patches() {
 
 ensure_rqbit_checkout() {
   if [ -d "$RQBIT_DIR/.git" ]; then
+    expected_revision="$(git -C "$RQBIT_DIR" rev-parse "$RQBIT_REVISION^{commit}")"
+    actual_revision="$(git -C "$RQBIT_DIR" rev-parse HEAD)"
+    if [ "$actual_revision" != "$expected_revision" ]; then
+      echo "error: rqbit is at $actual_revision; expected $expected_revision." >&2
+      echo "Use the pinned checkout or set SWEEP_RQBIT_REVISION explicitly." >&2
+      exit 1
+    fi
+    if [ ! -f "$RQBIT_DIR/crates/librqbit/Cargo.toml" ]; then
+      echo "error: the rqbit checkout is incomplete at $RQBIT_DIR." >&2
+      echo "Move it aside and rebuild to download a fresh checkout." >&2
+      exit 1
+    fi
     return
   fi
 

@@ -6,6 +6,7 @@ BuildArtifacts/
 *.xcuserdata/
 *.xcuserstate
 xcuserdata/
+.xcodebuildmcp/
 
 rust/target/
 **/target/

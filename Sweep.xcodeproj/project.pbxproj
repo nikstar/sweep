@@ -503,9 +503,9 @@
 			targets = (
 				171DEA5DD3E9A0D3CC068E28 /* Sweep */,
 				6F3C617DB750B34FF2F6DB21 /* SweepCoreTests */,
+				40420A501246C292C13EF3F4 /* Sweep_iOS */,
 				6BEBADF0736D16804B520D42 /* SweepLiveActivityExtension */,
 				AB913ED30FA1154D3FAFA0EE /* SweepRustArtifacts */,
-				40420A501246C292C13EF3F4 /* Sweep_iOS */,
 			);
 		};
 /* End PBXProject section */

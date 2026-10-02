@@ -16,55 +16,141 @@ The project is intentionally small and native. The macOS app follows the compact
 
 ## Requirements
 
-- Xcode 26 or newer.
+- Xcode 26.5 or newer (Swift 6.3.2 or newer).
 - XcodeGen.
-- Rust toolchain with `cargo`.
-- A local Apple Development signing identity for device builds.
+- Rust installed with `rustup`. `rust-toolchain.toml` pins the tested compiler and
+  the five Apple targets used by the Rust bridge.
+- An Apple Development signing identity for signed app/device builds.
 
-## Build
+## Set Up a New Mac
 
-Generate the Xcode project after editing `project.yml`:
+Install Xcode, launch it once to install its components, and select it in
+Xcode's Settings > Locations > Command Line Tools. Install the other tools:
 
 ```sh
+brew install xcodegen rustup
+rustup-init -y --no-modify-path
+export PATH="$HOME/.cargo/bin:$PATH"
+```
+
+Clone and prepare the project:
+
+```sh
+git clone https://github.com/nikstar/sweep.git
+cd sweep
 xcodegen generate
+Scripts/build_rust_bridge.sh
+swift test
 ```
 
-Build the macOS app:
+The first Rust build downloads the pinned rqbit checkout, applies Sweep's
+tracked patches, builds all five architectures, creates
+`BuildArtifacts/SweepRustFFI.xcframework`, and regenerates the Swift/C bindings.
+This first build takes several minutes. `references/`, `rust/target/`,
+`BuildArtifacts/`, and Swift/Xcode caches are generated locally; they do not need
+to be copied from the old laptop.
+
+Open `Sweep.xcodeproj` and choose the `Sweep` or `Sweep-iOS` scheme. Sign into
+your Apple account in Xcode for device testing. The app targets use automatic
+signing with team `6RX8GEVB43`; change the team in `project.yml` and regenerate
+the project if needed. Signing certificates and provisioning profiles are not
+stored in Git.
+
+## Build and Test
+
+Run shared model, persistence, and formatting tests:
 
 ```sh
-xcodebuild -project Sweep.xcodeproj -scheme Sweep -configuration Debug -destination 'platform=macOS' build
+swift test
 ```
 
-Build the iOS app without signing:
+Build both apps without requiring a signing identity:
 
 ```sh
+xcodebuild -project Sweep.xcodeproj -scheme Sweep -configuration Debug -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO build
 xcodebuild -project Sweep.xcodeproj -scheme Sweep-iOS -configuration Debug -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build
 ```
 
-The Xcode targets run `Scripts/build_rust_bridge.sh`. On macOS it builds and embeds `libsweep_rqbit.dylib`; on iOS it builds a static Rust library for the selected device or simulator target.
+Build for an iOS simulator:
+
+```sh
+xcodebuild -project Sweep.xcodeproj -scheme Sweep-iOS -configuration Debug -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
+```
+
+Remove `CODE_SIGNING_ALLOWED=NO` for a signed build. Regenerate the Xcode project
+with `xcodegen generate` after changing `project.yml`.
+
+After `swift test` has fetched the packages, command-line Xcode builds can reuse
+those checkouts with `-clonedSourcePackagesDirPath "$PWD/.build"`. Add
+`-onlyUsePackageVersionsFromResolvedFile` to require the committed Swift pins.
+
+Both apps link the Rust static archives from the generated XCFramework. The
+shared Swift modules are local Swift package products; there are no embedded
+internal bridge frameworks or Rust dylibs in the app bundles. TLS uses rustls.
 
 When Xcode is launched from Finder, it may not inherit your shell `PATH`. The build phase calls `Scripts/build_rust_bridge.sh`, which checks common Cargo locations such as `~/.cargo/bin/cargo`, `/opt/homebrew/bin/cargo`, and `/usr/local/bin/cargo`.
 
+Swift dependencies are recorded in `Package.resolved`; Rust dependencies are
+recorded in `rust/sweep-rqbit/Cargo.lock`. The bridge script uses `--locked` so a
+normal build cannot silently change Rust dependency versions. Dependency updates
+should be followed by shared tests and builds of both apps.
+
 ## Rust Patches
 
-Sweep currently uses a pinned local checkout of rqbit under `references/rqbit`. That checkout is ignored by Git because it is upstream source, but the changes we rely on are tracked in this repo:
+Sweep uses rqbit revision `f9b4aee85aff0fe52e206cfa3d3d5cc7e7d24947` under
+`references/rqbit`. The checkout is ignored by Git because it is upstream source,
+but the changes we rely on are tracked in this repo:
 
 - `rust/patches/rqbit-tracker-compat.patch`
 - `rust/patches/rqbit-piece-snapshot.patch`
 - `rust/patches/rqbit-inspector-stats.patch`
+- `rust/patches/rqbit-delete-file-errors.patch`
 - `rust/patches/librqbit-dualstack-sockets/`
 
-The build script creates `references/rqbit` at the pinned revision when it is missing, then applies the tracked patches if needed. If you already have a checkout there, the script leaves it in place and only verifies/applies missing patches.
+The build script creates the checkout when it is missing, verifies its revision,
+and applies missing patches. An incomplete checkout or a different revision
+causes an explicit error. Move a damaged checkout aside and rebuild to download
+a fresh one. Update the revision and patches together when upgrading rqbit;
+`SWEEP_RQBIT_REVISION` is available for explicit local experiments.
 
-## Swift-Only UI Work
+## Project State
 
-For quick Swift-only iteration, SwiftPM still works:
+- macOS 15+: compact torrent list, configurable columns, transfer controls,
+  persisted sessions, and file/tracker/peer inspectors.
+- iOS 26+, iPhone only: shared engine and persistence, magnet links, torrent
+  document opening, file inspection, background download modes, and Live Activities.
+- Remaining UI/engine work is tracked in [docs/FEATURES.md](docs/FEATURES.md).
+- Distribution is through GitHub; App Store distribution is not a project goal.
+
+The apps are Xcode targets. SwiftPM builds the shared libraries and tests, not an
+app executable. Both apps include a demo-engine fallback if engine initialization
+fails; successful compilation alone does not prove torrent transfers work.
+
+Verified on October 2, 2026 with Xcode 26.5 and the pinned Rust toolchain:
+
+- All seven shared tests pass.
+- macOS and iOS device builds pass, including a signed iOS build.
+- The iOS simulator build installs and launches successfully.
+- Rust artifacts rebuild from an empty `BuildArtifacts/` and Rust target cache.
+- The iOS app contains no embedded internal frameworks or Rust dylibs.
+
+Live downloading is not yet revalidated: an Arch trackerless torrent found no
+peers within two minutes, and a Debian tracker connection timed out. The existing
+`live_probe` command now reports tracker errors on failure. Test on a network with
+working BitTorrent connectivity before relying on transfers or background modes:
 
 ```sh
-swift run Sweep
+cargo run --locked --manifest-path rust/sweep-rqbit/Cargo.toml --bin live_probe -- /path/to/test.torrent /tmp/sweep-transfer-test 1048576 120
 ```
 
-If the dynamic library is not available, the app launches with a local demo engine so UI work can continue independently.
+Use a new, empty output directory so existing verified pieces cannot make the
+probe succeed without downloading. Physical iPhone startup still needs a connected,
+unlocked device; the signed build alone does not verify it.
+
+The October 2026 refresh recovered the `sweep` working tree and history from an
+identical `sweep-clone` checkout. That second directory had no newer source
+changes. Its older device-build stash is preserved in Git as
+`archive/april-device-probe`; it is historical code, not the current build setup.
 
 ## License
 

@@ -14,7 +14,7 @@ let package = Package(
         .library(name: "SweepRQBitBridge", targets: ["SweepRQBitBridge"])
     ],
     dependencies: [
-        .package(url: "https://github.com/pointfreeco/sqlite-data", from: "1.6.1")
+        .package(url: "https://github.com/pointfreeco/sqlite-data", from: "1.12.0")
     ],
     targets: [
         .systemLibrary(
