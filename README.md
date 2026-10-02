@@ -16,11 +16,18 @@ The project is intentionally small and native. The macOS app follows the compact
 
 ## Requirements
 
-- Xcode 26.5 or newer (Swift 6.3.2 or newer).
+- Xcode 26.5 (Swift 6.3.2), the tested toolchain.
 - XcodeGen.
 - Rust installed with `rustup`. `rust-toolchain.toml` pins the tested compiler and
   the five Apple targets used by the Rust bridge.
 - An Apple Development signing identity for signed app/device builds.
+
+The installed Xcode 27 Beta 2 is not a working substitute: its early Swift 6.4
+compiler fails to compile Swift Collections 1.7.1 (`Span.BorrowingIterator`
+errors). Newer Xcode 27 releases have not been verified. Use Xcode 26.5 to
+reproduce the checked builds. Switching Swift compiler versions can also select
+different dependency manifests and change `Package.resolved`; resolve and test
+the dependencies again when changing toolchains.
 
 ## Set Up a New Mac
 
@@ -55,6 +62,11 @@ your Apple account in Xcode for device testing. The app targets use automatic
 signing with team `6RX8GEVB43`; change the team in `project.yml` and regenerate
 the project if needed. Signing certificates and provisioning profiles are not
 stored in Git.
+
+Application state and downloaded files are separate from the source repository.
+To preserve macOS torrent sessions, quit Sweep and migrate
+`~/Library/Application Support/Sweep/` and the payload download folders separately.
+Do not put that database or signing credentials in the public Git repository.
 
 ## Build and Test
 
@@ -133,6 +145,8 @@ Verified on October 2, 2026 with Xcode 26.5 and the pinned Rust toolchain:
 - The iOS simulator build installs and launches successfully.
 - Rust artifacts rebuild from an empty `BuildArtifacts/` and Rust target cache.
 - The iOS app contains no embedded internal frameworks or Rust dylibs.
+- A fresh GitHub checkout bootstraps all Rust artifacts, passes the shared tests,
+  and builds the iOS app with fresh Xcode derived data.
 
 Live downloading is not yet revalidated: an Arch trackerless torrent found no
 peers within two minutes, and a Debian tracker connection timed out. The existing
@@ -144,8 +158,10 @@ cargo run --locked --manifest-path rust/sweep-rqbit/Cargo.toml --bin live_probe 
 ```
 
 Use a new, empty output directory so existing verified pieces cannot make the
-probe succeed without downloading. Physical iPhone startup still needs a connected,
-unlocked device; the signed build alone does not verify it.
+probe succeed without downloading. Physical iPhone installation timed out while
+establishing the device connection, including a retry with Xcode 27 tools. Startup
+still needs a connected, unlocked device and Xcode support for its installed iOS
+version; the signed build alone does not verify it.
 
 The October 2026 refresh recovered the `sweep` working tree and history from an
 identical `sweep-clone` checkout. That second directory had no newer source
