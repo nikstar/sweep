@@ -561,6 +561,8 @@ public protocol SweepEngineProtocol: AnyObject, Sendable {
 
     func addTorrentFile(torrentBytes: Data, downloadDir: String, startPaused: Bool) async throws  -> TorrentSnapshot
 
+    func cancelPendingAdd(id: String)
+
     func listTorrents() async throws  -> [TorrentSnapshot]
 
     func pauseTorrent(id: String) async throws  -> TorrentSnapshot
@@ -570,6 +572,8 @@ public protocol SweepEngineProtocol: AnyObject, Sendable {
     func resumeTorrent(id: String) async throws  -> TorrentSnapshot
 
     func sessionSnapshot() async throws  -> TorrentSessionSnapshot
+
+    func torrentFile(id: String) throws  -> Data
 
     func updateOnlyFiles(id: String, fileIds: [UInt64]) async throws  -> TorrentSnapshot
 
@@ -669,6 +673,14 @@ open func addTorrentFile(torrentBytes: Data, downloadDir: String, startPaused: B
         )
 }
 
+open func cancelPendingAdd(id: String)  {try! rustCall() {
+    uniffi_sweep_rqbit_fn_method_sweepengine_cancel_pending_add(
+            self.uniffiCloneHandle(),
+        FfiConverterString.lower(id),$0
+    )
+}
+}
+
 open func listTorrents()async throws  -> [TorrentSnapshot]  {
     return
         try  await uniffiRustCallAsync(
@@ -752,6 +764,15 @@ open func sessionSnapshot()async throws  -> TorrentSessionSnapshot  {
             liftFunc: FfiConverterTypeTorrentSessionSnapshot_lift,
             errorHandler: FfiConverterTypeSweepError_lift
         )
+}
+
+open func torrentFile(id: String)throws  -> Data  {
+    return try  FfiConverterData.lift(try rustCallWithError(FfiConverterTypeSweepError_lift) {
+    uniffi_sweep_rqbit_fn_method_sweepengine_torrent_file(
+            self.uniffiCloneHandle(),
+        FfiConverterString.lower(id),$0
+    )
+})
 }
 
 open func updateOnlyFiles(id: String, fileIds: [UInt64])async throws  -> TorrentSnapshot  {
@@ -1764,6 +1785,9 @@ private let initializationResult: InitializationResult = {
     if (uniffi_sweep_rqbit_checksum_method_sweepengine_add_torrent_file() != 11627) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_sweep_rqbit_checksum_method_sweepengine_cancel_pending_add() != 58728) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_sweep_rqbit_checksum_method_sweepengine_list_torrents() != 57991) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -1777,6 +1801,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_sweep_rqbit_checksum_method_sweepengine_session_snapshot() != 7402) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_sweep_rqbit_checksum_method_sweepengine_torrent_file() != 42339) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_sweep_rqbit_checksum_method_sweepengine_update_only_files() != 11478) {

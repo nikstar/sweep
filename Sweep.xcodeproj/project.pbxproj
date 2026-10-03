@@ -27,6 +27,7 @@
 		04B21F48994E312590A7A628 /* TorrentInspectorPanelPresenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0D50F7F08FCE2BF7AEFCB89 /* TorrentInspectorPanelPresenter.swift */; };
 		07532BB1A40360727B2E42FE /* TorrentTrackersInspector.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9ED0157451A46C834DB8AE6 /* TorrentTrackersInspector.swift */; };
 		0A5CF109E208B258BA056A8B /* TorrentListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2170D7D5E1DE9A57C6877DE6 /* TorrentListView.swift */; };
+		0D55175C70774209DB139C87 /* TorrentLifecycleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 023653D577C0469AAD600311 /* TorrentLifecycleTests.swift */; };
 		110758FC1E31ABD4A9EB4F21 /* ClassicAppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = F4F8144C9CB2D86DE3006667 /* ClassicAppIcon.icon */; };
 		13399D2ABC6290FB61C6C36E /* AddTorrentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F80B63B37D4FE59E26F637E /* AddTorrentView.swift */; };
 		145A209E413E63D6BF04372F /* SweepCore in Frameworks */ = {isa = PBXBuildFile; productRef = 4D0BE6C533E81778044F631F /* SweepCore */; };
@@ -114,6 +115,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		023653D577C0469AAD600311 /* TorrentLifecycleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TorrentLifecycleTests.swift; sourceTree = "<group>"; };
 		034F76CBDB7DC7E5278B203E /* AppPersistenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppPersistenceTests.swift; sourceTree = "<group>"; };
 		193A77A37E82D3DE990B59CC /* IOSContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IOSContentView.swift; sourceTree = "<group>"; };
 		1C768342A0B00653E1909911 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -359,6 +361,7 @@
 			children = (
 				034F76CBDB7DC7E5278B203E /* AppPersistenceTests.swift */,
 				5A728B9E5B8BDF1B1D204EAB /* TorrentDisplayFormatTests.swift */,
+				023653D577C0469AAD600311 /* TorrentLifecycleTests.swift */,
 				EC7DA44B71E17BB508D7805C /* TorrentStoreTests.swift */,
 			);
 			path = SweepCoreTests;
@@ -567,6 +570,7 @@
 			files = (
 				E7FAA83BB751263F4BAE4172 /* AppPersistenceTests.swift in Sources */,
 				66EF4B0F6FB03D4CFB26203F /* TorrentDisplayFormatTests.swift in Sources */,
+				0D55175C70774209DB139C87 /* TorrentLifecycleTests.swift in Sources */,
 				DD256C572EE921F0BB7081E7 /* TorrentStoreTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

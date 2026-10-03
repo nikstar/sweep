@@ -274,8 +274,8 @@ private struct TorrentNameCell: View {
 
         if torrent.totalBytes > 0 {
             parts.append("\(TorrentDisplayFormat.percent(torrent.progress)) of \(ByteFormatter.bytes(torrent.totalBytes))")
-        } else {
-            parts.append("Waiting for metadata")
+        } else if torrent.state != "resolving" {
+            parts.append("Metadata not downloaded")
         }
 
         if torrent.remainingBytes > 0 {
@@ -399,9 +399,25 @@ private struct TransferRateLine: View {
 
 private struct TransferStatusBar: View {
     @Environment(TorrentStore.self) private var store
+    @State private var showingHealth = false
+    private var needsAttention: Bool {
+        store.healthError != nil || store.torrents.contains { $0.error != nil }
+    }
 
     var body: some View {
         HStack(spacing: 16) {
+            Button {
+                showingHealth.toggle()
+            } label: {
+                Label(store.engineName, systemImage: needsAttention ? "exclamationmark.triangle" : "checkmark.circle")
+                    .foregroundStyle(needsAttention ? Color.orange : Color.secondary)
+            }
+            .buttonStyle(.borderless)
+            .help("Session health and restoration status")
+            .popover(isPresented: $showingHealth) {
+                SessionHealthView()
+                    .environment(store)
+            }
             Label(ByteFormatter.rate(store.sessionStats.downloadBps), systemImage: "arrow.down")
             Label(ByteFormatter.rate(store.sessionStats.uploadBps), systemImage: "arrow.up")
             Label("\(store.sessionStats.livePeers) peers", systemImage: "person.2")
@@ -413,11 +429,18 @@ private struct TransferStatusBar: View {
 
             Spacer()
 
-            if let error = store.lastError {
+            if let error = store.healthError {
                 Text(error)
                     .foregroundStyle(.red)
                     .lineLimit(1)
                     .truncationMode(.middle)
+                    .help(error)
+            } else if store.isRestoringSession {
+                Text("Restoring session…")
+                    .foregroundStyle(.secondary)
+            } else if store.pendingTorrentCount > 0 {
+                Text("\(store.pendingTorrentCount) pending")
+                    .foregroundStyle(.secondary)
             } else if let torrent = store.selectedTorrent {
                 Text(torrent.statusLabel)
                     .foregroundStyle(.secondary)
@@ -427,5 +450,39 @@ private struct TransferStatusBar: View {
         .padding(.horizontal, 12)
         .frame(height: 34)
         .background(.bar)
+    }
+}
+
+private struct SessionHealthView: View {
+    @Environment(TorrentStore.self) private var store
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Session Health").font(.headline)
+            LabeledContent("Engine", value: store.engineName)
+            LabeledContent("Session", value: store.isRestoringSession ? "Restoring" : "Loaded")
+            LabeledContent("Pending", value: "\(store.pendingTorrentCount)")
+            LabeledContent("Torrent errors", value: "\(store.torrents.filter { $0.error != nil }.count)")
+            LabeledContent("Storage", value: store.hasPersistence ? (store.persistenceError == nil ? "Available" : "Save failed") : "Unavailable")
+            if let updated = store.lastRefreshAt {
+                LabeledContent("Last engine response") {
+                    Text(updated, style: .relative)
+                }
+            } else {
+                LabeledContent("Last engine response", value: "None")
+            }
+            if let error = store.healthError {
+                Divider()
+                Text(error).foregroundStyle(.red).textSelection(.enabled)
+            }
+            if store.lastError != nil {
+                Button("Dismiss Action Error") { store.lastError = nil }
+            }
+            Text("A responding engine does not guarantee reachable peers. See the torrent inspector for transfer and tracker details.")
+                .font(.caption).foregroundStyle(.secondary)
+        }
+        .font(.callout)
+        .padding(16)
+        .frame(width: 380)
     }
 }

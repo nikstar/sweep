@@ -1,0 +1,166 @@
+use super::*;
+use std::{
+    fs,
+    time::{SystemTime, UNIX_EPOCH},
+};
+
+struct Fixture(PathBuf);
+impl Fixture {
+    fn new() -> Self {
+        let stamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let path =
+            std::env::temp_dir().join(format!("sweep-rqbit-test-{}-{stamp}", std::process::id()));
+        fs::create_dir_all(&path).unwrap();
+        Self(path)
+    }
+    fn folder(&self, name: &str) -> PathBuf {
+        let path = self.0.join(name);
+        fs::create_dir_all(&path).unwrap();
+        path
+    }
+}
+impl Drop for Fixture {
+    fn drop(&mut self) {
+        let _ = fs::remove_dir_all(&self.0);
+    }
+}
+
+fn local_engine(path: PathBuf) -> Arc<SweepEngine> {
+    let runtime = Builder::new_multi_thread().enable_all().build().unwrap();
+    let session = runtime
+        .block_on(Session::new_with_opts(
+            path,
+            SessionOptions {
+                disable_dht: true,
+                disable_local_service_discovery: true,
+                listen: Some(ListenerOptions {
+                    mode: ListenerMode::TcpOnly,
+                    listen_addr: "127.0.0.1:0".parse().unwrap(),
+                    ..Default::default()
+                }),
+                connect: Some(ConnectionOptions::default()),
+                ..Default::default()
+            },
+        ))
+        .unwrap();
+    Arc::new(SweepEngine {
+        runtime,
+        session,
+        peer_id: tracker_compatible_peer_id(),
+        pending_adds: Mutex::new(HashMap::new()),
+    })
+}
+
+#[test]
+fn transfers_payload_over_loopback_and_restores_cached_metadata() {
+    let fixture = Fixture::new();
+    let seed_dir = fixture.folder("seed");
+    let download_dir = fixture.folder("download");
+    let payload: Vec<u8> = (0..1_048_576).map(|n| (n % 251) as u8).collect();
+    let payload_path = seed_dir.join("payload.bin");
+    fs::write(&payload_path, &payload).unwrap();
+    let seed = local_engine(seed_dir);
+    let download = local_engine(download_dir.clone());
+    seed.runtime.block_on(async {
+        let (created, seed_handle) = seed
+            .session
+            .create_and_serve_torrent(
+                &payload_path,
+                librqbit::CreateTorrentOptions {
+                    piece_length: Some(65536),
+                    ..Default::default()
+                },
+            )
+            .await
+            .unwrap();
+        tokio::time::timeout(Duration::from_secs(10), async {
+            while !seed_handle.stats().finished {
+                tokio::time::sleep(Duration::from_millis(20)).await;
+            }
+        })
+        .await
+        .unwrap();
+        let added = add_torrent_to_session(
+            download.session.clone(),
+            AddTorrent::from_bytes(created.as_bytes().unwrap()),
+            download_dir.to_str().unwrap().to_owned(),
+            false,
+            vec![seed.session.listen_addr().unwrap()],
+        )
+        .await
+        .unwrap();
+        let id = added.info_hash;
+        tokio::time::timeout(Duration::from_secs(15), async {
+            loop {
+                let snapshot = download.list_torrents().await.unwrap().remove(0);
+                assert!(snapshot.error.is_none(), "{:?}", snapshot.error);
+                if snapshot.progress_bytes == payload.len() as u64 {
+                    break;
+                }
+                tokio::time::sleep(Duration::from_millis(25)).await;
+            }
+        })
+        .await
+        .expect("local payload transfer timed out");
+        assert_eq!(fs::read(download_dir.join("payload.bin")).unwrap(), payload);
+        let metadata = download.torrent_file(id.clone()).unwrap();
+        download.remove_torrent(id.clone(), false).await.unwrap();
+        let restored = download
+            .add_torrent_file(metadata, download_dir.to_str().unwrap().to_owned(), true)
+            .await
+            .unwrap();
+        assert_eq!(restored.info_hash, id);
+        tokio::time::timeout(Duration::from_secs(10), async {
+            loop {
+                let snapshot = download.list_torrents().await.unwrap().remove(0);
+                if snapshot.state == "paused" {
+                    assert_eq!(snapshot.progress_bytes, payload.len() as u64);
+                    break;
+                }
+                tokio::time::sleep(Duration::from_millis(20)).await;
+            }
+        })
+        .await
+        .expect("restoration did not reach paused state");
+    });
+}
+
+#[test]
+fn cancelling_metadata_discovery_aborts_the_rust_task() {
+    let fixture = Fixture::new();
+    let engine = local_engine(fixture.folder("download"));
+    engine.runtime.block_on(async {
+        // A local tracker that never responds keeps discovery pending, without
+        // relying on an external network or on a particular public swarm.
+        let tracker = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let id = "0123456789abcdef0123456789abcdef01234567";
+        let magnet = format!(
+            "magnet:?xt=urn:btih:{id}&tr=http://{}/announce",
+            tracker.local_addr().unwrap()
+        );
+        let task_engine = engine.clone();
+        let task = tokio::spawn(async move {
+            task_engine
+                .add_magnet(magnet, "/unused".to_owned(), true)
+                .await
+        });
+        tokio::time::timeout(Duration::from_secs(2), async {
+            while engine.pending_adds.lock().unwrap().is_empty() {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .unwrap();
+        engine.cancel_pending_add(id.to_owned());
+        let result = tokio::time::timeout(Duration::from_secs(2), task)
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(result.is_err());
+        assert!(engine.pending_adds.lock().unwrap().is_empty());
+        assert!(engine.list_torrents().await.unwrap().is_empty());
+    });
+}

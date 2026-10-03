@@ -2,6 +2,7 @@ import Foundation
 
 public protocol TorrentEngine: Sendable {
     var name: String { get }
+    var unavailabilityReason: String? { get }
     func list() async throws -> [Torrent]
     func sessionStats() async throws -> TorrentSessionStats
     func addTorrent(
@@ -13,9 +14,14 @@ public protocol TorrentEngine: Sendable {
     func resume(id: Torrent.ID) async throws -> Torrent
     func remove(id: Torrent.ID, deleteData: Bool) async throws
     func setFileSelection(id: Torrent.ID, includedFileIDs: [Int]) async throws -> Torrent
+    func cancelPendingAdd(id: Torrent.ID) async
+    func torrentFile(id: Torrent.ID) async throws -> TorrentFileSource?
 }
 
 public extension TorrentEngine {
+    var unavailabilityReason: String? { nil }
+    func cancelPendingAdd(id: Torrent.ID) async {}
+    func torrentFile(id: Torrent.ID) async throws -> TorrentFileSource? { nil }
     func sessionStats() async throws -> TorrentSessionStats {
         let torrents = try await list()
         return TorrentSessionStats(
@@ -43,6 +49,24 @@ public extension TorrentEngine {
     func setFileSelection(id: Torrent.ID, includedFileIDs: [Int]) async throws -> Torrent {
         throw TorrentEngineUnsupportedOperation(message: "This engine cannot change file selection.")
     }
+}
+
+public struct UnavailableTorrentEngine: TorrentEngine {
+    public let name = "rqbit unavailable"
+    public let unavailabilityReason: String?
+
+    public init(reason: String) { self.unavailabilityReason = reason }
+
+    private var failure: TorrentEngineUnsupportedOperation {
+        TorrentEngineUnsupportedOperation(message: unavailabilityReason ?? "The torrent engine is unavailable.")
+    }
+
+    public func list() async throws -> [Torrent] { throw failure }
+    public func sessionStats() async throws -> TorrentSessionStats { throw failure }
+    public func addTorrent(_ source: TorrentAddSource, downloadDirectory: String, startPaused: Bool) async throws -> Torrent { throw failure }
+    public func pause(id: Torrent.ID) async throws -> Torrent { throw failure }
+    public func resume(id: Torrent.ID) async throws -> Torrent { throw failure }
+    public func remove(id: Torrent.ID, deleteData: Bool) async throws { throw failure }
 }
 
 private struct TorrentEngineUnsupportedOperation: LocalizedError, Sendable {

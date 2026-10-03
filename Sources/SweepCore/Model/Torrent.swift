@@ -505,6 +505,9 @@ public struct Torrent: Identifiable, Hashable, Codable, Sendable {
         if desiredState == .paused {
             return isPausedInEngine ? "Paused" : "Pausing"
         }
+        if state == "resolving" { return "Finding metadata" }
+        if state == "restoring" { return "Restoring" }
+        if state == "initializing" { return "Checking files" }
         if isPausedInEngine {
             return "Resuming"
         }
@@ -519,13 +522,13 @@ public struct Torrent: Identifiable, Hashable, Codable, Sendable {
     }
 
     public var addSource: TorrentAddSource? {
-        if let magnet {
-            return .magnet(magnet)
-        }
         if let torrentFileBytes {
             return .torrentFile(
                 TorrentFileSource(fileName: torrentFileName, bytes: torrentFileBytes)
             )
+        }
+        if let magnet {
+            return .magnet(magnet)
         }
         return nil
     }
@@ -549,6 +552,7 @@ public struct Torrent: Identifiable, Hashable, Codable, Sendable {
         downloadBps: Double? = nil,
         uploadBps: Double? = nil,
         error: String? = nil,
+        clearError: Bool = false,
         addedAt: Date? = nil,
         updatedAt: Date = Date()
     ) -> Torrent {
@@ -572,7 +576,7 @@ public struct Torrent: Identifiable, Hashable, Codable, Sendable {
             uploadedBytes: uploadedBytes ?? self.uploadedBytes,
             downloadBps: downloadBps ?? self.downloadBps,
             uploadBps: uploadBps ?? self.uploadBps,
-            error: error ?? self.error,
+            error: error ?? (clearError ? nil : self.error),
             addedAt: addedAt ?? self.addedAt,
             updatedAt: updatedAt
         )
@@ -587,6 +591,8 @@ public struct Torrent: Identifiable, Hashable, Codable, Sendable {
                 name: name,
                 infoHash: infoHash,
                 magnet: magnet,
+                torrentFileName: torrentFileName,
+                torrentFileBytes: torrentFileBytes,
                 downloadDirectory: downloadDirectory,
                 desiredState: desiredState,
                 state: state,
@@ -610,6 +616,7 @@ public struct Torrent: Identifiable, Hashable, Codable, Sendable {
                 engineID: engineID,
                 name: name,
                 infoHash: infoHash,
+                magnet: magnet,
                 torrentFileName: file.fileName,
                 torrentFileBytes: file.bytes,
                 downloadDirectory: downloadDirectory,

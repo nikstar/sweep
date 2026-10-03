@@ -117,13 +117,17 @@ private enum AppEnvironment {
             return TorrentStore(
                 engine: makeTorrentEngine(downloadDirectory: fallbackDownloadDirectory),
                 downloadDirectory: fallbackDownloadDirectory,
-                initialError: error.localizedDescription
+                initialError: "Session storage is unavailable; changes cannot be restored after quitting. \(error.localizedDescription)"
             )
         }
     }
 
     private static func makeTorrentEngine(downloadDirectory: String) -> TorrentEngine {
-        RqbitEngine.makeDefault(downloadDirectory: downloadDirectory) ?? DemoTorrentEngine(downloadDirectory: downloadDirectory)
+        do {
+            return try RqbitEngine(downloadDirectory: downloadDirectory)
+        } catch {
+            return UnavailableTorrentEngine(reason: error.localizedDescription)
+        }
     }
 
     private static func defaultDownloadDirectory() -> String {

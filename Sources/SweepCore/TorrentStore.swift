@@ -15,6 +15,18 @@ public final class TorrentStore {
     public var lastError: String?
     public var downloadDirectory: String
     public var sessionStats: TorrentSessionStats = .empty
+    public private(set) var isRestoringSession = true
+    public private(set) var lastRefreshAt: Date?
+    public private(set) var refreshError: String?
+    public private(set) var persistenceError: String?
+    public let startupError: String?
+    public var engineError: String? { engine.unavailabilityReason }
+    public var hasPersistence: Bool { persistence != nil }
+    public var pendingTorrentCount: Int { pendingAdds.count }
+
+    public var healthError: String? {
+        engineError ?? startupError ?? persistenceError ?? refreshError ?? lastError
+    }
 
     private let engine: TorrentEngine
     private let persistence: AppPersistence?
@@ -24,6 +36,12 @@ public final class TorrentStore {
     private var launchTask: Task<Void, Never>?
     @ObservationIgnored
     private var locallyRemovedTorrentIDs: Set<Torrent.ID> = []
+    @ObservationIgnored private var managedTorrentIDs: Set<Torrent.ID> = []
+    private var pendingAdds: [Torrent.ID: UUID] = [:]
+    @ObservationIgnored private var addTasks: [Torrent.ID: Task<Void, Never>] = [:]
+    @ObservationIgnored private var isRefreshing = false
+    @ObservationIgnored private var mutationRevision = 0
+    @ObservationIgnored private var commandVersions: [Torrent.ID: UUID] = [:]
 
     public init(
         engine: TorrentEngine,
@@ -36,8 +54,11 @@ public final class TorrentStore {
         self.persistence = persistence
         self.downloadDirectory = initialState?.downloadDirectory ?? downloadDirectory
         self.lastError = initialError
+        self.startupError = initialError
         if let initialState {
-            self.torrents = normalized(torrents: initialState.torrents, downloadDirectory: self.downloadDirectory)
+            self.torrents = normalized(torrents: initialState.torrents, downloadDirectory: self.downloadDirectory).map {
+                $0.updating(state: $0.desiredState == .paused ? "paused" : "restoring", peers: [], pieceRuns: [], downloadBps: 0, uploadBps: 0, clearError: true)
+            }
             self.selection = initialState.selectedTorrentID
         }
         launchTask = Task { [weak self] in
@@ -48,6 +69,7 @@ public final class TorrentStore {
     deinit {
         pollingTask?.cancel()
         launchTask?.cancel()
+        for task in addTasks.values { task.cancel() }
     }
 
     public var engineName: String {
@@ -60,11 +82,12 @@ public final class TorrentStore {
     }
 
     public var canPauseSelectedTorrent: Bool {
-        selectedTorrent?.desiredState == .running
+        selectedTorrent?.desiredState == .running && engineError == nil
     }
 
     public var canResumeSelectedTorrent: Bool {
-        selectedTorrent?.desiredState == .paused
+        guard let torrent = selectedTorrent, engineError == nil else { return false }
+        return torrent.desiredState == .paused || torrent.error != nil
     }
 
     public func beginAddingMagnet(_ magnet: String = "") {
@@ -112,8 +135,38 @@ public final class TorrentStore {
         downloadDirectory: String,
         startPaused: Bool
     ) async -> Torrent? {
+        await launchTask?.value
+        if let engineError {
+            lastError = engineError
+            return nil
+        }
         do {
             try createDownloadDirectory(at: downloadDirectory)
+            if case .magnet(let value) = source {
+                let magnet = try MagnetLink(value)
+                if let existing = torrents.first(where: { $0.id == magnet.infoHash }) {
+                    selection = existing.id
+                    return existing
+                }
+                let torrent = Torrent(
+                    name: magnet.name, infoHash: magnet.infoHash, magnet: magnet.value,
+                    downloadDirectory: downloadDirectory,
+                    desiredState: startPaused ? .paused : .running,
+                    state: startPaused ? "paused" : "resolving", trackers: magnet.trackers,
+                    progressBytes: 0, totalBytes: 0, uploadedBytes: 0,
+                    downloadBps: 0, uploadBps: 0, error: nil
+                )
+                // Save the user's intent before starting any network work.
+                try await persistence?.save(torrent: torrent)
+                mutationRevision += 1
+                locallyRemovedTorrentIDs.remove(torrent.id)
+                upsert(torrent)
+                selection = torrent.id
+                if !startPaused { startAddingToEngine(torrent) }
+                lastError = nil
+                return torrent
+            }
+            mutationRevision += 1
             let torrent = try await engine
                 .addTorrent(source, downloadDirectory: downloadDirectory, startPaused: startPaused)
                 .withAddSource(source)
@@ -122,6 +175,8 @@ public final class TorrentStore {
                     desiredState: startPaused ? .paused : .running
                 )
             locallyRemovedTorrentIDs.remove(torrent.id)
+            managedTorrentIDs.insert(torrent.id)
+            mutationRevision += 1
             upsert(torrent)
             try await persistence?.save(torrent: torrent)
             selection = torrent.id
@@ -154,20 +209,35 @@ public final class TorrentStore {
     }
 
     public func refreshNow() async {
+        await launchTask?.value
+        guard !isRefreshing, engineError == nil else { return }
+        isRefreshing = true
+        defer { isRefreshing = false }
+        let revision = mutationRevision
         do {
             let liveTorrents = try await engine.list()
+            let stats = try await engine.sessionStats()
+            guard revision == mutationRevision else { return }
+            managedTorrentIDs = Set(liveTorrents.map(\.id))
             let visibleLiveTorrents = filterVisibleLiveTorrents(from: liveTorrents)
-            for torrent in visibleLiveTorrents {
+            for torrent in visibleLiveTorrents where pendingAdds[torrent.id] == nil && commandVersions[torrent.id] == nil {
                 upsert(liveTorrent: torrent)
             }
-            sessionStats = try await engine.sessionStats()
-                .smoothed(from: sessionStats)
+            sessionStats = stats.smoothed(from: sessionStats)
+            lastRefreshAt = Date()
+            refreshError = nil
             try await enforceDesiredStates(for: Set(visibleLiveTorrents.map(\.id)))
             discardLocallyRemovedTorrents()
-            try await persistence?.save(torrents: torrents)
-            lastError = nil
+            // A removed pending add may finish just as cancellation arrives. It was
+            // added paused, so clean up the handle without touching payload files.
+            for torrent in liveTorrents where locallyRemovedTorrentIDs.contains(torrent.id) {
+                try await engine.remove(id: torrent.id, deleteData: false)
+            }
+            await saveCurrentTorrents()
         } catch {
-            lastError = error.localizedDescription
+            refreshError = error.localizedDescription
+            sessionStats = .empty
+            torrents = torrents.map { $0.updating(downloadBps: 0, uploadBps: 0) }
         }
     }
 
@@ -239,6 +309,7 @@ public final class TorrentStore {
     }
 
     private func prepareForLaunch(hasInitialState: Bool) async {
+        defer { isRestoringSession = false }
         if !hasInitialState {
             await loadPersistedState()
         }
@@ -254,7 +325,9 @@ public final class TorrentStore {
                 try? await persistence?.saveSetting(.downloadDirectory, value: downloadDirectory)
             }
             if !state.torrents.isEmpty {
-                torrents = normalized(torrents: state.torrents, downloadDirectory: self.downloadDirectory)
+                torrents = normalized(torrents: state.torrents, downloadDirectory: self.downloadDirectory).map {
+                    $0.updating(state: $0.desiredState == .paused ? "paused" : "restoring", peers: [], pieceRuns: [], downloadBps: 0, uploadBps: 0, clearError: true)
+                }
             }
             selection = state.selectedTorrentID
         } catch {
@@ -263,74 +336,129 @@ public final class TorrentStore {
     }
 
     private func reconcileWithEngine() async {
+        guard engineError == nil else { return }
         do {
-            discardLocallyRemovedTorrents()
-            let cachedTorrents = torrents
             let liveTorrents = try await engine.list()
-            let visibleLiveTorrents = filterVisibleLiveTorrents(from: liveTorrents)
-            for torrent in visibleLiveTorrents {
+            managedTorrentIDs = Set(liveTorrents.map(\.id))
+            for torrent in filterVisibleLiveTorrents(from: liveTorrents) {
                 upsert(liveTorrent: torrent)
             }
-
-            let liveTorrentIDs = Set(visibleLiveTorrents.map(\.id))
-            let missingCachedTorrents = cachedTorrents.filter { torrent in
-                !liveTorrentIDs.contains(torrent.id) && torrent.addSource != nil
-            }
-
-            for cachedTorrent in missingCachedTorrents {
-                guard let source = cachedTorrent.addSource else { continue }
-                guard !locallyRemovedTorrentIDs.contains(cachedTorrent.id) else { continue }
-                do {
-                    let restoredTorrent = try await engine
-                        .addTorrent(
-                            source,
-                            downloadDirectory: cachedTorrent.downloadDirectory ?? downloadDirectory,
-                            startPaused: cachedTorrent.desiredState == .paused
-                        )
-                        .withAddSource(source)
-                        .mergingCachedMetadata(from: cachedTorrent)
-                    if locallyRemovedTorrentIDs.contains(cachedTorrent.id) {
-                        try? await engine.remove(id: restoredTorrent.id, deleteData: false)
-                        continue
-                    }
-                    upsert(restoredTorrent)
-                } catch {
-                    guard !locallyRemovedTorrentIDs.contains(cachedTorrent.id) else { continue }
-                    upsert(
-                        cachedTorrent.updating(
-                            state: cachedTorrent.desiredState == .paused ? "paused" : "missing",
-                            downloadBps: 0,
-                            uploadBps: 0,
-                            error: error.localizedDescription
-                        )
-                    )
+            for torrent in torrents where !managedTorrentIDs.contains(torrent.id) {
+                if torrent.addSource == nil {
+                    upsert(torrent.updating(state: "missing", error: "The saved torrent has no source. Add its magnet or torrent file again."))
+                } else if torrent.desiredState == .running {
+                    // Independent tasks prevent one unreachable magnet from blocking
+                    // restoration of every other torrent.
+                    startAddingToEngine(torrent)
                 }
             }
-
-            let reconciledLiveTorrents = try await engine.list()
-            let visibleReconciledLiveTorrents = filterVisibleLiveTorrents(from: reconciledLiveTorrents)
-            for torrent in visibleReconciledLiveTorrents {
-                upsert(liveTorrent: torrent)
-            }
             sessionStats = try await engine.sessionStats()
-                .smoothed(from: sessionStats)
-            try await enforceDesiredStates(for: Set(visibleReconciledLiveTorrents.map(\.id)))
-            discardLocallyRemovedTorrents()
-            try await persistence?.save(torrents: torrents)
-            lastError = nil
+            lastRefreshAt = Date()
+            refreshError = nil
+            try await enforceDesiredStates(for: managedTorrentIDs)
+            await saveCurrentTorrents()
         } catch {
-            lastError = error.localizedDescription
+            refreshError = error.localizedDescription
+        }
+    }
+
+    private func startAddingToEngine(_ torrent: Torrent) {
+        guard pendingAdds[torrent.id] == nil, engineError == nil else { return }
+        let token = UUID()
+        pendingAdds[torrent.id] = token
+        mutationRevision += 1
+        upsert(torrent.updating(
+            state: torrent.torrentFileBytes == nil && torrent.magnet != nil ? "resolving" : "restoring",
+            downloadBps: 0, uploadBps: 0, clearError: true
+        ))
+        addTasks[torrent.id] = Task { [weak self] in
+            await self?.addToEngine(id: torrent.id, token: token)
+        }
+    }
+
+    private func addToEngine(id: Torrent.ID, token: UUID) async {
+        defer {
+            if pendingAdds[id] == token {
+                pendingAdds.removeValue(forKey: id)
+                addTasks.removeValue(forKey: id)
+            }
+            mutationRevision += 1
+        }
+        guard !Task.isCancelled,
+              let cached = torrents.first(where: { $0.id == id }),
+              let source = cached.addSource else { return }
+        do {
+            // Start paused so file selection and the latest intent can be applied
+            // before any payload download begins.
+            var restored = try await engine.addTorrent(
+                source,
+                downloadDirectory: cached.downloadDirectory ?? downloadDirectory,
+                startPaused: true
+            )
+            guard pendingAdds[id] == token, !Task.isCancelled else {
+                if locallyRemovedTorrentIDs.contains(id) {
+                    try? await engine.remove(id: id, deleteData: false)
+                }
+                return
+            }
+            managedTorrentIDs.insert(id)
+            guard var current = torrents.first(where: { $0.id == id }) else { return }
+            restored = restored.mergingCachedMetadata(from: current)
+            if let file = try await engine.torrentFile(id: id) {
+                current = current.withAddSource(.torrentFile(file))
+                restored = restored.mergingCachedMetadata(from: current)
+            }
+            guard pendingAdds[id] == token else { return }
+            if cached.files.contains(where: { !$0.included && !$0.isPadding }) {
+                restored = try await engine.setFileSelection(
+                    id: id, includedFileIDs: cached.files.filter(\.included).map(\.id)
+                ).mergingCachedMetadata(from: restored)
+            }
+            guard pendingAdds[id] == token,
+                  let latest = torrents.first(where: { $0.id == id }) else { return }
+            if latest.desiredState == .running {
+                restored = try await engine.resume(id: id).mergingCachedMetadata(from: restored)
+            }
+            guard pendingAdds[id] == token,
+                  let latest = torrents.first(where: { $0.id == id }) else { return }
+            restored = restored.mergingCachedMetadata(from: latest)
+            upsert(restored)
+            await saveCurrentTorrents()
+        } catch {
+            guard pendingAdds[id] == token, !Task.isCancelled,
+                  let current = torrents.first(where: { $0.id == id }) else { return }
+            upsert(current.updating(state: "error", downloadBps: 0, uploadBps: 0, error: error.localizedDescription))
+            await saveCurrentTorrents()
+        }
+    }
+
+    private func cancelPendingAdd(id: Torrent.ID) async {
+        pendingAdds.removeValue(forKey: id)
+        addTasks.removeValue(forKey: id)?.cancel()
+        // UniFFI's generated Swift async wrapper does not propagate Task.cancel().
+        // Explicitly abort the Tokio task, rather than just dismissing the UI.
+        await engine.cancelPendingAdd(id: id)
+    }
+
+    private func saveCurrentTorrents() async {
+        do {
+            try await persistence?.save(torrents: torrents)
+            persistenceError = nil
+        } catch {
+            persistenceError = "Could not save the session: \(error.localizedDescription)"
         }
     }
 
     private func enforceDesiredStates(for liveTorrentIDs: Set<Torrent.ID>) async throws {
-        let torrentsToCheck = torrents.filter { liveTorrentIDs.contains($0.id) }
+        let torrentsToCheck = torrents.filter { liveTorrentIDs.contains($0.id) && pendingAdds[$0.id] == nil && commandVersions[$0.id] == nil }
         for torrent in torrentsToCheck {
+            let revision = mutationRevision
             switch (torrent.desiredState, torrent.isPausedInEngine) {
             case (.paused, false):
                 let liveTorrent = try await engine.pause(id: torrent.id)
                     .mergingCachedMetadata(from: torrent)
                     .updating(desiredState: .paused)
+                guard revision == mutationRevision else { continue }
                 upsert(liveTorrent)
                 try await persistence?.save(torrent: liveTorrent)
 
@@ -338,6 +466,7 @@ public final class TorrentStore {
                 let liveTorrent = try await engine.resume(id: torrent.id)
                     .mergingCachedMetadata(from: torrent)
                     .updating(desiredState: .running)
+                guard revision == mutationRevision else { continue }
                 upsert(liveTorrent)
                 try await persistence?.save(torrent: liveTorrent)
 
@@ -348,54 +477,86 @@ public final class TorrentStore {
     }
 
     private func pause(_ torrent: Torrent) async {
-        let pausedTorrent = torrent.updating(
-            desiredState: .paused,
-            state: "paused",
-            downloadBps: 0,
-            uploadBps: 0
-        )
-        upsert(pausedTorrent)
-        try? await persistence?.save(torrent: pausedTorrent)
-
-        do {
-            let liveTorrent = try await engine.pause(id: torrent.id)
-                .mergingCachedMetadata(from: pausedTorrent)
-                .updating(desiredState: .paused)
-            upsert(liveTorrent)
-            try await persistence?.save(torrent: liveTorrent)
-            lastError = nil
-        } catch {
-            lastError = error.localizedDescription
-        }
+        await setDesiredState(.paused, for: torrent.id)
     }
 
     private func resume(_ torrent: Torrent) async {
-        let resumedTorrent = torrent.updating(desiredState: .running, state: "live")
-        upsert(resumedTorrent)
-        try? await persistence?.save(torrent: resumedTorrent)
+        await setDesiredState(.running, for: torrent.id)
+    }
 
+    private func setDesiredState(_ desiredState: TorrentDesiredState, for id: Torrent.ID) async {
+        await launchTask?.value
+        guard let current = torrents.first(where: { $0.id == id }), engineError == nil else { return }
+        let token = UUID()
+        commandVersions[id] = token
+        mutationRevision += 1
+        defer {
+            if commandVersions[id] == token { commandVersions.removeValue(forKey: id) }
+            mutationRevision += 1
+        }
+        let updated = current.updating(
+            desiredState: desiredState,
+            state: !managedTorrentIDs.contains(id) && desiredState == .paused ? "paused" : current.state,
+            downloadBps: 0, uploadBps: 0, clearError: true
+        )
+        upsert(updated)
+        var savedIntent = false
         do {
-            let liveTorrent = try await engine.resume(id: torrent.id)
-                .mergingCachedMetadata(from: resumedTorrent)
-                .updating(desiredState: .running)
-            upsert(liveTorrent)
-            try await persistence?.save(torrent: liveTorrent)
+            // Persist intent before the engine acknowledges it.
+            try await persistence?.save(torrent: updated)
+            savedIntent = true
+            guard commandVersions[id] == token else { return }
+            if pendingAdds[id] != nil { await cancelPendingAdd(id: id) }
+            guard commandVersions[id] == token else { return }
+            if !managedTorrentIDs.contains(id) {
+                if desiredState == .running { startAddingToEngine(updated) }
+                return
+            }
+            let snapshot = desiredState == .paused
+                ? try await engine.pause(id: id)
+                : try await engine.resume(id: id)
+            guard commandVersions[id] == token,
+                  let latest = torrents.first(where: { $0.id == id }) else { return }
+            let result = snapshot.mergingCachedMetadata(from: latest)
+            upsert(result)
+            try await persistence?.save(torrent: result)
             lastError = nil
         } catch {
+            guard commandVersions[id] == token else { return }
+            if !savedIntent {
+                upsert(current)
+                persistenceError = "Could not save transfer state: \(error.localizedDescription)"
+            }
             lastError = error.localizedDescription
         }
     }
 
     private func remove(_ torrent: Torrent, deleteData: Bool) async {
+        await launchTask?.value
+        mutationRevision += 1
+        commandVersions.removeValue(forKey: torrent.id)
+        let wasPending = pendingAdds[torrent.id] != nil || !managedTorrentIDs.contains(torrent.id)
+        await cancelPendingAdd(id: torrent.id)
         locallyRemovedTorrentIDs.insert(torrent.id)
         torrents.removeAll { $0.id == torrent.id }
         if selection == torrent.id {
             selection = torrents.first?.id
         }
-        try? await persistence?.deleteTorrent(id: torrent.id)
+        do {
+            try await persistence?.deleteTorrent(id: torrent.id)
+        } catch {
+            locallyRemovedTorrentIDs.remove(torrent.id)
+            let message = "Could not save the removal: \(error.localizedDescription)"
+            upsert(torrent.updating(state: "error", error: message))
+            persistenceError = message
+            return
+        }
 
         do {
-            try await engine.remove(id: torrent.id, deleteData: deleteData)
+            if !wasPending || managedTorrentIDs.contains(torrent.id) {
+                try await engine.remove(id: torrent.id, deleteData: deleteData)
+            }
+            managedTorrentIDs.remove(torrent.id)
             try await persistence?.deleteTorrent(id: torrent.id)
         } catch {
             if deleteData, isEngineDataCleanupFailureAfterTorrentRemoval(error) {

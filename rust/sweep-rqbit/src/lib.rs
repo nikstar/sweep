@@ -1,8 +1,8 @@
 use std::{
-    collections::{BTreeMap, BTreeSet, HashSet},
+    collections::{BTreeMap, BTreeSet, HashMap, HashSet},
     net::{Ipv4Addr, Ipv6Addr, SocketAddr},
     path::PathBuf,
-    sync::Arc,
+    sync::{Arc, Mutex},
     time::Duration,
 };
 
@@ -17,6 +17,9 @@ use librqbit::{
 use tokio::runtime::{Builder, Runtime};
 
 uniffi::setup_scaffolding!();
+
+#[cfg(test)]
+mod tests;
 
 const TRACKER_COMPAT_USER_AGENT: &str = "Transmission/4.0.6";
 const TRACKER_COMPAT_TIMEOUT: Duration = Duration::from_secs(12);
@@ -134,6 +137,7 @@ pub struct SweepEngine {
     runtime: Runtime,
     session: Arc<Session>,
     peer_id: Id20,
+    pending_adds: Mutex<HashMap<String, tokio::task::AbortHandle>>,
 }
 
 #[uniffi::export]
@@ -166,6 +170,7 @@ impl SweepEngine {
             runtime,
             session,
             peer_id,
+            pending_adds: Mutex::new(HashMap::new()),
         }))
     }
 
@@ -175,23 +180,63 @@ impl SweepEngine {
         download_dir: String,
         start_paused: bool,
     ) -> Result<TorrentSnapshot, SweepError> {
+        let info_hash = librqbit::Magnet::parse(&magnet)?
+            .as_id20()
+            .context("magnet link did not contain a v1 info hash")?
+            .as_string();
         let session = self.session.clone();
         let runtime = self.runtime.handle().clone();
         let (tx, rx) = oneshot::channel();
 
-        runtime.spawn(async move {
-            let result = add_torrent_to_session(
-                session,
-                AddTorrent::from_url(magnet),
-                download_dir,
-                start_paused,
-                Vec::new(),
+        let task = runtime.spawn(async move {
+            let result = tokio::time::timeout(
+                Duration::from_secs(90),
+                add_torrent_to_session(
+                    session,
+                    AddTorrent::from_url(magnet),
+                    download_dir,
+                    start_paused,
+                    Vec::new(),
+                ),
             )
-            .await;
+            .await
+            .unwrap_or_else(|_| Err(SweepError::Message(
+                "No torrent metadata received after 90 seconds. Peers may be unreachable or incompatible.".to_owned(),
+            )));
             let _ = tx.send(result);
         });
+        let abort = task.abort_handle();
+        if let Some(previous) = self
+            .pending_adds
+            .lock()
+            .unwrap()
+            .insert(info_hash.clone(), abort.clone())
+        {
+            previous.abort();
+        }
+        let result = rx.await;
+        let mut pending = self.pending_adds.lock().unwrap();
+        if pending
+            .get(&info_hash)
+            .is_some_and(|current| current.id() == abort.id())
+        {
+            pending.remove(&info_hash);
+        }
+        result?
+    }
 
-        rx.await?
+    pub fn cancel_pending_add(&self, id: String) {
+        if let Some(task) = self.pending_adds.lock().unwrap().remove(&id.to_ascii_lowercase()) {
+            task.abort();
+        }
+    }
+
+    pub fn torrent_file(&self, id: String) -> Result<Vec<u8>, SweepError> {
+        let handle = self
+            .session
+            .get(parse_torrent_id(&id)?)
+            .context("torrent is not in the engine")?;
+        Ok(handle.with_metadata(|metadata| metadata.torrent_bytes.to_vec())?)
     }
 
     pub async fn add_torrent_file(
@@ -206,12 +251,16 @@ impl SweepEngine {
         let (tx, rx) = oneshot::channel();
 
         runtime.spawn(async move {
-            let initial_peers = announce_initial_peers_for_torrent(
-                &torrent_bytes,
-                peer_id,
-                session.announce_port(),
-            )
-            .await;
+            let initial_peers = if start_paused {
+                Vec::new()
+            } else {
+                announce_initial_peers_for_torrent(
+                    &torrent_bytes,
+                    peer_id,
+                    session.announce_port(),
+                )
+                .await
+            };
             let result = add_torrent_to_session(
                 session,
                 AddTorrent::from_bytes(torrent_bytes),

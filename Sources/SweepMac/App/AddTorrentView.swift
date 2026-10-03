@@ -10,6 +10,7 @@ struct AddTorrentView: View {
     @State private var downloadDirectory: String
     @State private var startPaused = false
     @State private var isAdding = false
+    @State private var addError: String?
 
     init(source: TorrentAddSource?, downloadDirectory: String) {
         let source = source ?? .magnet("")
@@ -45,11 +46,19 @@ struct AddTorrentView: View {
             }
             .formStyle(.grouped)
 
+            if let addError {
+                Text(addError)
+                    .font(.callout)
+                    .foregroundStyle(.red)
+                    .textSelection(.enabled)
+            }
+
             HStack {
                 Spacer()
                 Button("Cancel") {
                     dismiss()
                 }
+                .disabled(isAdding)
                 Button(isAdding ? "Adding..." : "Add") {
                     add()
                 }
@@ -120,14 +129,20 @@ struct AddTorrentView: View {
         let directory = downloadDirectory
         let startPaused = startPaused
         isAdding = true
+        addError = nil
 
         Task {
-            _ = await store.addTorrent(
+            let torrent = await store.addTorrent(
                 source,
                 downloadDirectory: directory,
                 startPaused: startPaused
             )
-            dismiss()
+            isAdding = false
+            if torrent != nil {
+                dismiss()
+            } else {
+                addError = store.lastError ?? "The torrent could not be added."
+            }
         }
     }
 }

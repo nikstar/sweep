@@ -104,6 +104,16 @@ public final class RqbitEngine: TorrentEngine, @unchecked Sendable {
             return Torrent(snapshot: snapshot, downloadDirectory: nil)
         }
     }
+
+    public func cancelPendingAdd(id: Torrent.ID) async {
+        engine.cancelPendingAdd(id: id)
+    }
+
+    public func torrentFile(id: Torrent.ID) async throws -> TorrentFileSource? {
+        try await mapRqbitError {
+            TorrentFileSource(fileName: "\(id).torrent", bytes: Array(try engine.torrentFile(id: id)))
+        }
+    }
 }
 
 private struct RqbitEngineError: LocalizedError, Sendable {

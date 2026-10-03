@@ -348,7 +348,7 @@ private struct IOSSessionStatusBar: View {
 
             Spacer(minLength: 8)
 
-            if let error = store.lastError {
+            if let error = store.healthError {
                 Text(error)
                     .foregroundStyle(.red)
                     .lineLimit(1)
