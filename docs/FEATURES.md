@@ -6,6 +6,58 @@ and eMule. The goal is to recover useful craft that many mainstream clients
 lost: readable state, rich progress information, and direct controls without
 turning the app into a dashboard.
 
+## macOS Validation, October 3, 2026
+
+The supplied real-world magnet did not deliver metadata or payload during this
+pass. Two direct UDP tracker checks succeeded and returned peers (216 seeders /
+114 leechers, and 129 seeders / 100 leechers at the time of the check). rqbit found
+peers and established TCP/uTP connections, but metadata handshakes timed out or
+disconnected. An independent TCP BitTorrent handshake check against 24 returned
+peers also failed: 22 timeouts and two refused connections. This does not establish
+whether the underlying cause is the network path, peer compatibility, or an
+engine defect. Some tracker and DHT bootstrap hostnames also failed DNS lookup.
+
+The original Mac UI remained on “Adding…” and had no saved torrent record while
+waiting. Quitting at that point lost the request. Changes from this pass:
+
+- [x] Save a pending magnet before discovery and show it immediately in the list.
+- [x] Pause explicitly cancels Rust discovery; Resume retries failures.
+- [x] Bound discovery to 90 seconds and retain a visible per-torrent error.
+- [x] Restore pending torrents independently; paused torrents stay paused without
+  requiring network metadata.
+- [x] Cache resolved `.torrent` bytes and restore selected files before resuming.
+- [x] Reject stale polling results after user actions, and clean up late add results
+  after removal.
+- [x] Separate engine refresh, persistence, startup, and action errors; successful
+  polling no longer erases an unrelated action error.
+- [x] Report macOS engine startup failure instead of silently loading demo torrents.
+- [x] Add an inspectable Session Health popover with the last engine response,
+  pending operations, storage availability, and torrent error count.
+- [x] Verify a synthetic 1 MiB loopback transfer byte-for-byte, cached metadata
+  restoration, and Rust task cancellation in automated tests.
+- [ ] Complete the updated Mac UI relaunch checks. The Mac locked after the first
+  live attempt; UI verification requires it to be unlocked.
+
+Highest-priority remaining work:
+
+1. **Public-swarm interoperability.** Repeat this magnet on a known-working
+   BitTorrent network and compare with another client. Identify whether failures
+   occur before the protocol handshake or during the metadata extension exchange;
+   inspect encrypted-transport compatibility before changing tracker workarounds.
+2. **Discovery diagnostics.** Expose tracker results, discovered/connecting peers,
+   handshake failures, and DHT bootstrap health before metadata exists. The current
+   inspector only gets detailed live diagnostics after rqbit creates a managed
+   torrent; “Configured” trackers are not evidence of successful announces.
+3. **Lifecycle and durable state.** Add graceful shutdown/flush, bounded retry
+   policy, and failure-injection coverage for disk errors and concurrent commands.
+   Reduce writes of transient speed/progress samples to SQLite. Pending magnets
+   are now durable; `.torrent` file adds still wait in the add sheet.
+4. **Mac interaction polish.** Validate sorting, multiple selection, keyboard
+   actions, and dense layouts with several real torrents and long error messages.
+   Keep pending, checking, paused, stalled, and failed states easy to distinguish.
+5. **Platform consistency.** Bring iOS startup failure behavior in line with macOS
+   and validate background downloads and restoration on a physical device.
+
 ## Main List
 
 ### Two-Line Layout

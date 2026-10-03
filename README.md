@@ -136,8 +136,9 @@ a fresh one. Update the revision and patches together when upgrading rqbit;
 - Distribution is through GitHub; App Store distribution is not a project goal.
 
 The apps are Xcode targets. SwiftPM builds the shared libraries and tests, not an
-app executable. Both apps include a demo-engine fallback if engine initialization
-fails; successful compilation alone does not prove torrent transfers work.
+app executable. macOS reports engine initialization failure explicitly and keeps
+the saved session visible. iOS still has a demo-engine fallback. Successful
+compilation alone does not prove public-swarm transfers work.
 
 Verified on October 3, 2026 with Xcode 27.0 Release Candidate (27A266a) and Rust
 1.99.0, starting without local Swift packages, rqbit sources, or Rust artifacts:
@@ -173,6 +174,27 @@ working BitTorrent connectivity before relying on transfers or background modes:
 ```sh
 cargo run --locked --manifest-path rust/sweep-rqbit/Cargo.toml --bin live_probe -- /path/to/test.torrent /tmp/sweep-transfer-test 1048576 120
 ```
+
+The probe also accepts a text file containing a magnet link. Its time limit
+applies separately to metadata discovery and the transfer phase. Set
+`RUST_LOG=librqbit=debug,librqbit_tracker_comms=debug,warn` to inspect peer
+handshakes and tracker failures; diagnostic logs contain peer addresses and
+should remain local.
+
+The October 3 macOS lifecycle pass added durable pending magnets, explicit
+metadata cancellation and a 90-second discovery timeout, independent session
+restoration, cached torrent metadata, and a Session Health popover. Swift
+lifecycle tests cover pending/paused restoration, file selection, stale polling,
+error visibility, and removal races. Rust tests transfer a synthetic 1 MiB file
+over loopback, verify its contents, restore it from cached metadata, and cancel
+a stalled discovery request without using a public tracker:
+
+```sh
+cargo test --locked --manifest-path rust/sweep-rqbit/Cargo.toml --lib
+```
+
+See [the macOS validation findings](docs/FEATURES.md#macos-validation-october-3-2026)
+for the public-swarm result and remaining priorities.
 
 Use a new, empty output directory so existing verified pieces cannot make the
 probe succeed without downloading. Physical iPhone installation timed out while

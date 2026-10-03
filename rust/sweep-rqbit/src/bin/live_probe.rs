@@ -4,10 +4,16 @@ use sweep_rqbit::SweepEngine;
 use tokio::runtime::Builder;
 
 fn main() -> anyhow::Result<()> {
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "warn".into()),
+        )
+        .with_writer(std::io::stderr)
+        .init();
     let args = env::args().collect::<Vec<_>>();
     let [_, torrent_path, output_dir, min_bytes, max_seconds] = args.as_slice() else {
         anyhow::bail!(
-            "usage: live_probe <torrent-path> <output-dir> <min-progress-bytes> <max-seconds>"
+            "usage: live_probe <torrent-or-magnet-file> <output-dir> <min-progress-bytes> <max-seconds>"
         );
     };
 
@@ -37,9 +43,21 @@ async fn async_main(
     min_bytes: u64,
     max_seconds: u64,
 ) -> anyhow::Result<()> {
-    let added = engine
-        .add_torrent_file(torrent_bytes, output_dir, false)
-        .await?;
+    let added = tokio::time::timeout(Duration::from_secs(max_seconds), async {
+        if let Ok(magnet) = std::str::from_utf8(&torrent_bytes)
+            && magnet.trim().starts_with("magnet:")
+        {
+            engine
+                .add_magnet(magnet.trim().to_owned(), output_dir, false)
+                .await
+        } else {
+            engine
+                .add_torrent_file(torrent_bytes, output_dir, false)
+                .await
+        }
+    })
+    .await
+    .map_err(|_| anyhow::anyhow!("metadata discovery did not finish in {max_seconds}s"))??;
     println!(
         "added {} {} total={} progress={}",
         added.id, added.name, added.total_bytes, added.progress_bytes
