@@ -6,164 +6,164 @@ import WidgetKit
 struct SweepDownloadLiveActivityWidget: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: SweepDownloadActivityAttributes.self) { context in
-            SweepLiveActivityLockScreenView(context: context)
-                .activityBackgroundTint(Color(.systemBackground))
-                .activitySystemActionForegroundColor(.accentColor)
+            SweepActivityCard(state: context.state, isStale: context.isStale)
+            // Keep the system background: it adapts to the Lock Screen, Dark Mode, and StandBy.
         } dynamicIsland: { context in
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
-                    SweepLiveActivityTitle(state: context.state)
+                    Label("Sweep", systemImage: context.state.displayPhase.symbol)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(activityTint(context.state))
                 }
-
                 DynamicIslandExpandedRegion(.trailing) {
-                    SweepLiveActivityRates(state: context.state, isCompact: true)
+                    ActivityPercent(state: context.state)
+                        .font(.headline)
                 }
-
                 DynamicIslandExpandedRegion(.bottom) {
-                    SweepLiveActivityProgress(state: context.state)
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(context.state.headline)
+                            .font(.subheadline.weight(.semibold))
+                            .lineLimit(1).truncationMode(.middle)
+                        ActivityProgress(state: context.state)
+                        HStack {
+                            Text(context.isStale ? "Open Sweep to update" : context.state.detail)
+                                .lineLimit(1)
+                            Spacer(minLength: 8)
+                            if !context.isStale, context.state.displayPhase.isActive {
+                                Label(ActivityBytes.rate(context.state.downloadBps), systemImage: "arrow.down")
+                                    .monospacedDigit()
+                            }
+                        }
+                        .font(.caption).foregroundStyle(.secondary)
+                    }
+                    .padding(.bottom, 4)
                 }
             } compactLeading: {
-                Image(systemName: "arrow.down.circle.fill")
-                    .foregroundStyle(.blue)
+                Image(systemName: context.isStale ? "clock" : context.state.displayPhase.symbol)
+                    .foregroundStyle(activityTint(context.state))
             } compactTrailing: {
-                Text(context.state.isIndeterminate ? "--" : "\(context.state.percentComplete)%")
-                    .monospacedDigit()
-                    .minimumScaleFactor(0.7)
+                ActivityPercent(state: context.state)
+                    .font(.caption.weight(.semibold))
             } minimal: {
-                Image(systemName: "arrow.down")
-                    .foregroundStyle(.blue)
+                Image(systemName: context.isStale ? "clock" : context.state.displayPhase.symbol)
+                    .foregroundStyle(activityTint(context.state))
             }
-            .keylineTint(.blue)
+            .keylineTint(activityTint(context.state))
         }
     }
 }
 
-private struct SweepLiveActivityLockScreenView: View {
-    let context: ActivityViewContext<SweepDownloadActivityAttributes>
+private struct SweepActivityCard: View {
+    let state: SweepDownloadActivityAttributes.ContentState
+    let isStale: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .firstTextBaseline, spacing: 10) {
-                SweepLiveActivityTitle(state: context.state)
+            HStack(spacing: 10) {
+                Image(systemName: isStale ? "clock" : state.displayPhase.symbol)
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(activityTint(state))
+                    .frame(width: 34, height: 34)
+                    .background(activityTint(state).opacity(0.12), in: .rect(cornerRadius: 9))
+                    .accessibilityHidden(true)
 
-                Spacer(minLength: 8)
-
-                if !context.state.isIndeterminate {
-                    Text("\(context.state.percentComplete)%")
-                        .font(.headline)
-                        .monospacedDigit()
-                        .foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Sweep")
+                        .font(.caption).foregroundStyle(.secondary)
+                    Text(state.headline)
+                        .font(.subheadline.weight(.semibold))
+                        .lineLimit(1).truncationMode(.middle)
                 }
+                Spacer(minLength: 6)
+                ActivityPercent(state: state)
+                    .font(.title3.weight(.semibold))
+                    .layoutPriority(1)
             }
 
-            SweepLiveActivityProgress(state: context.state)
+            ActivityProgress(state: state)
 
-            HStack(spacing: 14) {
-                SweepLiveActivityRates(state: context.state)
-
-                Spacer(minLength: 8)
-
-                if context.state.activeDownloadCount > 1 {
-                    Label("\(context.state.activeDownloadCount)", systemImage: "arrow.down.square.stack")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(isStale ? "Open Sweep to update" : state.detail)
+                        .font(.caption.weight(.medium))
+                        .lineLimit(1)
+                    Text(byteSummary)
+                        .font(.caption2).foregroundStyle(.secondary)
+                        .lineLimit(1).monospacedDigit()
+                }
+                Spacer(minLength: 0)
+                if !isStale, state.displayPhase.isActive {
+                    VStack(alignment: .trailing, spacing: 3) {
+                        Label(ActivityBytes.rate(state.downloadBps), systemImage: "arrow.down")
+                        Label(ActivityBytes.rate(state.uploadBps), systemImage: "arrow.up")
+                    }
+                    .font(.caption2).foregroundStyle(.secondary)
+                    .monospacedDigit().fixedSize()
                 }
             }
         }
-        .padding(.horizontal, 2)
-        .padding(.vertical, 4)
+        // Apple's Lock Screen Live Activity margin is 14 pt; the system owns the outer shape.
+        .padding(14)
+        .foregroundStyle(.primary)
+    }
+
+    private var byteSummary: String {
+        if state.totalBytes == 0 { return "Size not yet known" }
+        return "\(ActivityBytes.bytes(state.progressBytes)) of \(ActivityBytes.bytes(state.totalBytes))"
     }
 }
 
-private struct SweepLiveActivityTitle: View {
+private struct ActivityPercent: View {
     let state: SweepDownloadActivityAttributes.ContentState
-
     var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(state.headline)
-                .font(.headline)
-                .lineLimit(1)
-                .truncationMode(.middle)
-
-            Text(state.detail)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-                .truncationMode(.middle)
-        }
+        Text(state.isIndeterminate ? "…" : "\(state.percentComplete)%")
+            .monospacedDigit().lineLimit(1).minimumScaleFactor(0.8)
+            .accessibilityLabel(state.isIndeterminate ? "Size not yet known" : "\(state.percentComplete) percent downloaded")
     }
 }
 
-private struct SweepLiveActivityProgress: View {
+private struct ActivityProgress: View {
     let state: SweepDownloadActivityAttributes.ContentState
-
     var body: some View {
-        VStack(alignment: .leading, spacing: 5) {
-            if state.isIndeterminate {
-                ProgressView()
-                    .progressViewStyle(.linear)
-            } else {
-                ProgressView(value: state.progress)
-                    .progressViewStyle(.linear)
-                    .tint(.blue)
-            }
-
-            HStack {
-                Text(ByteCountFormat.bytes(state.progressBytes))
-                Spacer(minLength: 8)
-                Text(state.totalBytes > 0 ? ByteCountFormat.bytes(state.totalBytes) : "Unknown")
-            }
-            .font(.caption2)
-            .foregroundStyle(.secondary)
-            .monospacedDigit()
+        if state.isIndeterminate {
+            Capsule().fill(.secondary.opacity(0.18)).frame(height: 4)
+                .accessibilityLabel("Waiting for torrent metadata")
+        } else {
+            ProgressView(value: state.progress)
+                .progressViewStyle(.linear)
+                .tint(activityTint(state))
+                .accessibilityLabel("Downloaded")
         }
     }
 }
 
-private struct SweepLiveActivityRates: View {
-    let state: SweepDownloadActivityAttributes.ContentState
-    var isCompact = false
-
-    var body: some View {
-        Group {
-            if isCompact {
-                VStack(alignment: .trailing, spacing: 2) {
-                    rateLabel(ByteCountFormat.rate(state.downloadBps), systemImage: "arrow.down")
-                    rateLabel(ByteCountFormat.rate(state.uploadBps), systemImage: "arrow.up")
-                }
-            } else {
-                HStack(spacing: 8) {
-                    rateLabel(ByteCountFormat.rate(state.downloadBps), systemImage: "arrow.down")
-                    rateLabel(ByteCountFormat.rate(state.uploadBps), systemImage: "arrow.up")
-                }
-            }
-        }
-        .font(.caption)
-        .foregroundStyle(.secondary)
-        .monospacedDigit()
-    }
-
-    private func rateLabel(_ value: String, systemImage: String) -> some View {
-        Label(value, systemImage: systemImage)
-            .lineLimit(1)
-            .minimumScaleFactor(0.7)
+private func activityTint(_ state: SweepDownloadActivityAttributes.ContentState) -> Color {
+    switch state.displayPhase {
+    case .completed: .green
+    case .paused: .orange
+    case .failed: .red
+    case .stopped: .secondary
+    default: .blue
     }
 }
 
-private enum ByteCountFormat {
-    private static func makeFormatter() -> ByteCountFormatter {
-        let formatter = ByteCountFormatter()
-        formatter.countStyle = .file
-        formatter.includesActualByteCount = false
-        return formatter
-    }
-
+private enum ActivityBytes {
     static func bytes(_ bytes: UInt64) -> String {
-        let formatter = makeFormatter()
-        return formatter.string(fromByteCount: Int64(clamping: bytes))
+        bytes == 0 ? "0 KB" : ByteCountFormatter.string(fromByteCount: Int64(clamping: bytes), countStyle: .file)
     }
-
     static func rate(_ bytesPerSecond: Double) -> String {
-        "\(bytes(UInt64(max(bytesPerSecond, 0))))/s"
+        let finite = bytesPerSecond.isFinite ? max(0, bytesPerSecond) : 0
+        return "\(bytes(UInt64(min(finite, Double(Int64.max)))))/s"
     }
+}
+
+#Preview("Downloading", as: .content, using: SweepDownloadActivityAttributes(activityID: "preview", title: "Sweep")) {
+    SweepDownloadLiveActivityWidget()
+} contentStates: {
+    SweepDownloadActivityAttributes.ContentState(
+        headline: "Ubuntu Desktop.iso", detail: "Downloading", activeDownloadCount: 1,
+        progress: 0.42, progressBytes: 420_000_000, totalBytes: 1_000_000_000,
+        downloadBps: 2_400_000, uploadBps: 160_000, isIndeterminate: false,
+        updatedAt: .now, phase: .downloading, torrentIDs: ["preview"]
+    )
 }

@@ -47,6 +47,7 @@ let package = Package(
                 "RqbitEngine.swift"
             ]
         ),
+        .testTarget(name: "SweepActivitiesTests", dependencies: ["SweepActivities"]),
         .testTarget(
             name: "SweepCoreTests",
             dependencies: ["SweepCore"],

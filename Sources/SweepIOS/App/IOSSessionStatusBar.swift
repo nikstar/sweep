@@ -30,8 +30,11 @@ struct IOSSessionStatusBar: View {
         .sheet(isPresented: $showingHealth) {
             NavigationStack {
                 ScrollView {
-                    SessionHealthView(showsTitle: false)
-                        .padding()
+                    VStack(alignment: .leading, spacing: 16) {
+                        SessionHealthView(showsTitle: false)
+                        IOSExecutionHealthView()
+                    }
+                    .padding()
                 }
                 .navigationTitle("Session Health")
                 .navigationBarTitleDisplayMode(.inline)

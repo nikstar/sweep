@@ -71,6 +71,7 @@
 		BA064C4E4F69E27E5C0FF39F /* TorrentFilesInspector.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACCBBDD31948C776A77AD66D /* TorrentFilesInspector.swift */; };
 		BA17E1B75844C3D7B3FAA114 /* TorrentFileLocationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8D4F8175E3B333CFC2CBE9D /* TorrentFileLocationTests.swift */; };
 		BA848BDDBD4942CD5EBC7BF4 /* IOSOpenInPresenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B11DE283104B5AACAF8815C /* IOSOpenInPresenter.swift */; };
+		BA9627A30480D015DC57DA54 /* IOSExecutionHealthView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD6F1B2A7C9C2EAFAFEFC5F5 /* IOSExecutionHealthView.swift */; };
 		BAA68639874D5D940A24C379 /* IOSTorrentInfoInspector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97D5317B586197FEB2947826 /* IOSTorrentInfoInspector.swift */; };
 		BD6ACD299CCE223057F7AB96 /* SweepRQBitBridge in Frameworks */ = {isa = PBXBuildFile; productRef = FF9167535D32A3C793318993 /* SweepRQBitBridge */; };
 		CD027EA59F96A09AC55C9457 /* SweepActivities in Frameworks */ = {isa = PBXBuildFile; productRef = 67346E2539236735728440A1 /* SweepActivities */; };
@@ -182,6 +183,7 @@
 		EC7DA44B71E17BB508D7805C /* TorrentStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TorrentStoreTests.swift; sourceTree = "<group>"; };
 		F4F8144C9CB2D86DE3006667 /* ClassicAppIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = wrapper.icon; path = ClassicAppIcon.icon; sourceTree = "<group>"; };
 		F8D4F8175E3B333CFC2CBE9D /* TorrentFileLocationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TorrentFileLocationTests.swift; sourceTree = "<group>"; };
+		FD6F1B2A7C9C2EAFAFEFC5F5 /* IOSExecutionHealthView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IOSExecutionHealthView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -294,6 +296,7 @@
 				35862CE528C60EB5E5C36EFA /* IOSBackgroundDownloadService.swift */,
 				5054954C7DF72F4D7D169167 /* IOSBackupExclusion.swift */,
 				193A77A37E82D3DE990B59CC /* IOSContentView.swift */,
+				FD6F1B2A7C9C2EAFAFEFC5F5 /* IOSExecutionHealthView.swift */,
 				DFD87C78B56E26680E5274DD /* IOSInspectorControls.swift */,
 				2920AEAAEBEDE653480289FC /* IOSLiveActivityService.swift */,
 				6B11DE283104B5AACAF8815C /* IOSOpenInPresenter.swift */,
@@ -615,6 +618,7 @@
 				F34C570AE343CB4DC823EFB5 /* IOSBackgroundDownloadService.swift in Sources */,
 				B50EB4FC17614541C251F80F /* IOSBackupExclusion.swift in Sources */,
 				7A95253052EDFF4A6C0A7A75 /* IOSContentView.swift in Sources */,
+				BA9627A30480D015DC57DA54 /* IOSExecutionHealthView.swift in Sources */,
 				505A107196807BC304CDF0FA /* IOSInspectorControls.swift in Sources */,
 				E23D8AD5B56DD6149517361E /* IOSLiveActivityService.swift in Sources */,
 				BA848BDDBD4942CD5EBC7BF4 /* IOSOpenInPresenter.swift in Sources */,

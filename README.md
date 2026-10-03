@@ -220,6 +220,14 @@ verified and passed paused, pending, partial-transfer, and update restoration
 checks. The shared suite now has 24 tests. See the
 [iOS validation and remaining work](docs/FEATURES.md#ios-validation-october-3-2026).
 
+Background downloads now use a continuous silent audio session with visible
+health and controls. Live Activities have explicit lifecycle states, restoration,
+dismissal recovery, refreshed stale deadlines, and an adaptive Lock Screen layout.
+The simulator background pass completed and independently verified a local 64 MiB
+torrent, including pause/relaunch and completion while locked. There are now 33
+Swift tests. See [background validation and screenshots](docs/FEATURES.md#ios-background-execution-and-live-activities-october-3-2026).
+
+
 Use a new, empty output directory so existing verified pieces cannot make the
 probe succeed without downloading. Physical iPhone installation timed out while
 establishing the device connection, including a retry with Xcode 27 tools. Startup

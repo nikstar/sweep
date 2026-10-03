@@ -13,15 +13,18 @@ struct SweepIOSApp: App {
         WindowGroup {
             IOSContentView()
                 .environment(store)
+                .environment(backgroundDownloadService)
+                .environment(liveActivityService)
                 .onOpenURL { url in
                     store.beginAdding(url: url)
                 }
                 .task {
-                    await backgroundDownloadService.prepareConfiguredMode()
-                }
-                .task {
-                    liveActivityService.startMonitoring(store: store)
-                    liveActivityService.refresh(store: store)
+                    while !Task.isCancelled {
+                        // Publish the final activity before releasing background execution on completion.
+                        await liveActivityService.synchronize(store: store)
+                        backgroundDownloadService.refresh(store: store)
+                        do { try await Task.sleep(for: .seconds(2)) } catch { return }
+                    }
                 }
                 .onChange(of: store.torrents) {
                     liveActivityService.refresh(store: store)
@@ -29,7 +32,7 @@ struct SweepIOSApp: App {
                 .onChange(of: store.sessionStats) {
                     liveActivityService.refresh(store: store)
                 }
-                .onChange(of: scenePhase) {
+                .onChange(of: scenePhase, initial: true) {
                     handleScenePhaseChange()
                 }
         }
@@ -38,19 +41,8 @@ struct SweepIOSApp: App {
     private func handleScenePhaseChange() {
         liveActivityService.refresh(store: store)
 
-        switch scenePhase {
-        case .active:
-            backgroundDownloadService.stop()
-
-        case .background:
-            backgroundDownloadService.startIfNeeded(store: store)
-
-        case .inactive:
-            break
-
-        @unknown default:
-            break
-        }
+        // Arm audio while transitioning away, before the app is fully in the background.
+        backgroundDownloadService.sceneChanged(store: store, needsBackground: scenePhase != .active)
     }
 }
 

@@ -14,7 +14,19 @@ public struct SweepDownloadActivityAttributes: Codable, Hashable, Sendable {
         public let downloadBps: Double
         public let uploadBps: Double
         public let isIndeterminate: Bool
-        public let updatedAt: Date
+        public var updatedAt: Date
+        // Optional for activities restored from an older app build.
+        public let phase: DownloadActivityPhase?
+        public let torrentIDs: [String]?
+
+        public var displayPhase: DownloadActivityPhase {
+            phase ?? (isIndeterminate ? .metadata : (progress >= 1 ? .completed : .downloading))
+        }
+
+        public var staleDate: Date? {
+            // A paused transfer is a stable state, even after the app is suspended.
+            displayPhase.isActive ? updatedAt.addingTimeInterval(60) : nil
+        }
 
         public init(
             headline: String,
@@ -26,7 +38,9 @@ public struct SweepDownloadActivityAttributes: Codable, Hashable, Sendable {
             downloadBps: Double,
             uploadBps: Double,
             isIndeterminate: Bool,
-            updatedAt: Date
+            updatedAt: Date,
+            phase: DownloadActivityPhase? = nil,
+            torrentIDs: [String]? = nil
         ) {
             self.headline = headline
             self.detail = detail
@@ -38,6 +52,8 @@ public struct SweepDownloadActivityAttributes: Codable, Hashable, Sendable {
             self.uploadBps = Self.nonnegativeFinite(uploadBps)
             self.isIndeterminate = isIndeterminate
             self.updatedAt = updatedAt
+            self.phase = phase
+            self.torrentIDs = torrentIDs
         }
 
         public var percentComplete: Int {

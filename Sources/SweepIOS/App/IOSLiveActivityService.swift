@@ -1,256 +1,201 @@
 import ActivityKit
 import Foundation
+import Observation
 import OSLog
 import SweepActivities
 import SweepCore
+import UIKit
 
-@MainActor
+@MainActor @Observable
 final class IOSLiveActivityService {
-    private let settings = IOSLiveActivitySettings()
-    private let logger = Logger(subsystem: "me.nikstar.sweep.ios", category: "LiveActivity")
-    private var monitorTask: Task<Void, Never>?
-    // ActivityKit owns the synchronization for update/end; Swift 6 cannot infer that from the handle.
-    nonisolated(unsafe)
-    private var activity: Activity<SweepDownloadActivityAttributes>?
-    private var lastSnapshot: IOSLiveActivitySnapshot?
-    private var lastProblemMessage: String?
-
-    func startMonitoring(store: TorrentStore) {
-        guard monitorTask == nil else { return }
-
-        monitorTask = Task { @MainActor in
-            while !Task.isCancelled {
-                await updateActivity(from: store, reportingTo: store)
-
-                do {
-                    try await Task.sleep(for: .seconds(2))
-                } catch {
-                    return
-                }
-            }
+    var isEnabled = UserDefaults.standard.object(forKey: "IOSLiveActivitiesEnabled") as? Bool ?? true {
+        didSet {
+            UserDefaults.standard.set(isEnabled, forKey: "IOSLiveActivitiesEnabled")
+            scheduleUpdate()
         }
     }
+    private(set) var status = "No active downloads"
+    private(set) var lastError: String?
+    private(set) var lastUpdateAt: Date?
 
-    func stopMonitoring() {
-        monitorTask?.cancel()
-        monitorTask = nil
+    @ObservationIgnored private weak var store: TorrentStore?
+    @ObservationIgnored private var updateTask: Task<Void, Never>?
+    @ObservationIgnored private var activityStateTask: Task<Void, Never>?
+    @ObservationIgnored private var needsUpdate = false
+    @ObservationIgnored private var lastContent: SweepDownloadActivityAttributes.ContentState?
+    @ObservationIgnored private var suppressedIDs: Set<String> = []
+    @ObservationIgnored private var retryAfter = Date.distantPast
+    @ObservationIgnored private var endingID: String?
+    // ActivityKit synchronizes these handles; its SDK interface doesn't express Sendable.
+    @ObservationIgnored nonisolated(unsafe) private var activity: Activity<SweepDownloadActivityAttributes>?
+    private let logger = Logger(subsystem: "me.nikstar.sweep.ios", category: "LiveActivity")
+    private static let activityID = "active-downloads"
+
+    func synchronize(store: TorrentStore) async {
+        refresh(store: store)
+        await updateTask?.value
     }
 
     func refresh(store: TorrentStore) {
-        Task { @MainActor in
-            await updateActivity(from: store, reportingTo: store)
+        self.store = store
+        scheduleUpdate()
+    }
+
+    func showAgain() {
+        adoptActivityIfNeeded()
+        suppressedIDs.removeAll()
+        retryAfter = .distantPast
+        scheduleUpdate()
+    }
+
+    private func scheduleUpdate() {
+        needsUpdate = true
+        guard updateTask == nil else { return }
+        updateTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            // All request/update/end operations share one serial worker. Reentrant changes
+            // replace its pending input, rather than racing an end against a new request.
+            while needsUpdate, !Task.isCancelled {
+                needsUpdate = false
+                await reconcile()
+            }
+            updateTask = nil
         }
     }
 
-    private func updateActivity(from store: TorrentStore, reportingTo reportingStore: TorrentStore?) async {
-        guard settings.isEnabled else {
-            await endActivity(dismissalPolicy: .immediate)
+    private func reconcile() async {
+        guard let store else { return }
+        adoptActivityIfNeeded()
+        guard isEnabled else {
+            await endActivity(content: nil, immediately: true)
+            status = "Off"
+            lastError = nil
             return
         }
-
         guard ActivityAuthorizationInfo().areActivitiesEnabled else {
-            reportProblem("Live Activities are disabled for Sweep in Settings.", to: reportingStore)
-            await endActivity(dismissalPolicy: .immediate)
+            await endActivity(content: nil, immediately: true)
+            status = "Disabled in iOS Settings"
+            lastError = nil
             return
         }
-
-        guard let snapshot = IOSLiveActivitySnapshot(torrents: store.torrents, stats: store.sessionStats) else {
-            clearProblemIfNeeded(from: reportingStore)
-            await endActivity(dismissalPolicy: .after(.now.addingTimeInterval(60)))
+        if store.isRestoringSession, store.torrents.isEmpty {
+            status = "Restoring session"
             return
         }
-
-        if snapshot == lastSnapshot, currentActivity() != nil {
+        let transfers = store.torrents.map(DownloadActivityTransfer.init)
+        let tracked = Set(activity?.content.state.torrentIDs ?? lastContent?.torrentIDs ?? [])
+        guard let content = DownloadActivityContent.make(transfers: transfers, tracking: tracked, at: .now) else {
+            await endActivity(content: nil, immediately: true)
+            status = "No active downloads"
+            suppressedIDs.removeAll()
             return
         }
-
-        let content = ActivityContent(
-            state: snapshot.contentState(updatedAt: .now),
-            staleDate: .now.addingTimeInterval(15)
-        )
-
-        if let currentActivity = currentActivity() {
-            nonisolated(unsafe) let activity = currentActivity
-            await activity.update(content)
-        } else {
-            do {
-                activity = try Activity.request(
-                    attributes: SweepDownloadActivityAttributes(
-                        activityID: Self.activityID,
-                        title: "Sweep"
-                    ),
-                    content: content,
-                    pushType: nil
-                )
-            } catch {
-                let message = "Live Activity failed to start: \(error.localizedDescription)"
-                reportProblem(message, to: reportingStore)
-                logger.error("Activity.request failed: \(String(describing: error), privacy: .public)")
-                return
-            }
-        }
-
-        clearProblemIfNeeded(from: reportingStore)
-        lastSnapshot = snapshot
-    }
-
-    private func endActivity(dismissalPolicy: ActivityUIDismissalPolicy) async {
-        guard let currentActivity = currentActivity() else {
-            lastSnapshot = nil
+        let ids = Set(content.torrentIDs ?? [])
+        if content.displayPhase.isTerminal {
+            await endActivity(content: content, immediately: content.displayPhase == .stopped)
+            status = content.detail
             return
         }
-
-        nonisolated(unsafe) let activity = currentActivity
-        let finalSnapshot = lastSnapshot?.completed()
-        let finalState = finalSnapshot?.contentState(updatedAt: .now)
-        await activity.end(
-            finalState.map { ActivityContent(state: $0, staleDate: nil) },
-            dismissalPolicy: dismissalPolicy
-        )
-
-        self.activity = nil
-        lastSnapshot = nil
-    }
-
-    private func currentActivity() -> Activity<SweepDownloadActivityAttributes>? {
         if let activity {
-            return activity
+            guard DownloadActivityContent.shouldPublish(content, after: lastContent) else { return }
+            nonisolated(unsafe) let handle = activity
+            await handle.update(ActivityContent(state: content, staleDate: content.staleDate))
+            lastContent = content
+            lastUpdateAt = .now
+            lastError = nil
+            status = content.displayPhase == .paused ? "Active · Paused" : "Active"
+            return
         }
-
-        let restoredActivity = Activity<SweepDownloadActivityAttributes>.activities.first {
-            $0.attributes.activityID == Self.activityID
+        guard content.displayPhase.isActive else { status = "No active downloads"; return }
+        guard ids != suppressedIDs else { status = "Dismissed · Show again to restore"; return }
+        guard UIApplication.shared.applicationState == .active else {
+            status = "Waiting for Sweep to open"
+            return
         }
-        activity = restoredActivity
-        return restoredActivity
-    }
-
-    private func reportProblem(_ message: String, to store: TorrentStore?) {
-        if lastProblemMessage != message {
-            logger.warning("\(message, privacy: .public)")
-        }
-        lastProblemMessage = message
-        store?.lastError = message
-    }
-
-    private func clearProblemIfNeeded(from store: TorrentStore?) {
-        guard let lastProblemMessage else { return }
-        if store?.lastError == lastProblemMessage {
-            store?.lastError = nil
-        }
-        self.lastProblemMessage = nil
-    }
-
-    private static let activityID = "active-downloads"
-}
-
-private final class IOSLiveActivitySettings {
-    private enum Key {
-        static let isEnabled = "IOSLiveActivitiesEnabled"
-    }
-
-    private let defaults: UserDefaults
-
-    init(defaults: UserDefaults = .standard) {
-        self.defaults = defaults
-    }
-
-    var isEnabled: Bool {
-        get {
-            guard defaults.object(forKey: Key.isEnabled) != nil else { return true }
-            return defaults.bool(forKey: Key.isEnabled)
-        }
-        set {
-            defaults.set(newValue, forKey: Key.isEnabled)
+        guard Date.now >= retryAfter else { return }
+        do {
+            let handle = try Activity.request(
+                attributes: SweepDownloadActivityAttributes(activityID: Self.activityID, title: "Sweep"),
+                content: ActivityContent(state: content, staleDate: content.staleDate), pushType: nil
+            )
+            activity = handle
+            observeState(of: handle)
+            lastContent = content
+            lastUpdateAt = .now
+            lastError = nil
+            status = "Active"
+            logger.notice("Live Activity started")
+        } catch {
+            lastError = error.localizedDescription
+            status = "Could not start"
+            retryAfter = .now.addingTimeInterval(30)
+            logger.error("Live Activity request failed: \(String(describing: error), privacy: .public)")
         }
     }
-}
 
-private struct IOSLiveActivitySnapshot: Equatable {
-    var headline: String
-    var detail: String
-    var activeDownloadCount: Int
-    var progress: Double
-    var progressBytes: UInt64
-    var totalBytes: UInt64
-    var downloadBps: Double
-    var uploadBps: Double
-    var isIndeterminate: Bool
-
-    init?(torrents: [Torrent], stats: TorrentSessionStats) {
-        let activeDownloads = torrents.filter { torrent in
-            torrent.desiredState == .running
-                && torrent.error == nil
-                && (torrent.totalBytes == 0 || torrent.progress < 1)
-        }
-
-        guard !activeDownloads.isEmpty else { return nil }
-
-        let primaryTorrent = activeDownloads.max { lhs, rhs in
-            if lhs.downloadBps == rhs.downloadBps {
-                return lhs.updatedAt < rhs.updatedAt
+    private func adoptActivityIfNeeded() {
+        if let activity, ![.active, .stale].contains(activity.activityState) {
+            if activity.activityState == .dismissed, endingID != activity.id {
+                suppressedIDs = Set(activity.content.state.torrentIDs ?? [])
             }
-            return lhs.downloadBps < rhs.downloadBps
-        } ?? activeDownloads[0]
-
-        let totalBytes = activeDownloads.reduce(UInt64(0)) { $0 + $1.totalBytes }
-        let progressBytes = activeDownloads.reduce(UInt64(0)) { $0 + $1.progressBytes }
-        let hasUnknownSize = activeDownloads.contains { $0.totalBytes == 0 }
-        let progress = Self.progress(progressBytes: progressBytes, totalBytes: totalBytes)
-
-        if activeDownloads.count == 1 {
-            headline = primaryTorrent.name
-            detail = primaryTorrent.totalBytes == 0 ? "Waiting for metadata" : "\(Self.percent(progress)) downloaded"
-        } else {
-            headline = "\(activeDownloads.count) active downloads"
-            detail = primaryTorrent.name
+            self.activity = nil
+            lastContent = nil
+            activityStateTask?.cancel()
         }
-
-        activeDownloadCount = activeDownloads.count
-        self.progress = Self.round(progress, scale: 1_000)
-        self.progressBytes = progressBytes
-        self.totalBytes = totalBytes
-        downloadBps = Self.round(stats.downloadBps, scale: 1)
-        uploadBps = Self.round(stats.uploadBps, scale: 1)
-        isIndeterminate = hasUnknownSize || totalBytes == 0
+        guard activity == nil else { return }
+        if let restored = Activity<SweepDownloadActivityAttributes>.activities.first(where: {
+            $0.attributes.activityID == Self.activityID && [.active, .stale].contains($0.activityState)
+        }) {
+            activity = restored
+            // Publish immediately to refresh the deadline and any state from the previous process.
+            lastContent = nil
+            observeState(of: restored)
+            logger.notice("Adopted an existing Live Activity")
+        }
     }
 
-    func contentState(updatedAt: Date) -> SweepDownloadActivityAttributes.ContentState {
-        SweepDownloadActivityAttributes.ContentState(
-            headline: headline,
-            detail: detail,
-            activeDownloadCount: activeDownloadCount,
-            progress: progress,
-            progressBytes: progressBytes,
-            totalBytes: totalBytes,
-            downloadBps: downloadBps,
-            uploadBps: uploadBps,
-            isIndeterminate: isIndeterminate,
-            updatedAt: updatedAt
+    private func observeState(of handle: Activity<SweepDownloadActivityAttributes>) {
+        activityStateTask?.cancel()
+        nonisolated(unsafe) let handle = handle
+        activityStateTask = Task { @MainActor [weak self] in
+            for await state in handle.activityStateUpdates {
+                guard !Task.isCancelled else { return }
+                self?.logger.debug("Live Activity state: \(String(describing: state), privacy: .public)")
+                self?.scheduleUpdate()
+            }
+        }
+    }
+
+    private func endActivity(content: SweepDownloadActivityAttributes.ContentState?, immediately: Bool) async {
+        guard let activity else { lastContent = nil; return }
+        endingID = activity.id
+        activityStateTask?.cancel()
+        nonisolated(unsafe) let handle = activity
+        // Never manufacture 100% on pause, failure, removal, or a preference change.
+        await handle.end(
+            ActivityContent(state: content ?? handle.content.state, staleDate: nil),
+            dismissalPolicy: immediately ? .immediate : .after(.now.addingTimeInterval(120))
         )
+        self.activity = nil
+        lastContent = nil
+        lastUpdateAt = .now
+        endingID = nil
+        logger.notice("Live Activity ended")
     }
+}
 
-    func completed() -> IOSLiveActivitySnapshot {
-        var snapshot = self
-        snapshot.detail = activeDownloadCount == 1 ? "Download complete" : "Downloads complete"
-        snapshot.progress = 1
-        snapshot.progressBytes = max(progressBytes, totalBytes)
-        snapshot.downloadBps = 0
-        snapshot.uploadBps = 0
-        snapshot.isIndeterminate = false
-        return snapshot
-    }
-
-    private static func progress(progressBytes: UInt64, totalBytes: UInt64) -> Double {
-        guard totalBytes > 0 else { return 0 }
-        return min(1, Double(min(progressBytes, totalBytes)) / Double(totalBytes))
-    }
-
-    private static func percent(_ progress: Double) -> String {
-        "\(Int((progress * 100).rounded()))%"
-    }
-
-    private static func round(_ value: Double, scale: Double) -> Double {
-        guard value.isFinite else { return 0 }
-        return (value * scale).rounded() / scale
+private extension DownloadActivityTransfer {
+    init(_ torrent: Torrent) {
+        let phase: DownloadActivityPhase
+        if torrent.error != nil { phase = .failed }
+        else if torrent.desiredState == .paused { phase = .paused }
+        else if torrent.state == "initializing" || torrent.state == "restoring" { phase = .checking }
+        else if torrent.totalBytes == 0 { phase = .metadata }
+        else if torrent.progress >= 1 { phase = .completed }
+        else if torrent.downloadBps > 1 { phase = .downloading }
+        else { phase = .waiting }
+        self.init(id: torrent.id, name: torrent.name, phase: phase,
+                  downloaded: torrent.progressBytes, total: torrent.totalBytes,
+                  downloadBps: torrent.downloadBps.rounded(), uploadBps: torrent.uploadBps.rounded())
     }
 }

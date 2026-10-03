@@ -159,8 +159,8 @@ Highest-priority remaining work:
    actions, and dense layouts with several real torrents and long error messages.
    Keep pending, checking, paused, stalled, and failed states easy to distinguish.
 5. **Platform consistency.** Shared startup and diagnostics now cover both apps.
-   Validate background downloads and system suspension on a physical device;
-   expose background mode and failures instead of relying on hidden defaults.
+   Continue simulator coverage for background interruptions, long idle periods,
+   accessibility, and save destinations. Background mode and failures are now visible.
 
 ## iOS Validation, October 3, 2026
 
@@ -199,13 +199,80 @@ data across builds so updates and restoration remain part of normal testing.
   saved transfers, separate storage failures, sandbox relocation, and safe nested
   file resolution. Retry uses the same action decision on both platforms.
 
-The VPN and host routing were unchanged. Simulator tests establish foreground
-transfer, UI, and process-relaunch behavior. Physical-device background execution,
-audio/location mode transitions, OS suspension, and Live Activity behavior still
-need dedicated validation. Other iOS priorities are accessible layouts at large
-Dynamic Type sizes, multiple-file selection through the UI, and clear controls
-for background mode and save destinations. DHT/uTP and encryption gaps described
-above are shared engine concerns, not separate iOS implementations.
+The VPN and host routing were unchanged. Background execution and Live Activity
+validation now have a dedicated simulator pass below. Other iOS priorities are
+accessible layouts at large Dynamic Type sizes, multiple-file selection through
+the UI, and save destinations. DHT/uTP and encryption gaps described above are
+shared engine concerns, not separate iOS implementations.
+
+## iOS Background Execution and Live Activities, October 3, 2026
+
+The same iPhone 17 Pro Max simulator now has a repeatable local transfer fixture.
+`Scripts/live_activity_fixture.py` provides a private torrent, loopback HTTP
+tracker, metadata exchange, and a throttled TCP seed with deterministic contents:
+
+```sh
+python3 Scripts/live_activity_fixture.py /tmp/sweep-background-fixture
+```
+
+Open its `magnet.txt` link in Sweep. Edit `rate-kib.txt` while it runs to change
+transfer speed; Ctrl-C stops the servers. Remove this test torrent and its data
+before repeating a fresh-download test. The fixture requires no VPN changes.
+
+Implemented:
+
+- Continuous digital silence using a mixing playback session replaces the quiet
+  tone and repeated finite-background-task renewal. Audio is stopped in the
+  foreground, when disabled, and when no download work remains. Async starts
+  cannot revive a session after cancellation. Interruption/reset handlers and
+  visible errors replace swallowed failures.
+- One lifecycle monitor publishes the final activity before releasing audio.
+  It reads current background state rather than capturing the initial scene phase.
+- Serialized ActivityKit requests/updates/end calls, adoption after relaunch,
+  dismissal detection, foreground-only creation, and a 30-second cooldown after request failures.
+  Health shows activity authorization/state, update time, background mode/state,
+  errors, toggles, and an explicit Show Again action.
+- Separate metadata, checking, waiting, downloading, paused, failed, and completed
+  states. Pause and errors no longer manufacture 100% completion. Batch totals
+  remain stable when individual downloads finish. Checking an old completed file
+  during restoration does not replace the current paused activity.
+- Unchanged active downloads receive a 10-second heartbeat with a 60-second stale
+  deadline. Paused states have no stale deadline. Stale active views hide old rates
+  and ask the user to reopen Sweep. Final completion remains for two minutes.
+- A 14-point Lock Screen margin, system-managed background and semantic colors,
+  clearer filename/progress/status/rate hierarchy, and a less crowded expanded
+  Dynamic Island. The widget and application share the pure activity projection
+  in `SweepActivities`; the extension still has no database/engine dependency.
+
+Simulator evidence:
+
+- Downloaded the synthetic 67,108,864-byte payload; independently verified all
+  1,024 SHA-1 piece hashes. Completed while locked; the final activity showed
+  Download complete at 100%, followed by background audio becoming idle.
+- During a measured locked interval, saved payload grew from 42,139,648 to
+  44,957,696 bytes between 20:22:55 and 20:24:22 local time. The transfer also
+  continued through longer background intervals and resumed after a simulator
+  restart and several app replacements/relaunches.
+- Paused at 58,195,968 bytes (86.7%), force-relaunched, and verified the same
+  paused activity remained after more than a minute. Resume continued the file.
+- Cleared the activity on the Lock Screen. Health reported Dismissed without
+  recreating it; Show Live Activity Again restored it. The activity toggle
+  immediately ended/recreated the activity with Off/Active health states.
+- Inspected actual Lock Screen cards in light and dark appearance:
+  [downloading in dark mode](screenshots/live-activity-dark.jpg),
+  [paused after relaunch](screenshots/live-activity-paused.jpg), and
+  [completed](screenshots/live-activity-complete.jpg).
+- Compact and expanded Dynamic Island content appeared in the system accessibility
+  tree, but the simulator screenshot surface omitted the island contents. Its
+  visual layout still needs a reliable capture; Lock Screen rendering was verified.
+- All 33 Swift tests pass (24 core + 9 activity tests); macOS, iOS Simulator, and
+  unsigned iOS device builds pass. Built app declares audio/location background
+  modes and Live Activity support. Only the existing App Intents metadata warning
+  remains. VPN and host network settings were unchanged.
+
+Next work: interruption/media-service-reset injection, prolonged background and
+idle tests, Dynamic Island capture, larger Dynamic Type layouts, and the legacy
+location mode.
 
 ## Main List
 
