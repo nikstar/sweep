@@ -35,6 +35,7 @@ RQBIT_DELETE_FILE_ERRORS_PATCH="$ROOT_DIR/rust/patches/rqbit-delete-file-errors.
 RQBIT_METADATA_PROGRESS_PATCH="$ROOT_DIR/rust/patches/rqbit-metadata-progress.patch"
 RQBIT_PLAINTEXT_ANNOUNCE_PATCH="$ROOT_DIR/rust/patches/rqbit-plaintext-announce.patch"
 RQBIT_PENDING_MAGNET_ANNOUNCE_PATCH="$ROOT_DIR/rust/patches/rqbit-pending-magnet-announce.patch"
+RQBIT_UDP_TRACKER_FLOWS_PATCH="$ROOT_DIR/rust/patches/rqbit-udp-tracker-flows.patch"
 IOS_DEPLOYMENT_TARGET="${SWEEP_IOS_DEPLOYMENT_TARGET:-26.0}"
 
 cd "$ROOT_DIR"
@@ -305,6 +306,11 @@ apply_rqbit_patches() {
     "pending magnet announce" \
     "crates/librqbit/src/session.rs" \
     "A magnet without metadata is a leecher"
+  apply_rqbit_patch_if_missing \
+    "$RQBIT_UDP_TRACKER_FLOWS_PATCH" \
+    "UDP tracker endpoint isolation" \
+    "crates/tracker_comms/src/tracker_comms_udp.rs" \
+    "fn socket_for_tracker"
 }
 
 ensure_rqbit_checkout() {

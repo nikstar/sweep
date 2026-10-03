@@ -1,0 +1,152 @@
+--- a/crates/tracker_comms/src/tracker_comms_udp.rs
++++ b/crates/tracker_comms/src/tracker_comms_udp.rs
+@@ -243,7 +243,11 @@
+ }
+
+ struct ClientShared {
+-    sock: UdpSocket,
++    // One flow per destination: some TUN/UDP relays pin a source socket to
++    // its first remote endpoint. Multiplexing trackers then misroutes replies.
++    sockets: RwLock<HashMap<SocketAddr, Arc<UdpSocket>>>,
++    bind_device: Option<BindDevice>,
++    cancel_token: CancellationToken,
+     locked: RwLock<ClientLocked>,
+ }
+
+@@ -269,35 +273,50 @@
+         cancel_token: CancellationToken,
+         bind_device: Option<&BindDevice>,
+     ) -> anyhow::Result<Self> {
+-        let addr = SocketAddr::new(IpAddr::V6(Ipv6Addr::UNSPECIFIED), 0);
+-        let sock = UdpSocket::bind_udp(
+-            addr,
++        Ok(Self {
++            state: Arc::new(ClientShared {
++                sockets: RwLock::new(HashMap::new()),
++                bind_device: bind_device.cloned(),
++                cancel_token,
++                locked: RwLock::new(Default::default()),
++            }),
++        })
++    }
++
++    fn socket_for_tracker(&self, tracker: SocketAddr) -> anyhow::Result<Arc<UdpSocket>> {
++        let mut sockets = self.state.sockets.write();
++        if let Some(socket) = sockets.get(&tracker) {
++            return Ok(socket.clone());
++        }
++        let bind_addr = match tracker {
++            SocketAddr::V4(_) => SocketAddr::new(Ipv4Addr::UNSPECIFIED.into(), 0),
++            SocketAddr::V6(_) => SocketAddr::new(Ipv6Addr::UNSPECIFIED.into(), 0),
++        };
++        let socket = Arc::new(UdpSocket::bind_udp(
++            bind_addr,
+             librqbit_dualstack_sockets::BindOpts {
+-                device: bind_device,
++                device: self.state.bind_device.as_ref(),
+                 ..Default::default()
+             },
+-        )
+-        .with_context(|| format!("error creating UDP socket at {addr}"))?;
+-
+-        let client = Self {
+-            state: Arc::new(ClientShared {
+-                sock,
+-                locked: RwLock::new(Default::default()),
+-            }),
+-        };
+-
+-        spawn_with_cancel(debug_span!("udp_tracker"), "udp_tracker", cancel_token, {
+-            let client = client.clone();
+-            async move { client.run().await }
+-        });
+-
+-        Ok(client)
+-    }
+-
+-    async fn run(self) -> anyhow::Result<()> {
++        )?);
++        sockets.insert(tracker, socket.clone());
++        spawn_with_cancel(
++            debug_span!("udp_tracker", %tracker),
++            "udp_tracker",
++            self.state.cancel_token.clone(),
++            {
++                let client = self.clone();
++                let socket = socket.clone();
++                async move { client.run(socket, tracker).await }
++            },
++        );
++        Ok(socket)
++    }
++
++    async fn run(self, socket: Arc<UdpSocket>, tracker: SocketAddr) -> anyhow::Result<()> {
+         let mut buf = [0u8; 16384];
+         loop {
+-            let (len, addr) = match self.state.sock.recv_from(&mut buf).await {
++            let (len, addr) = match socket.recv_from(&mut buf).await {
+                 Ok(r) => r,
+                 Err(e) => {
+                     warn!("error in UdpSocket::recv_from: {e:#}");
+@@ -305,6 +324,10 @@
+                 }
+             };
+
++            if addr != tracker {
++                debug!(%addr, %tracker, "ignoring UDP tracker reply from unexpected endpoint");
++                continue;
++            }
+             let (tid, response) = match Response::parse(&buf[..len], addr.is_ipv6()) {
+                 Ok(r) => r,
+                 Err(e) => {
+@@ -359,8 +382,7 @@
+
+         let mut write_buf = [0u8; 1024];
+         let len = request.serialize(tid_g.tid, &mut write_buf)?;
+-        self.state
+-            .sock
++        self.socket_for_tracker(addr)?
+             .send_to(&write_buf[..len], addr)
+             .await
+             .with_context(|| format!("error sending to {addr:?}"))?;
+@@ -427,6 +449,40 @@
+         AnnounceFields, EVENT_NONE, Request, Response, new_transaction_id,
+     };
+
++    #[tokio::test]
++    async fn trackers_use_separate_flows_and_reject_foreign_replies() {
++        use super::*;
++        let token = CancellationToken::new();
++        let client = UdpTrackerClient::new(token.clone(), None).await.unwrap();
++        let mut flows = Vec::new();
++        for connection_id in [41u64, 42u64] {
++            let server = tokio::net::UdpSocket::bind("127.0.0.1:0").await.unwrap();
++            let addr = server.local_addr().unwrap();
++            let serve = tokio::spawn(async move {
++                let mut request = [0; 16];
++                let (_, source) = server.recv_from(&mut request).await.unwrap();
++                let mut reply = vec![0; 4];
++                reply.extend_from_slice(&request[12..16]);
++                reply.extend_from_slice(&99u64.to_be_bytes());
++                let foreign = tokio::net::UdpSocket::bind("127.0.0.1:0").await.unwrap();
++                foreign.send_to(&reply, source).await.unwrap();
++                tokio::time::sleep(Duration::from_millis(10)).await;
++                reply[8..].copy_from_slice(&connection_id.to_be_bytes());
++                server.send_to(&reply, source).await.unwrap();
++                source
++            });
++            let response = client.request(addr, Request::Connect).await.unwrap();
++            assert!(matches!(response, Response::Connect(id) if id == connection_id));
++            flows.push(serve.await.unwrap());
++        }
++        assert_ne!(
++            flows[0].port(),
++            flows[1].port(),
++            "tracker destinations shared a UDP flow"
++        );
++        token.cancel();
++    }
++
+     #[test]
+     fn test_parse_announce() {
+         let b = include_bytes!("../resources/test/udp-tracker-announce-response.bin");

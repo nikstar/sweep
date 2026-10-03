@@ -8,7 +8,8 @@ turning the app into a dashboard.
 
 ## macOS Validation, October 3, 2026
 
-The supplied real-world magnet did not deliver metadata or payload in rqbit.
+On the original VPN connection, the supplied real-world magnet did not deliver
+metadata or payload in rqbit.
 During the initial pass, two direct UDP tracker checks succeeded and returned peers
 (216 seeders / 114 leechers, and 129 seeders / 100 leechers at the time). rqbit found
 peers and established TCP/uTP connections, but metadata handshakes timed out or
@@ -69,20 +70,87 @@ counts. Tracker failures and responses retain their timestamps. DHT bootstrap
 health still needs a dedicated model. Protocol encryption signaling is described
 in [libtorrent's settings reference](https://www.libtorrent.org/reference-Settings.html#announce_crypto_support).
 
-Verification now includes 19 Swift tests and three Rust integration tests, both
+Verification now includes 20 Swift tests and three Rust integration tests plus the UDP tracker regression test, both
 Apple app builds, regeneration from an empty `BuildArtifacts/`, and application
 of the full patch series to the pinned pristine rqbit sources.
 
+After the user changed VPN connections, the same rqbit build resolved the magnet
+from a fresh folder in about seven seconds and downloaded 8 MiB of verified
+pieces seven seconds later. A fresh run from cached metadata also transferred
+payload. No VPN settings or system routes were changed during these tests.
+Plaintext peer transfers therefore work on the current path; the earlier result
+does not establish that peer encryption is required by this swarm.
+
+The live restoration test exposed a separate engine race: calling Resume while
+rqbit is still checking files starts another initializer. One initializer can
+leave the torrent paused while the internal intent flag says running. A
+command-line reproduction stayed paused without payload; waiting for the initial
+check before Resume fixes it. File selection now also waits for checking, so
+restored selections can be applied while the torrent is paused.
+
+- [x] Separate checked bytes from downloaded bytes across the bridge. Preserve
+  the last saved payload count while checking, then accept the verified result,
+  including a lower count if pieces are missing or corrupt.
+- [x] Exercise immediate Resume after adding cached metadata and verify payload
+  transfer from a local seed in the Rust integration test.
+- [x] Expose per-session TCP/uTP connection attempts, successes, and failures by
+  address family, DHT table sizes and outstanding requests, and live peers by
+  transport. Socket connections do not imply completed BitTorrent handshakes.
+- [x] Replace the raw “Live” label with Downloading, Connecting to peers, or
+  Waiting for data.
+
+Further isolation found a reproducible UDP routing issue on the current path.
+Sending tracker connect requests to two distinct endpoints through one socket
+produced transaction-matching replies from the **first** endpoint, even for the
+second destination. Reversing destination order reversed the pinned endpoint.
+The same behavior occurred with IPv4 sockets and IPv4-mapped IPv6 sockets.
+Separate sockets reached both endpoints correctly. This is observed behavior of
+the current network path; the VPN implementation and its internal policy were
+not inspected or changed.
+
+Rqbit multiplexed UDP trackers through one socket and matched replies by
+transaction ID alone. Depending on which destination went first, this produced
+all-timeout sessions or false “Working” results for unrelated trackers. The new
+patch uses one socket per tracker endpoint and rejects replies from an unexpected
+source. A deterministic loopback test covers both flow isolation and rejection
+of foreign replies. With the patch, the previously failing TCP + trackers-only
+fresh-magnet test resolved metadata and downloaded 11.6 MB within a few seconds.
+
+The patched native Mac app restored the saved running transfer at 1,368,501,305
+bytes and completed all 1,865,526,329 bytes. An independent read of the resulting
+file verified all 890 SHA-1 piece hashes against the cached torrent metadata.
+Paused restoration was also checked at 41.7% before resuming. The app was left
+open with the completed transfer. macOS and iOS builds, 20 Swift tests, the three
+Rust integration tests, the UDP tracker regression, and application of all eight
+patches to pristine pinned sources passed.
+
+The pre-fix isolation matrix is useful evidence, not a general VPN verdict:
+
+| Probe | Observed stage |
+| --- | --- |
+| TCP + trackers, twice | All tracker paths failed before any peer attempt |
+| uTP + trackers | 371 candidates, 371 attempts, zero connected uTP sockets, metadata timeout |
+| TCP + DHT only | Three IPv4 DHT table entries, no peer candidates within 40 seconds |
+| Independent UDP requests | One destination per socket worked; multiple destinations were pinned to the first |
+| TCP + isolated tracker sockets, after fix | Metadata and verified payload succeeded |
+
+The earlier count of 17 “Working” trackers was unreliable because response
+source validation was missing. TCP transport is proven on this connection;
+uTP and effective DHT peer discovery remain unverified. Both use shared UDP
+sockets upstream and warrant the same flow-isolation investigation. No IPv6
+route was available in the inspected routing table; zero IPv6 attempts should
+not be read as an interoperability test.
+
 Highest-priority remaining work:
 
-1. **Encrypted peer transport.** Investigate adding MSE/PE to rqbit's incoming
-   and outgoing TCP/uTP paths, with interoperability tests against an independent
-   client. A tracker flag is not an implementation of encryption. Use the same
-   public magnet and controlled local tests as acceptance cases.
-2. **Discovery diagnostics.** Add DHT bootstrap health and failure counts by
-   connection/handshake/metadata stage. Trackers and aggregate discovery progress
-   are now visible before a managed torrent exists; diagnostics must continue to
-   distinguish candidates from successful connections.
+1. **DHT/uTP routing and network failure stages.** Investigate per-destination UDP
+   flows for DHT and uTP on relayed paths. Add DHT bootstrap resolution/query outcomes,
+   per-torrent peer discovery sources, and separate connect/handshake/metadata
+   failure counters. The new session transport counters and metadata errors help
+   locate failures, but cannot by themselves attribute a failure to VPN filtering.
+2. **Encrypted peer transport.** MSE/PE remains a compatibility feature worth
+   implementing with independent-client tests. Successful plaintext transfers on
+   the current connection mean it is not a prerequisite for this public swarm.
 3. **Lifecycle and durable state.** Add graceful shutdown/flush, bounded retry
    policy, and failure-injection coverage for disk errors and concurrent commands.
    Reduce writes of transient speed/progress samples to SQLite. Pending magnets

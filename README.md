@@ -121,6 +121,7 @@ but the changes we rely on are tracked in this repo:
 - `rust/patches/rqbit-metadata-progress.patch`
 - `rust/patches/rqbit-plaintext-announce.patch`
 - `rust/patches/rqbit-pending-magnet-announce.patch`
+- `rust/patches/rqbit-udp-tracker-flows.patch`
 - `rust/patches/librqbit-dualstack-sockets/`
 
 The build script creates the checkout when it is missing, verifies its revision,
@@ -169,11 +170,20 @@ Previously verified on October 2, 2026 with Xcode 26.5 and the pinned Rust toolc
 - A fresh GitHub checkout bootstraps all Rust artifacts, passes the shared tests,
   and builds the iOS app with fresh Xcode derived data.
 
-Public-swarm downloading in rqbit remains unverified. The same real-world magnet
-successfully downloaded with Transmission on this Mac, using encrypted peers,
-while rqbit did not transfer data. Its pinned revision does not implement MSE/PE;
-this is the leading compatibility gap. The `live_probe` command reports discovery
-counters every two seconds and tracker errors on failure:
+Public-swarm downloading has now been verified on the current VPN connection:
+a fresh magnet resolved metadata and transferred verified pieces, and the Mac
+app restored the partial download and completed it. All 890 piece hashes were
+independently verified. The original
+connection failed after peer discovery; Transmission could transfer there using
+encrypted peers. Rqbit still lacks MSE/PE, but the new result shows that encryption
+is not a prerequisite for this swarm. Restoration testing also found and fixed
+an independent race between file checking and Resume. See the dated evidence and
+remaining work in [docs/FEATURES.md](docs/FEATURES.md).
+
+The `live_probe` command accepts a `.torrent` file or a text file containing a
+magnet. It reports metadata discovery, DHT table sizes, TCP/uTP socket outcomes,
+and payload progress. Use an empty output directory for a fresh-download test;
+bytes scanned during checking never count as a successful download:
 
 ```sh
 cargo run --locked --manifest-path rust/sweep-rqbit/Cargo.toml --bin live_probe -- /path/to/test.torrent /tmp/sweep-transfer-test 1048576 120
@@ -216,3 +226,36 @@ changes. Its older device-build stash is preserved in Git as
 ## License
 
 Sweep is licensed under the GNU General Public License v3.0. See [LICENSE](LICENSE).
+
+For controlled probes, `SWEEP_PROBE_TRANSPORT=tcp|utp|both` isolates the peer
+transport. With a magnet text file, `SWEEP_PROBE_DISCOVERY=trackers|dht|both`
+isolates discovery. These flags affect only the diagnostic process; they do not
+change the VPN, OS routes, or app preferences. Local service discovery is off in
+these probes. `SWEEP_PROBE_START_PAUSED=1` exercises the app's add-paused then
+immediate-Resume sequence. The normal app continues to use TCP, uTP, trackers,
+DHT, and local discovery.
+
+Read the stages separately:
+
+| Evidence | What it establishes | What it does not establish |
+| --- | --- | --- |
+| Tracker response / peer candidates | The tracker path worked | Any returned peer is reachable |
+| DHT table entries / requests in flight | DHT has contacts / work pending | A healthy bootstrap or peers for this torrent |
+| TCP/uTP connected counter | A socket transport connected | A valid BitTorrent handshake, metadata, or payload |
+| Live peers / metadata resolved | Peer protocol exchange succeeded | That a peer will send useful pieces |
+| Downloaded pieces increasing after checking | Verified payload transfer | Future connectivity after a network change |
+
+Connection counters are cumulative per session, split by IPv4/IPv6. “Errors”
+counts returned socket errors; an outer timeout or a losing raced connection can
+cancel an attempt without incrementing that counter. Inspect discovery failures
+and the last peer error alongside it. Zero IPv6 attempts do not test IPv6.
+
+DHT and UDP trackers use separate UDP protocols, and uTP carries peer traffic
+over UDP; TCP peer traffic is a separate path. Successful web browsing, a tracker
+reply, or even a connected TCP socket therefore cannot establish end-to-end
+BitTorrent health. VPN routing, DNS behavior, UDP handling, and traffic filtering
+can affect different stages independently. Reference protocols:
+[DHT](https://www.bittorrent.org/beps/bep_0005.html),
+[UDP trackers](https://www.bittorrent.org/beps/bep_0015.html),
+[uTP](https://www.bittorrent.org/beps/bep_0029.html), and
+[peer handshakes and piece verification](https://www.bittorrent.org/beps/bep_0003.html).
