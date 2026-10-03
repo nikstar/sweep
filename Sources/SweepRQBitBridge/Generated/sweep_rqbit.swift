@@ -563,6 +563,8 @@ public protocol SweepEngineProtocol: AnyObject, Sendable {
 
     func cancelPendingAdd(id: String)
 
+    func discoverySnapshots()  -> [DiscoverySnapshot]
+
     func listTorrents() async throws  -> [TorrentSnapshot]
 
     func pauseTorrent(id: String) async throws  -> TorrentSnapshot
@@ -679,6 +681,14 @@ open func cancelPendingAdd(id: String)  {try! rustCall() {
         FfiConverterString.lower(id),$0
     )
 }
+}
+
+open func discoverySnapshots() -> [DiscoverySnapshot]  {
+    return try!  FfiConverterSequenceTypeDiscoverySnapshot.lift(try! rustCall() {
+    uniffi_sweep_rqbit_fn_method_sweepengine_discovery_snapshots(
+            self.uniffiCloneHandle(),$0
+    )
+})
 }
 
 open func listTorrents()async throws  -> [TorrentSnapshot]  {
@@ -838,6 +848,88 @@ public func FfiConverterTypeSweepEngine_lower(_ value: SweepEngine) -> UInt64 {
 }
 
 
+
+
+public struct DiscoverySnapshot: Equatable, Hashable {
+    public var infoHash: String
+    public var isActive: Bool
+    public var elapsedSeconds: UInt64
+    public var peersFound: UInt64
+    public var peersTried: UInt64
+    public var peersActive: UInt64
+    public var peersFailed: UInt64
+    public var lastPeerError: String?
+    public var trackers: [TorrentTrackerSnapshot]
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(infoHash: String, isActive: Bool, elapsedSeconds: UInt64, peersFound: UInt64, peersTried: UInt64, peersActive: UInt64, peersFailed: UInt64, lastPeerError: String?, trackers: [TorrentTrackerSnapshot]) {
+        self.infoHash = infoHash
+        self.isActive = isActive
+        self.elapsedSeconds = elapsedSeconds
+        self.peersFound = peersFound
+        self.peersTried = peersTried
+        self.peersActive = peersActive
+        self.peersFailed = peersFailed
+        self.lastPeerError = lastPeerError
+        self.trackers = trackers
+    }
+
+
+
+
+}
+
+#if compiler(>=6)
+extension DiscoverySnapshot: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeDiscoverySnapshot: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> DiscoverySnapshot {
+        return
+            try DiscoverySnapshot(
+                infoHash: FfiConverterString.read(from: &buf),
+                isActive: FfiConverterBool.read(from: &buf),
+                elapsedSeconds: FfiConverterUInt64.read(from: &buf),
+                peersFound: FfiConverterUInt64.read(from: &buf),
+                peersTried: FfiConverterUInt64.read(from: &buf),
+                peersActive: FfiConverterUInt64.read(from: &buf),
+                peersFailed: FfiConverterUInt64.read(from: &buf),
+                lastPeerError: FfiConverterOptionString.read(from: &buf),
+                trackers: FfiConverterSequenceTypeTorrentTrackerSnapshot.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: DiscoverySnapshot, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.infoHash, into: &buf)
+        FfiConverterBool.write(value.isActive, into: &buf)
+        FfiConverterUInt64.write(value.elapsedSeconds, into: &buf)
+        FfiConverterUInt64.write(value.peersFound, into: &buf)
+        FfiConverterUInt64.write(value.peersTried, into: &buf)
+        FfiConverterUInt64.write(value.peersActive, into: &buf)
+        FfiConverterUInt64.write(value.peersFailed, into: &buf)
+        FfiConverterOptionString.write(value.lastPeerError, into: &buf)
+        FfiConverterSequenceTypeTorrentTrackerSnapshot.write(value.trackers, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeDiscoverySnapshot_lift(_ buf: RustBuffer) throws -> DiscoverySnapshot {
+    return try FfiConverterTypeDiscoverySnapshot.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeDiscoverySnapshot_lower(_ value: DiscoverySnapshot) -> RustBuffer {
+    return FfiConverterTypeDiscoverySnapshot.lower(value)
+}
 
 
 public struct TorrentFileSnapshot: Equatable, Hashable {
@@ -1594,6 +1686,31 @@ fileprivate struct FfiConverterSequenceString: FfiConverterRustBuffer {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterSequenceTypeDiscoverySnapshot: FfiConverterRustBuffer {
+    typealias SwiftType = [DiscoverySnapshot]
+
+    public static func write(_ value: [DiscoverySnapshot], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeDiscoverySnapshot.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [DiscoverySnapshot] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [DiscoverySnapshot]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeDiscoverySnapshot.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterSequenceTypeTorrentFileSnapshot: FfiConverterRustBuffer {
     typealias SwiftType = [TorrentFileSnapshot]
 
@@ -1786,6 +1903,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_sweep_rqbit_checksum_method_sweepengine_cancel_pending_add() != 58728) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_sweep_rqbit_checksum_method_sweepengine_discovery_snapshots() != 26457) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_sweep_rqbit_checksum_method_sweepengine_list_torrents() != 57991) {

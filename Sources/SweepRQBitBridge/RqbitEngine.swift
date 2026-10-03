@@ -114,6 +114,17 @@ public final class RqbitEngine: TorrentEngine, @unchecked Sendable {
             TorrentFileSource(fileName: "\(id).torrent", bytes: Array(try engine.torrentFile(id: id)))
         }
     }
+
+    public func discoverySnapshots() async throws -> [TorrentDiscovery] {
+        engine.discoverySnapshots().map {
+            TorrentDiscovery(
+                id: $0.infoHash, isActive: $0.isActive, elapsedSeconds: $0.elapsedSeconds,
+                peersFound: $0.peersFound, peersTried: $0.peersTried,
+                peersActive: $0.peersActive, peersFailed: $0.peersFailed,
+                lastPeerError: $0.lastPeerError, trackers: $0.trackers.map(TorrentTracker.init(snapshot:))
+            )
+        }
+    }
 }
 
 private struct RqbitEngineError: LocalizedError, Sendable {

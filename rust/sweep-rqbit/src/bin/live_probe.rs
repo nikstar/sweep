@@ -43,7 +43,7 @@ async fn async_main(
     min_bytes: u64,
     max_seconds: u64,
 ) -> anyhow::Result<()> {
-    let added = tokio::time::timeout(Duration::from_secs(max_seconds), async {
+    let adding = async {
         if let Ok(magnet) = std::str::from_utf8(&torrent_bytes)
             && magnet.trim().starts_with("magnet:")
         {
@@ -54,6 +54,24 @@ async fn async_main(
             engine
                 .add_torrent_file(torrent_bytes, output_dir, false)
                 .await
+        }
+    };
+    tokio::pin!(adding);
+    let added = tokio::time::timeout(Duration::from_secs(max_seconds), async {
+        loop {
+            tokio::select! {
+                result = &mut adding => break result,
+                _ = tokio::time::sleep(Duration::from_secs(2)) => {
+                    for discovery in engine.discovery_snapshots() {
+                        println!("discovery t={}s found={} tried={} active={} failed={} trackers_working={} trackers_failed={} last_peer_error={:?}",
+                            discovery.elapsed_seconds, discovery.peers_found, discovery.peers_tried,
+                            discovery.peers_active, discovery.peers_failed,
+                            discovery.trackers.iter().filter(|t| t.status == "Working").count(),
+                            discovery.trackers.iter().filter(|t| t.status == "Error").count(),
+                            discovery.last_peer_error);
+                    }
+                }
+            }
         }
     })
     .await

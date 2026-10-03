@@ -2,10 +2,14 @@ import SwiftUI
 import SweepCore
 
 struct TorrentActivityInspector: View {
+    @Environment(TorrentStore.self) private var store
     let torrent: Torrent
 
     var body: some View {
         InspectorPane {
+            if let discovery = store.discoveries[torrent.id] {
+                MetadataDiscoveryGroup(discovery: discovery)
+            }
             InspectorGroup("Progress") {
                 VStack(alignment: .leading, spacing: 5) {
                     SegmentedProgressView(
@@ -41,6 +45,31 @@ struct TorrentActivityInspector: View {
                 InspectorRow("Engine", value: torrent.state)
                 InspectorRow("Desired", value: torrent.desiredState.rawValue.capitalized)
                 InspectorRow("Last Update", value: TorrentDisplayFormat.date(torrent.updatedAt))
+            }
+        }
+    }
+}
+
+struct MetadataDiscoveryGroup: View {
+    let discovery: TorrentDiscovery
+
+    var body: some View {
+        InspectorGroup(discovery.isActive ? "Finding Metadata" : "Last Metadata Attempt") {
+            InspectorMetricLine {
+                InspectorMetric("Found", String(discovery.peersFound))
+                InspectorMetric("Tried", String(discovery.peersTried))
+                InspectorMetric("Active", String(discovery.peersActive))
+                InspectorMetric("Failed", String(discovery.peersFailed))
+            }
+            InspectorRow("Elapsed", value: "\(discovery.elapsedSeconds) seconds")
+            Text("Peers found are candidates. A successful connection and metadata exchange are needed before downloading files.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            if let error = discovery.lastPeerError {
+                Text(error)
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+                    .textSelection(.enabled)
             }
         }
     }

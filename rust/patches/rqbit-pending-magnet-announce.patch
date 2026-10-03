@@ -1,0 +1,17 @@
+--- a/crates/librqbit/src/session.rs
++++ b/crates/librqbit/src/session.rs
+@@ -1718,8 +1718,12 @@
+         let mt = match mt {
+             Some(mt) => mt,
+             None => {
+-                trace!(info_hash=?self.info_hash, "can't find torrent in the session, using default stats");
+-                return Default::default();
++                // A magnet without metadata is a leecher, never a completed seed.
++                // The size is unknown; a nonzero sentinel prevents left=0 announces.
++                return tracker_comms::TrackerCommsStats {
++                    total_bytes: 1,
++                    ..Default::default()
++                };
+             }
+         };
+         let stats = mt.stats();

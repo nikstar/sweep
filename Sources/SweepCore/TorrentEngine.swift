@@ -1,5 +1,32 @@
 import Foundation
 
+/// Session-only diagnostics; these are not payload peer counts or durable state.
+public struct TorrentDiscovery: Sendable, Equatable {
+    public let id: Torrent.ID
+    public var isActive: Bool
+    public let elapsedSeconds: UInt64
+    public let peersFound: UInt64
+    public let peersTried: UInt64
+    public var peersActive: UInt64
+    public let peersFailed: UInt64
+    public let lastPeerError: String?
+    public let trackers: [TorrentTracker]
+
+    public init(id: Torrent.ID, isActive: Bool, elapsedSeconds: UInt64, peersFound: UInt64,
+                peersTried: UInt64, peersActive: UInt64, peersFailed: UInt64,
+                lastPeerError: String?, trackers: [TorrentTracker]) {
+        self.id = id
+        self.isActive = isActive
+        self.elapsedSeconds = elapsedSeconds
+        self.peersFound = peersFound
+        self.peersTried = peersTried
+        self.peersActive = peersActive
+        self.peersFailed = peersFailed
+        self.lastPeerError = lastPeerError
+        self.trackers = trackers
+    }
+}
+
 public protocol TorrentEngine: Sendable {
     var name: String { get }
     var unavailabilityReason: String? { get }
@@ -16,12 +43,14 @@ public protocol TorrentEngine: Sendable {
     func setFileSelection(id: Torrent.ID, includedFileIDs: [Int]) async throws -> Torrent
     func cancelPendingAdd(id: Torrent.ID) async
     func torrentFile(id: Torrent.ID) async throws -> TorrentFileSource?
+    func discoverySnapshots() async throws -> [TorrentDiscovery]
 }
 
 public extension TorrentEngine {
     var unavailabilityReason: String? { nil }
     func cancelPendingAdd(id: Torrent.ID) async {}
     func torrentFile(id: Torrent.ID) async throws -> TorrentFileSource? { nil }
+    func discoverySnapshots() async throws -> [TorrentDiscovery] { [] }
     func sessionStats() async throws -> TorrentSessionStats {
         let torrents = try await list()
         return TorrentSessionStats(

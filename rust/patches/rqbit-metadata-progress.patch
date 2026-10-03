@@ -1,0 +1,159 @@
+--- a/crates/librqbit/src/lib.rs
++++ b/crates/librqbit/src/lib.rs
+@@ -61,6 +61,8 @@
+ pub mod limits;
+ mod listen;
+ mod merge_streams;
++mod metadata_progress;
++pub use metadata_progress::{MetadataProgress, MetadataProgressSnapshot};
+ mod peer_connection;
+ mod peer_info_reader;
+ mod piece_tracker;
+--- a/crates/librqbit/src/session.rs
++++ b/crates/librqbit/src/session.rs
+@@ -288,6 +288,10 @@
+     #[serde(skip)]
+     pub storage_factory: Option<BoxStorageFactory>,
+ 
++    /// Optional observer for discovery before a managed torrent exists.
++    #[serde(skip)]
++    pub metadata_progress: Option<crate::MetadataProgress>,
++
+     // Custom trackers
+     pub trackers: Option<Vec<String>>,
+ }
+@@ -1147,7 +1151,8 @@
+ 
+         let private = metadata.as_ref().is_some_and(|m| m.info.info().private);
+ 
+-        let tracker_stats = TrackerCommsState::default();
++        let tracker_stats = opts.metadata_progress.as_ref()
++            .map(|progress| progress.trackers.clone()).unwrap_or_default();
+         let make_peer_rx = || {
+             self.make_peer_rx(
+                 info_hash,
+@@ -1176,7 +1181,7 @@
+                         "no known way to resolve peers (no DHT, no trackers, no initial_peers)",
+                     )?;
+                     let resolved_magnet = self
+-                        .resolve_magnet(info_hash, peer_rx, &trackers, opts.peer_opts)
++                        .resolve_magnet(info_hash, peer_rx, &trackers, opts.peer_opts, opts.metadata_progress.clone())
+                         .await?;
+ 
+                     // Add back seen_peers into the peer stream, as we consumed some peers
+@@ -1562,6 +1567,7 @@
+         peer_rx: PeerStream,
+         trackers: &[url::Url],
+         peer_opts: Option<PeerConnectionOptions>,
++        progress: Option<crate::MetadataProgress>,
+     ) -> anyhow::Result<ResolveMagnetResult> {
+         match read_metainfo_from_peer_receiver(
+             self.peer_id,
+@@ -1570,6 +1576,7 @@
+             peer_rx,
+             Some(self.merge_peer_opts(peer_opts)),
+             self.connector.clone(),
++            progress,
+         )
+         .await
+         {
+--- a/crates/librqbit/src/dht_utils.rs
++++ b/crates/librqbit/src/dht_utils.rs
+@@ -34,6 +34,7 @@
+     addrs_stream: A,
+     peer_connection_options: Option<PeerConnectionOptions>,
+     connector: Arc<StreamConnector>,
++    progress: Option<crate::MetadataProgress>,
+ ) -> ReadMetainfoResult<A> {
+     let mut seen = HashSet::<SocketAddr>::new();
+     let mut addrs = addrs_stream;
+@@ -43,8 +44,10 @@
+     let read_info_guarded = |addr| {
+         let semaphore = &semaphore;
+         let connector = connector.clone();
++        let progress = progress.clone();
+         async move {
+             let token = semaphore.acquire().await?;
++            if let Some(progress) = &progress { progress.started(); }
+             let ret = peer_info_reader::read_metainfo_from_peer(
+                 addr,
+                 peer_id,
+@@ -58,6 +61,9 @@
+             .instrument(debug_span!("read_metainfo_from_peer", ?addr))
+             .await
+             .with_context(|| format!("error reading metainfo from {addr}"));
++            if let Some(progress) = &progress {
++                progress.finished(ret.as_ref().err().map(|error| format!("{error:#}")));
++            }
+             drop(token);
+             ret
+         }
+@@ -66,8 +72,10 @@
+     let mut unordered = FuturesUnordered::new();
+ 
+     for a in initial_addrs {
+-        seen.insert(a);
+-        unordered.push(read_info_guarded(a));
++        if seen.insert(a) {
++            if let Some(progress) = &progress { progress.discovered(); }
++            unordered.push(read_info_guarded(a));
++        }
+     }
+ 
+     let mut addrs_completed = false;
+@@ -92,6 +100,7 @@
+                 match next_addr {
+                     Some(addr) => {
+                         if seen.insert(addr) {
++                            if let Some(progress) = &progress { progress.discovered(); }
+                             unordered.push(read_info_guarded(addr));
+                         }
+                         continue;
+@@ -142,6 +151,7 @@
+             peer_rx,
+             None,
+             Arc::new(StreamConnector::new(Default::default()).await.unwrap()),
++            None,
+         )
+         .await
+         {
+--- /dev/null
++++ b/crates/librqbit/src/metadata_progress.rs
+@@ -0,0 +1,37 @@
++use std::sync::Arc;
++use parking_lot::Mutex;
++use tracker_comms::TrackerCommsState;
++
++/// Live metadata discovery counters. Separate from payload-transfer statistics.
++#[derive(Clone, Debug, Default)]
++pub struct MetadataProgress {
++    inner: Arc<Mutex<MetadataProgressSnapshot>>,
++    pub trackers: TrackerCommsState,
++}
++
++#[derive(Clone, Debug, Default)]
++pub struct MetadataProgressSnapshot {
++    pub discovered: u64,
++    pub attempted: u64,
++    pub active: u64,
++    pub failed: u64,
++    pub last_error: Option<String>,
++}
++
++impl MetadataProgress {
++    pub fn snapshot(&self) -> MetadataProgressSnapshot { self.inner.lock().clone() }
++    pub(crate) fn discovered(&self) { self.inner.lock().discovered += 1; }
++    pub(crate) fn started(&self) {
++        let mut state = self.inner.lock();
++        state.attempted += 1;
++        state.active += 1;
++    }
++    pub(crate) fn finished(&self, error: Option<String>) {
++        let mut state = self.inner.lock();
++        state.active = state.active.saturating_sub(1);
++        if let Some(error) = error {
++            state.failed += 1;
++            state.last_error = Some(error);
++        }
++    }
++}

@@ -1,0 +1,12 @@
+--- a/crates/tracker_comms/src/tracker_comms_http.rs
++++ b/crates/tracker_comms/src/tracker_comms_http.rs
+@@ -200,7 +200,8 @@
+         if let Some(key) = &self.key {
+             write!(s, "&key={key:08X}").unwrap();
+         }
+-        s.push_str("&supportcrypto=1");
++        // rqbit currently supports plaintext peer handshakes only.
++        s.push_str("&supportcrypto=0");
+         if let Some(trackerid) = &self.trackerid {
+             write!(s, "&trackerid={trackerid}").unwrap();
+         }

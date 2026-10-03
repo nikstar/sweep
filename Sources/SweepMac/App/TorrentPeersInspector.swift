@@ -2,10 +2,14 @@ import SwiftUI
 import SweepCore
 
 struct TorrentPeersInspector: View {
+    @Environment(TorrentStore.self) private var store
     let torrent: Torrent
 
     var body: some View {
         InspectorPane {
+            if let discovery = store.discoveries[torrent.id] {
+                MetadataDiscoveryGroup(discovery: discovery)
+            }
             InspectorGroup("Summary") {
                 let livePeers = torrent.peers.filter(\.isLiveConnection)
                 InspectorMetricLine {

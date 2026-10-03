@@ -164,6 +164,54 @@ struct TorrentLifecycleTests {
     }
 
     @Test @MainActor
+    func discoveryDiagnosticsPreserveIntentAndStopOnPause() async throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanUp() }
+        let engine = LifecycleEngine(holdMetadata: true)
+        let store = fixture.store(engine: engine)
+        _ = await store.addTorrent(.magnet(Self.magnet), downloadDirectory: fixture.directory.path, startPaused: false)
+        #expect(await eventually { await engine.addCount() == 1 })
+        let tracker = TorrentTracker(id: 0, url: "http://localhost/announce", kind: "HTTP", status: "Working", lastPeerCount: 4)
+        await engine.setDiscovery(TorrentDiscovery(id: Self.hash, isActive: true, elapsedSeconds: 12,
+            peersFound: 4, peersTried: 3, peersActive: 1, peersFailed: 2,
+            lastPeerError: "Peer disconnected during handshake", trackers: [tracker]))
+        await store.refreshNow()
+        #expect(store.discoveries[Self.hash]?.peersFound == 4)
+        #expect(store.selectedTorrent?.state == "resolving")
+        #expect(store.selectedTorrent?.desiredState == .running)
+        #expect(store.selectedTorrent?.trackers.first?.status == "Working")
+        store.pauseSelectedTorrent()
+        #expect(await eventually { await engine.cancelCount() == 1 })
+        await store.refreshNow()
+        #expect(store.discoveries[Self.hash]?.isActive == false)
+        #expect(store.discoveries[Self.hash]?.peersActive == 0)
+        #expect(store.selectedTorrent?.desiredState == .paused)
+    }
+
+    @Test @MainActor
+    func failedDiscoveryKeepsItsFinalEvidenceUntilRetry() async throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanUp() }
+        let engine = LifecycleEngine(holdMetadata: true)
+        let store = fixture.store(engine: engine)
+        _ = await store.addTorrent(.magnet(Self.magnet), downloadDirectory: fixture.directory.path, startPaused: false)
+        #expect(await eventually { await engine.addCount() == 1 })
+        await engine.setDiscovery(TorrentDiscovery(id: Self.hash, isActive: false, elapsedSeconds: 90,
+            peersFound: 5, peersTried: 5, peersActive: 0, peersFailed: 5,
+            lastPeerError: "Handshake timed out", trackers: []))
+        await engine.failMetadata()
+        #expect(await eventually { store.pendingTorrentCount == 0 })
+        await store.refreshNow()
+        #expect(store.discoveries[Self.hash]?.peersFailed == 5)
+        #expect(store.selectedTorrent?.error == "Test metadata timeout")
+        store.resumeSelectedTorrent()
+        #expect(await eventually { await engine.addCount() == 2 })
+        #expect(store.discoveries[Self.hash] == nil)
+        await engine.failMetadata()
+        #expect(await eventually { store.pendingTorrentCount == 0 })
+    }
+
+    @Test @MainActor
     func removedPendingAddCannotReturnAsAGhostTorrent() async throws {
         let fixture = try Fixture()
         defer { fixture.cleanUp() }
@@ -214,6 +262,7 @@ private actor LifecycleEngine: TorrentEngine {
     private var shouldFailList = false
     private var heldList: CheckedContinuation<[Torrent], Never>?
     private var heldSnapshot: [Torrent] = []
+    private var discovery: TorrentDiscovery?
 
     init(torrents: [Torrent] = [], holdMetadata: Bool = false, ignoresCancellation: Bool = false) {
         self.torrents = torrents
@@ -279,6 +328,8 @@ private actor LifecycleEngine: TorrentEngine {
     func cancelCount() -> Int { cancellations }
     func firstSource() -> TorrentAddSource? { sources.first }
     func selectedFiles() -> [Int] { fileSelection }
+    func discoverySnapshots() async throws -> [TorrentDiscovery] { discovery.map { [$0] } ?? [] }
+    func setDiscovery(_ value: TorrentDiscovery) { discovery = value }
     func holdNextList() { shouldHoldList = true }
     func failNextList() { shouldFailList = true }
     func hasHeldList() -> Bool { heldList != nil }

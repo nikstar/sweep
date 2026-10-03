@@ -32,6 +32,9 @@ RQBIT_TRACKER_COMPAT_PATCH="$ROOT_DIR/rust/patches/rqbit-tracker-compat.patch"
 RQBIT_PIECE_SNAPSHOT_PATCH="$ROOT_DIR/rust/patches/rqbit-piece-snapshot.patch"
 RQBIT_INSPECTOR_STATS_PATCH="$ROOT_DIR/rust/patches/rqbit-inspector-stats.patch"
 RQBIT_DELETE_FILE_ERRORS_PATCH="$ROOT_DIR/rust/patches/rqbit-delete-file-errors.patch"
+RQBIT_METADATA_PROGRESS_PATCH="$ROOT_DIR/rust/patches/rqbit-metadata-progress.patch"
+RQBIT_PLAINTEXT_ANNOUNCE_PATCH="$ROOT_DIR/rust/patches/rqbit-plaintext-announce.patch"
+RQBIT_PENDING_MAGNET_ANNOUNCE_PATCH="$ROOT_DIR/rust/patches/rqbit-pending-magnet-announce.patch"
 IOS_DEPLOYMENT_TARGET="${SWEEP_IOS_DEPLOYMENT_TARGET:-26.0}"
 
 cd "$ROOT_DIR"
@@ -271,7 +274,7 @@ apply_rqbit_patches() {
     "$RQBIT_TRACKER_COMPAT_PATCH" \
     "tracker compatibility" \
     "crates/tracker_comms/src/tracker_comms_http.rs" \
-    "supportcrypto=1"
+    'write!(s, "&key={key:08X}")'
   apply_rqbit_patch_if_missing \
     "$RQBIT_PIECE_SNAPSHOT_PATCH" \
     "piece snapshot" \
@@ -287,6 +290,21 @@ apply_rqbit_patches() {
     "delete file errors" \
     "crates/librqbit/src/session.rs" \
     "could not delete all torrent payload files"
+  apply_rqbit_patch_if_missing \
+    "$RQBIT_METADATA_PROGRESS_PATCH" \
+    "metadata discovery progress" \
+    "crates/librqbit/src/session.rs" \
+    "pub metadata_progress:"
+  apply_rqbit_patch_if_missing \
+    "$RQBIT_PLAINTEXT_ANNOUNCE_PATCH" \
+    "plaintext tracker announce" \
+    "crates/tracker_comms/src/tracker_comms_http.rs" \
+    "supportcrypto=0"
+  apply_rqbit_patch_if_missing \
+    "$RQBIT_PENDING_MAGNET_ANNOUNCE_PATCH" \
+    "pending magnet announce" \
+    "crates/librqbit/src/session.rs" \
+    "A magnet without metadata is a leecher"
 }
 
 ensure_rqbit_checkout() {

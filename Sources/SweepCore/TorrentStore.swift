@@ -19,6 +19,7 @@ public final class TorrentStore {
     public private(set) var lastRefreshAt: Date?
     public private(set) var refreshError: String?
     public private(set) var persistenceError: String?
+    public private(set) var discoveries: [Torrent.ID: TorrentDiscovery] = [:]
     public let startupError: String?
     public var engineError: String? { engine.unavailabilityReason }
     public var hasPersistence: Bool { persistence != nil }
@@ -217,7 +218,9 @@ public final class TorrentStore {
         do {
             let liveTorrents = try await engine.list()
             let stats = try await engine.sessionStats()
+            let discoverySnapshots = try await engine.discoverySnapshots()
             guard revision == mutationRevision else { return }
+            updateDiscoveries(discoverySnapshots)
             managedTorrentIDs = Set(liveTorrents.map(\.id))
             let visibleLiveTorrents = filterVisibleLiveTorrents(from: liveTorrents)
             for torrent in visibleLiveTorrents where pendingAdds[torrent.id] == nil && commandVersions[torrent.id] == nil {
@@ -366,6 +369,7 @@ public final class TorrentStore {
         guard pendingAdds[torrent.id] == nil, engineError == nil else { return }
         let token = UUID()
         pendingAdds[torrent.id] = token
+        discoveries.removeValue(forKey: torrent.id)
         mutationRevision += 1
         upsert(torrent.updating(
             state: torrent.torrentFileBytes == nil && torrent.magnet != nil ? "resolving" : "restoring",
@@ -422,12 +426,17 @@ public final class TorrentStore {
             guard pendingAdds[id] == token,
                   let latest = torrents.first(where: { $0.id == id }) else { return }
             restored = restored.mergingCachedMetadata(from: latest)
+            discoveries.removeValue(forKey: id)
             upsert(restored)
             await saveCurrentTorrents()
         } catch {
+            let diagnostics = try? await engine.discoverySnapshots()
             guard pendingAdds[id] == token, !Task.isCancelled,
                   let current = torrents.first(where: { $0.id == id }) else { return }
-            upsert(current.updating(state: "error", downloadBps: 0, uploadBps: 0, error: error.localizedDescription))
+            if let diagnostics { updateDiscoveries(diagnostics) }
+            // Preserve tracker results captured above in the final error row.
+            let latest = torrents.first(where: { $0.id == id }) ?? current
+            upsert(latest.updating(state: "error", downloadBps: 0, uploadBps: 0, error: error.localizedDescription))
             await saveCurrentTorrents()
         }
     }
@@ -435,9 +444,24 @@ public final class TorrentStore {
     private func cancelPendingAdd(id: Torrent.ID) async {
         pendingAdds.removeValue(forKey: id)
         addTasks.removeValue(forKey: id)?.cancel()
+        discoveries[id]?.isActive = false
+        discoveries[id]?.peersActive = 0
         // UniFFI's generated Swift async wrapper does not propagate Task.cancel().
         // Explicitly abort the Tokio task, rather than just dismissing the UI.
         await engine.cancelPendingAdd(id: id)
+    }
+
+    private func updateDiscoveries(_ snapshots: [TorrentDiscovery]) {
+        for snapshot in snapshots {
+            guard let current = torrents.first(where: { $0.id == snapshot.id }),
+                  current.torrentFileBytes == nil, current.desiredState == .running,
+                  commandVersions[snapshot.id] == nil else { continue }
+            guard discoveries[snapshot.id] != snapshot else { continue }
+            discoveries[snapshot.id] = snapshot
+            if !snapshot.trackers.isEmpty {
+                upsert(current.updating(trackers: snapshot.trackers))
+            }
+        }
     }
 
     private func saveCurrentTorrents() async {
@@ -539,6 +563,7 @@ public final class TorrentStore {
         await cancelPendingAdd(id: torrent.id)
         locallyRemovedTorrentIDs.insert(torrent.id)
         torrents.removeAll { $0.id == torrent.id }
+        discoveries.removeValue(forKey: torrent.id)
         if selection == torrent.id {
             selection = torrents.first?.id
         }

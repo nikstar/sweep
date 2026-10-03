@@ -118,6 +118,9 @@ but the changes we rely on are tracked in this repo:
 - `rust/patches/rqbit-piece-snapshot.patch`
 - `rust/patches/rqbit-inspector-stats.patch`
 - `rust/patches/rqbit-delete-file-errors.patch`
+- `rust/patches/rqbit-metadata-progress.patch`
+- `rust/patches/rqbit-plaintext-announce.patch`
+- `rust/patches/rqbit-pending-magnet-announce.patch`
 - `rust/patches/librqbit-dualstack-sockets/`
 
 The build script creates the checkout when it is missing, verifies its revision,
@@ -166,10 +169,11 @@ Previously verified on October 2, 2026 with Xcode 26.5 and the pinned Rust toolc
 - A fresh GitHub checkout bootstraps all Rust artifacts, passes the shared tests,
   and builds the iOS app with fresh Xcode derived data.
 
-Live downloading is not yet revalidated: an Arch trackerless torrent found no
-peers within two minutes, and a Debian tracker connection timed out. The existing
-`live_probe` command now reports tracker errors on failure. Test on a network with
-working BitTorrent connectivity before relying on transfers or background modes:
+Public-swarm downloading in rqbit remains unverified. The same real-world magnet
+successfully downloaded with Transmission on this Mac, using encrypted peers,
+while rqbit did not transfer data. Its pinned revision does not implement MSE/PE;
+this is the leading compatibility gap. The `live_probe` command reports discovery
+counters every two seconds and tracker errors on failure:
 
 ```sh
 cargo run --locked --manifest-path rust/sweep-rqbit/Cargo.toml --bin live_probe -- /path/to/test.torrent /tmp/sweep-transfer-test 1048576 120
@@ -185,9 +189,11 @@ The October 3 macOS lifecycle pass added durable pending magnets, explicit
 metadata cancellation and a 90-second discovery timeout, independent session
 restoration, cached torrent metadata, and a Session Health popover. Swift
 lifecycle tests cover pending/paused restoration, file selection, stale polling,
-error visibility, and removal races. Rust tests transfer a synthetic 1 MiB file
-over loopback, verify its contents, restore it from cached metadata, and cancel
-a stalled discovery request without using a public tracker:
+error visibility, discovery diagnostics, and removal races. The actual Mac UI
+has also passed pending/paused relaunch and timeout checks. There are now 19 Swift
+tests and three Rust integration tests. The latter resolve a magnet through a
+local tracker, transfer a synthetic 1 MiB file, verify its contents, restore cached
+metadata, and check cancellation and diagnostics for failed peer handshakes:
 
 ```sh
 cargo test --locked --manifest-path rust/sweep-rqbit/Cargo.toml --lib

@@ -3,7 +3,7 @@ use std::{
     net::{Ipv4Addr, Ipv6Addr, SocketAddr},
     path::PathBuf,
     sync::{Arc, Mutex},
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use anyhow::Context;
@@ -11,7 +11,8 @@ use bencode::{BencodeValue, ByteBuf};
 use futures_channel::oneshot;
 use librqbit::{
     AddTorrent, AddTorrentOptions, AddTorrentResponse, ConnectionOptions, ListenerMode,
-    ListenerOptions, ManagedTorrent, Session, SessionOptions, TrackerCommsTrackerStats,
+    ListenerOptions, ManagedTorrent, MetadataProgress, Session, SessionOptions,
+    TrackerCommsTrackerStats,
     api::TorrentIdOrHash, dht::Id20, generate_azereus_style, http_api_types::PeerStatsFilter,
 };
 use tokio::runtime::{Builder, Runtime};
@@ -132,12 +133,33 @@ pub struct TorrentSnapshot {
     pub error: Option<String>,
 }
 
+#[derive(Debug, Clone, uniffi::Record)]
+pub struct DiscoverySnapshot {
+    pub info_hash: String,
+    pub is_active: bool,
+    pub elapsed_seconds: u64,
+    pub peers_found: u64,
+    pub peers_tried: u64,
+    pub peers_active: u64,
+    pub peers_failed: u64,
+    pub last_peer_error: Option<String>,
+    pub trackers: Vec<TorrentTrackerSnapshot>,
+}
+
+struct Discovery {
+    progress: MetadataProgress,
+    tracker_urls: BTreeSet<String>,
+    started: Instant,
+    finished: Mutex<Option<Instant>>,
+}
+
 #[derive(uniffi::Object)]
 pub struct SweepEngine {
     runtime: Runtime,
     session: Arc<Session>,
     peer_id: Id20,
     pending_adds: Mutex<HashMap<String, tokio::task::AbortHandle>>,
+    discoveries: Mutex<HashMap<String, Arc<Discovery>>>,
 }
 
 #[uniffi::export]
@@ -171,6 +193,7 @@ impl SweepEngine {
             session,
             peer_id,
             pending_adds: Mutex::new(HashMap::new()),
+            discoveries: Mutex::new(HashMap::new()),
         }))
     }
 
@@ -180,29 +203,51 @@ impl SweepEngine {
         download_dir: String,
         start_paused: bool,
     ) -> Result<TorrentSnapshot, SweepError> {
-        let info_hash = librqbit::Magnet::parse(&magnet)?
+        let parsed = librqbit::Magnet::parse(&magnet)?;
+        let info_hash = parsed
             .as_id20()
             .context("magnet link did not contain a v1 info hash")?
             .as_string();
         let session = self.session.clone();
         let runtime = self.runtime.handle().clone();
         let (tx, rx) = oneshot::channel();
+        let discovery = Arc::new(Discovery {
+            progress: MetadataProgress::default(),
+            tracker_urls: parsed
+                .trackers
+                .into_iter()
+                .map(|url| {
+                    reqwest::Url::parse(&url)
+                        .map(|url| url.to_string())
+                        .unwrap_or(url)
+                })
+                .collect(),
+            started: Instant::now(),
+            finished: Mutex::new(None),
+        });
+        self.discoveries
+            .lock()
+            .unwrap()
+            .insert(info_hash.clone(), discovery.clone());
+        let task_discovery = discovery.clone();
 
         let task = runtime.spawn(async move {
             let result = tokio::time::timeout(
                 Duration::from_secs(90),
-                add_torrent_to_session(
+                add_torrent_with_progress(
                     session,
                     AddTorrent::from_url(magnet),
                     download_dir,
                     start_paused,
                     Vec::new(),
+                    Some(task_discovery.progress.clone()),
                 ),
             )
             .await
             .unwrap_or_else(|_| Err(SweepError::Message(
                 "No torrent metadata received after 90 seconds. Peers may be unreachable or incompatible.".to_owned(),
             )));
+            *task_discovery.finished.lock().unwrap() = Some(Instant::now());
             let _ = tx.send(result);
         });
         let abort = task.abort_handle();
@@ -222,13 +267,68 @@ impl SweepEngine {
         {
             pending.remove(&info_hash);
         }
+        // Keep failed discovery evidence for the inspector until retry/cancel.
+        if matches!(&result, Ok(Ok(_))) {
+            let mut discoveries = self.discoveries.lock().unwrap();
+            if discoveries
+                .get(&info_hash)
+                .is_some_and(|current| Arc::ptr_eq(current, &discovery))
+            {
+                discoveries.remove(&info_hash);
+            }
+        }
         result?
     }
 
     pub fn cancel_pending_add(&self, id: String) {
-        if let Some(task) = self.pending_adds.lock().unwrap().remove(&id.to_ascii_lowercase()) {
+        let id = id.to_ascii_lowercase();
+        if let Some(task) = self.pending_adds.lock().unwrap().remove(&id) {
             task.abort();
         }
+        self.discoveries.lock().unwrap().remove(&id);
+    }
+
+    pub fn discovery_snapshots(&self) -> Vec<DiscoverySnapshot> {
+        self.discoveries
+            .lock()
+            .unwrap()
+            .iter()
+            .map(|(id, discovery)| {
+                let stats = discovery.progress.snapshot();
+                let finished = *discovery.finished.lock().unwrap();
+                let tracker_stats = discovery
+                    .progress
+                    .trackers
+                    .snapshot()
+                    .into_iter()
+                    .map(|stats| (stats.url.clone(), stats))
+                    .collect::<BTreeMap<_, _>>();
+                let mut urls = discovery.tracker_urls.clone();
+                urls.extend(tracker_stats.keys().cloned());
+                let trackers = urls
+                    .into_iter()
+                    .enumerate()
+                    .map(|(index, url)| {
+                        let stats = tracker_stats.get(&url);
+                        snapshot_tracker(index, url, stats)
+                    })
+                    .collect();
+                DiscoverySnapshot {
+                    info_hash: id.clone(),
+                    is_active: finished.is_none(),
+                    elapsed_seconds: finished
+                        .unwrap_or_else(Instant::now)
+                        .duration_since(discovery.started)
+                        .as_secs(),
+                    peers_found: stats.discovered,
+                    peers_tried: stats.attempted,
+                    peers_active: if finished.is_none() { stats.active } else { 0 },
+                    peers_failed: stats.failed,
+                    last_peer_error: stats.last_error,
+                    trackers,
+                }
+            })
+            .collect()
     }
 
     pub fn torrent_file(&self, id: String) -> Result<Vec<u8>, SweepError> {
@@ -352,6 +452,25 @@ async fn add_torrent_to_session(
     start_paused: bool,
     initial_peers: Vec<SocketAddr>,
 ) -> Result<TorrentSnapshot, SweepError> {
+    add_torrent_with_progress(
+        session,
+        add_torrent,
+        download_dir,
+        start_paused,
+        initial_peers,
+        None,
+    )
+    .await
+}
+
+async fn add_torrent_with_progress(
+    session: Arc<Session>,
+    add_torrent: AddTorrent<'static>,
+    download_dir: String,
+    start_paused: bool,
+    initial_peers: Vec<SocketAddr>,
+    metadata_progress: Option<MetadataProgress>,
+) -> Result<TorrentSnapshot, SweepError> {
     let response = session
         .add_torrent(
             add_torrent,
@@ -360,6 +479,7 @@ async fn add_torrent_to_session(
                 output_folder: Some(download_dir),
                 paused: start_paused,
                 initial_peers: (!initial_peers.is_empty()).then_some(initial_peers),
+                metadata_progress,
                 ..Default::default()
             }),
         )
@@ -456,7 +576,7 @@ async fn announce_initial_peers(
     let mut url = reqwest::Url::parse(tracker)?;
     let key = u32::from_be_bytes(peer_id.0[8..12].try_into()?);
     let mut query = format!(
-        "info_hash={}&peer_id={}&port={announce_port}&uploaded=0&downloaded=0&left={left}&numwant=80&key={key:08X}&compact=1&supportcrypto=1&event=started",
+        "info_hash={}&peer_id={}&port={announce_port}&uploaded=0&downloaded=0&left={left}&numwant=80&key={key:08X}&compact=1&supportcrypto=0&event=started",
         urlencoding::encode_binary(&info_hash.0),
         urlencoding::encode_binary(&peer_id.0)
     );

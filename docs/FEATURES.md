@@ -8,9 +8,9 @@ turning the app into a dashboard.
 
 ## macOS Validation, October 3, 2026
 
-The supplied real-world magnet did not deliver metadata or payload during this
-pass. Two direct UDP tracker checks succeeded and returned peers (216 seeders /
-114 leechers, and 129 seeders / 100 leechers at the time of the check). rqbit found
+The supplied real-world magnet did not deliver metadata or payload in rqbit.
+During the initial pass, two direct UDP tracker checks succeeded and returned peers
+(216 seeders / 114 leechers, and 129 seeders / 100 leechers at the time). rqbit found
 peers and established TCP/uTP connections, but metadata handshakes timed out or
 disconnected. An independent TCP BitTorrent handshake check against 24 returned
 peers also failed: 22 timeouts and two refused connections. This does not establish
@@ -35,19 +35,54 @@ waiting. Quitting at that point lost the request. Changes from this pass:
   pending operations, storage availability, and torrent error count.
 - [x] Verify a synthetic 1 MiB loopback transfer byte-for-byte, cached metadata
   restoration, and Rust task cancellation in automated tests.
-- [ ] Complete the updated Mac UI relaunch checks. The Mac locked after the first
-  live attempt; UI verification requires it to be unlocked.
+- [x] Verify the updated Mac UI: the pending row appears immediately, paused state
+  survives relaunch, active discovery restarts on relaunch, and the 90-second
+  timeout leaves a selected error row with Resume enabled.
+- [x] Show discovery counters and the latest peer failure in Activity and Peers,
+  plus actual tracker responses before metadata arrives. Retain the last attempt
+  after timeout and stop active counts on pause.
+- [x] Correct unresolved magnet announces: use a nonzero unknown-size sentinel
+  instead of announcing `left=0` (a completed seed).
+- [x] Correct encrypted-transport advertising. This rqbit revision has plaintext
+  peer handshakes only; the previous compatibility patch incorrectly advertised
+  `supportcrypto=1`. Both announce paths now send `supportcrypto=0`.
+
+Follow-up control runs used Transmission 4.1.3 on the same Mac and network, with
+fresh temporary configuration/data folders, no port mapping, and a 512 kB/s
+limit. An encryption-preferred run resolved metadata in 9 seconds and downloaded
+1,671,168 bytes by 24 seconds. All nine connected peers were encrypted; both peers
+sending payload were encrypted. Another control run reached about 500 kB/s.
+A separate fresh control preferring unencrypted connections had no connected
+peers, metadata, or payload throughout its 102-second observation window.
+
+Rqbit still failed after both announce corrections: 328 candidates were attempted,
+all 328 failed, and no metadata arrived in 90 seconds. Supplying the control
+client's resolved `.torrent` metadata directly also yielded no payload and no
+live peers over a further 90-second transfer window. The local tracker/peer test
+successfully resolves a magnet and transfers a synthetic 1 MiB payload, so the
+basic protocol path works. This evidence prioritizes public-peer transport
+compatibility rather than Swift state or a dead swarm. It does not prove whether
+plaintext is blocked on the network path or rejected by those peers.
+
+The discovery counters are session diagnostics, not persisted payload-peer
+counts. Tracker failures and responses retain their timestamps. DHT bootstrap
+health still needs a dedicated model. Protocol encryption signaling is described
+in [libtorrent's settings reference](https://www.libtorrent.org/reference-Settings.html#announce_crypto_support).
+
+Verification now includes 19 Swift tests and three Rust integration tests, both
+Apple app builds, regeneration from an empty `BuildArtifacts/`, and application
+of the full patch series to the pinned pristine rqbit sources.
 
 Highest-priority remaining work:
 
-1. **Public-swarm interoperability.** Repeat this magnet on a known-working
-   BitTorrent network and compare with another client. Identify whether failures
-   occur before the protocol handshake or during the metadata extension exchange;
-   inspect encrypted-transport compatibility before changing tracker workarounds.
-2. **Discovery diagnostics.** Expose tracker results, discovered/connecting peers,
-   handshake failures, and DHT bootstrap health before metadata exists. The current
-   inspector only gets detailed live diagnostics after rqbit creates a managed
-   torrent; “Configured” trackers are not evidence of successful announces.
+1. **Encrypted peer transport.** Investigate adding MSE/PE to rqbit's incoming
+   and outgoing TCP/uTP paths, with interoperability tests against an independent
+   client. A tracker flag is not an implementation of encryption. Use the same
+   public magnet and controlled local tests as acceptance cases.
+2. **Discovery diagnostics.** Add DHT bootstrap health and failure counts by
+   connection/handshake/metadata stage. Trackers and aggregate discovery progress
+   are now visible before a managed torrent exists; diagnostics must continue to
+   distinguish candidates from successful connections.
 3. **Lifecycle and durable state.** Add graceful shutdown/flush, bounded retry
    policy, and failure-injection coverage for disk errors and concurrent commands.
    Reduce writes of transient speed/progress samples to SQLite. Pending magnets

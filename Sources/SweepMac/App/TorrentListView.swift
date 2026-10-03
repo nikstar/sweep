@@ -235,11 +235,11 @@ private struct TorrentNameCell: View {
                         Button {
                             TorrentActions.togglePause(torrent, in: store)
                         } label: {
-                            Image(systemName: torrent.desiredState == .paused ? "play.fill" : "pause.fill")
+                            Image(systemName: torrent.error != nil ? "arrow.clockwise" : (torrent.desiredState == .paused ? "play.fill" : "pause.fill"))
                         }
                         .buttonStyle(.borderless)
                         .controlSize(.small)
-                        .help(torrent.desiredState == .paused ? "Resume" : "Pause")
+                        .help(torrent.error != nil ? "Retry" : (torrent.desiredState == .paused ? "Resume" : "Pause"))
 
                         Button {
                             TorrentActions.reveal(torrent, in: store)
@@ -259,6 +259,7 @@ private struct TorrentNameCell: View {
                     .foregroundStyle(torrent.error == nil ? Color.secondary : Color.red)
                     .lineLimit(1)
                     .truncationMode(.tail)
+                    .help(statusText)
             }
         }
         .padding(.vertical, 3)
@@ -271,6 +272,9 @@ private struct TorrentNameCell: View {
         }
 
         var parts = [torrent.statusLabel]
+        if let discovery = store.discoveries[torrent.id], discovery.isActive {
+            parts.append("\(discovery.peersFound) peers found")
+        }
 
         if torrent.totalBytes > 0 {
             parts.append("\(TorrentDisplayFormat.percent(torrent.progress)) of \(ByteFormatter.bytes(torrent.totalBytes))")
