@@ -16,18 +16,19 @@ The project is intentionally small and native. The macOS app follows the compact
 
 ## Requirements
 
-- Xcode 26.5 (Swift 6.3.2), the tested toolchain.
+- Xcode 27.0 Release Candidate (27A266a, Swift 6.4), the currently tested toolchain.
 - XcodeGen.
 - Rust installed with `rustup`. `rust-toolchain.toml` pins the tested compiler and
   the five Apple targets used by the Rust bridge.
 - An Apple Development signing identity for signed app/device builds.
 
-The installed Xcode 27 Beta 2 is not a working substitute: its early Swift 6.4
-compiler fails to compile Swift Collections 1.7.1 (`Span.BorrowingIterator`
-errors). Newer Xcode 27 releases have not been verified. Use Xcode 26.5 to
-reproduce the checked builds. Switching Swift compiler versions can also select
-different dependency manifests and change `Package.resolved`; resolve and test
-the dependencies again when changing toolchains.
+Xcode 26.5 (Swift 6.3.2) was previously verified. Xcode 27 Beta 2 failed to
+compile Swift Collections 1.7.1 (`Span.BorrowingIterator` errors), but Xcode
+27.0 Release Candidate builds both apps successfully. Switching Swift compiler
+versions can select different dependency manifests and change `Package.resolved`;
+resolve and test the dependencies again when changing toolchains. The current
+Swift 6.4 lockfiles select `swift-issue-reporting` 2.1.1 in place of
+`xctest-dynamic-overlay` 1.13.1 through those dependency manifests.
 
 ## Set Up a New Mac
 
@@ -138,7 +139,23 @@ The apps are Xcode targets. SwiftPM builds the shared libraries and tests, not a
 app executable. Both apps include a demo-engine fallback if engine initialization
 fails; successful compilation alone does not prove torrent transfers work.
 
-Verified on October 2, 2026 with Xcode 26.5 and the pinned Rust toolchain:
+Verified on October 3, 2026 with Xcode 27.0 Release Candidate (27A266a) and Rust
+1.99.0, starting without local Swift packages, rqbit sources, or Rust artifacts:
+
+- All seven shared tests pass.
+- macOS and unsigned iOS device builds pass.
+- macOS launches successfully, and Settings confirms the active engine is rqbit.
+- The bridge bootstraps the pinned rqbit checkout and builds all five Apple
+  architectures; regenerated Swift/C bindings are unchanged.
+- The iOS bundle remains iPhone-only, targets iOS 26, and includes the Live
+  Activity extension.
+- Swift 6.4 reports a non-blocking capture-ownership warning in
+  `IOSBackgroundDownloadService`; App Intents metadata warnings also remain.
+
+This pass did not run the iOS app or validate live transfers and background
+downloads on a physical device.
+
+Previously verified on October 2, 2026 with Xcode 26.5 and the pinned Rust toolchain:
 
 - All seven shared tests pass.
 - macOS and iOS device builds pass, including a signed iOS build.
