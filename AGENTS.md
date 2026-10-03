@@ -142,6 +142,14 @@ If you touched Rust bridge packaging, also verify:
 
 ## Handy Commands
 
+### Project iOS simulator
+
+Use **iPhone 17 Pro Max — iOS 26.0**, UDID `54B3F0AF-96B2-4738-A75F-C1CE1EB4E52D`, for ongoing iOS work on this Mac. Reuse its app data for relaunch and upgrade testing; do not erase it or switch devices just because another simulator is booted. If this device is unavailable, report that before choosing a replacement.
+
+The app scheme is `Sweep-iOS`, bundle ID `me.nikstar.sweep.ios`. XcodeBuildMCP session defaults are machine-local under the ignored `.xcodebuildmcp/` directory.
+
+Common SwiftUI components belong in `Sources/SweepUI`; keep platform navigation and presentation in the app targets. Shared startup, transfer actions, formatting, and file-location logic belong in `SweepCore`.
+
 Generate the project:
 
 ```sh

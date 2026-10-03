@@ -158,8 +158,54 @@ Highest-priority remaining work:
 4. **Mac interaction polish.** Validate sorting, multiple selection, keyboard
    actions, and dense layouts with several real torrents and long error messages.
    Keep pending, checking, paused, stalled, and failed states easy to distinguish.
-5. **Platform consistency.** Bring iOS startup failure behavior in line with macOS
-   and validate background downloads and restoration on a physical device.
+5. **Platform consistency.** Shared startup and diagnostics now cover both apps.
+   Validate background downloads and system suspension on a physical device;
+   expose background mode and failures instead of relying on hidden defaults.
+
+## iOS Validation, October 3, 2026
+
+The project now uses one persistent simulator: **iPhone 17 Pro Max, iOS 26.0**.
+Its local UDID and reuse instructions are recorded in `AGENTS.md`. Keep its app
+data across builds so updates and restoration remain part of normal testing.
+
+- [x] Build and run the Rust-backed iOS app in Simulator.
+- [x] Download the real-world magnet from an empty app session. Independently
+  verify the 1,865,526,329-byte payload against all 890 torrent piece hashes.
+- [x] Preserve completed and paused transfers across forced relaunches.
+- [x] Add a magnet with Start Paused and relaunch before metadata exists. It
+  remains paused, with no cached metadata or payload, until explicitly resumed.
+- [x] Relaunch during metadata discovery and restart discovery from the saved source.
+- [x] Interrupt a running transfer at 168,930,361 bytes; restore its 9.1% payload
+  progress while checking files, then resume downloading to completion.
+- [x] Install updated builds over the app. Simulator actually changed the data
+  container UUID; rebased download paths found the existing completed payload.
+- [x] Open every inspector section, inspect file locations, and present the
+  native file share sheet. Verify deletion removes this test's record and payload.
+- [x] Show malformed-magnet errors inside the Add sheet without dismissing it.
+- [x] Remove a redundant row tap gesture that prevented inspector navigation.
+- [x] Keep inspector actions tied to the displayed torrent after another magnet
+  changes global selection. Verify with two torrents; retain the original target
+  in deletion confirmations and remove the temporary paused test record afterward.
+- [x] Share real startup failure handling, pause/resume/retry decisions, status
+  descriptions, and file-location resolution in `SweepCore`. iOS no longer
+  substitutes demo torrents when the engine or database fails.
+- [x] Share progress bars, status icons, metadata discovery metrics, and Session
+  Health in `SweepUI`, while retaining native platform navigation/presentation.
+  iOS Health is accessible from the list and inspector and includes storage,
+  refresh errors, DHT contacts, and TCP/uTP counters by address family.
+- [x] Split the 851-line iOS inspector into section views and shared controls.
+- [x] Pass 24 shared tests, macOS build, iOS Simulator build, and unsigned iOS
+  device build. Added regression coverage for failed engine startup preserving
+  saved transfers, separate storage failures, sandbox relocation, and safe nested
+  file resolution. Retry uses the same action decision on both platforms.
+
+The VPN and host routing were unchanged. Simulator tests establish foreground
+transfer, UI, and process-relaunch behavior. Physical-device background execution,
+audio/location mode transitions, OS suspension, and Live Activity behavior still
+need dedicated validation. Other iOS priorities are accessible layouts at large
+Dynamic Type sizes, multiple-file selection through the UI, and clear controls
+for background mode and save destinations. DHT/uTP and encryption gaps described
+above are shared engine concerns, not separate iOS implementations.
 
 ## Main List
 

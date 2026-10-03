@@ -1,8 +1,9 @@
 import SwiftUI
+import UIKit
 import SweepCore
 import SweepUI
 
-struct TorrentFilesInspector: View {
+struct IOSTorrentFilesInspector: View {
     @Environment(TorrentStore.self) private var store
 
     let torrent: Torrent
@@ -15,55 +16,33 @@ struct TorrentFilesInspector: View {
         )
         let includedCount = torrent.files.filter(\.included).count
 
-        InspectorPane {
-            InspectorGroup("Download") {
-                InspectorRow("Kind", value: snapshot.displayKind)
-                InspectorRow("Files", value: String(torrent.files.count))
-                InspectorRow("Save To") {
-                    CopyableValue(
-                        abbreviatedPath(snapshot.directoryURL.path),
+        IOSInspectorPane {
+            IOSInspectorGroup("Download") {
+                IOSInspectorRow("Kind", value: snapshot.displayKind)
+                IOSInspectorRow("Files", value: String(torrent.files.count))
+                IOSInspectorRow("Save To") {
+                    IOSCopyableValue(
+                        TorrentDisplayFormat.abbreviatedPath(snapshot.directoryURL.path),
                         copyValue: snapshot.directoryURL.path
                     )
                 }
-                InspectorRow("Item") {
-                    CopyableValue(
-                        abbreviatedPath(snapshot.expectedItemURL.path),
+                IOSInspectorRow("Item") {
+                    IOSCopyableValue(
+                        TorrentDisplayFormat.abbreviatedPath(snapshot.expectedItemURL.path),
                         copyValue: snapshot.expectedItemURL.path
                     )
                 }
                 if let itemSize = snapshot.itemSize {
-                    InspectorRow("On Disk", value: ByteFormatter.bytes(itemSize))
+                    IOSInspectorRow("On Disk", value: ByteFormatter.bytes(itemSize))
                 }
-
-                HStack(spacing: 8) {
-                    Button {
-                        TorrentFileLocation.revealInFinder(
-                            torrent: torrent,
-                            defaultDirectory: defaultDownloadDirectory
-                        )
-                    } label: {
-                        Label("Reveal", systemImage: "magnifyingglass")
-                    }
-                    .disabled(!snapshot.itemExists && !snapshot.directoryExists)
-
-                    Button {
-                        TorrentFileLocation.copyExpectedPath(
-                            torrent: torrent,
-                            defaultDirectory: defaultDownloadDirectory
-                        )
-                    } label: {
-                        Label("Copy Path", systemImage: "doc.on.doc")
-                    }
-                }
-                .controlSize(.small)
             }
 
             if torrent.files.isEmpty {
-                InspectorEmptyState("No files yet")
+                IOSInspectorEmptyState("No files yet")
             } else {
-                LazyVStack(alignment: .leading, spacing: 9) {
+                LazyVStack(alignment: .leading, spacing: 12) {
                     ForEach(torrent.files) { file in
-                        TorrentFileInspectorRow(
+                        IOSTorrentFileRow(
                             torrent: torrent,
                             file: file,
                             includedCount: includedCount
@@ -75,7 +54,7 @@ struct TorrentFilesInspector: View {
     }
 }
 
-private struct TorrentFileInspectorRow: View {
+private struct IOSTorrentFileRow: View {
     @Environment(TorrentStore.self) private var store
 
     let torrent: Torrent
@@ -83,23 +62,27 @@ private struct TorrentFileInspectorRow: View {
     let includedCount: Int
 
     var body: some View {
-        HStack(alignment: .top, spacing: 8) {
-            Toggle(
-                "",
-                isOn: Binding(
-                    get: { file.included },
-                    set: { store.setFile(file, included: $0, in: torrent) }
-                )
-            )
-            .toggleStyle(.checkbox)
-            .labelsHidden()
-            .disabled(!canDisable)
-            .controlSize(.small)
-            .help(file.included ? "Download file" : "Skip file")
+        let fileSnapshot = TorrentFileLocation.fileSnapshot(
+            for: file,
+            in: torrent,
+            defaultDirectory: store.downloadDirectory
+        )
+
+        HStack(alignment: .top, spacing: 9) {
+            Button {
+                store.setFile(file, included: !file.included, in: torrent)
+            } label: {
+                Image(systemName: file.included ? "checkmark.circle.fill" : "slash.circle")
+                    .foregroundStyle(file.included ? .green : .orange)
+                    .frame(width: 20, height: 20)
+            }
+            .buttonStyle(.plain)
+            .disabled(file.included && includedCount <= 1)
+            .accessibilityLabel(file.included ? "Download file" : "Skip file")
 
             Image(systemName: file.isPadding ? "doc.badge.gearshape" : "doc")
                 .foregroundStyle(.secondary)
-                .frame(width: 14, height: 18)
+                .frame(width: 16, height: 20)
 
             VStack(alignment: .leading, spacing: 5) {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
@@ -120,37 +103,51 @@ private struct TorrentFileInspectorRow: View {
                 )
 
                 HStack(spacing: 8) {
-                    Text("\(TorrentDisplayFormat.percent(file.progress))")
+                    Text(TorrentDisplayFormat.percent(file.progress))
                         .monospacedDigit()
                     Text("\(ByteFormatter.bytes(file.progressBytes)) downloaded")
                     Text(file.included ? file.priority.capitalized : "Skipped")
                         .foregroundStyle(file.included ? Color.secondary : Color.orange)
                     Spacer(minLength: 8)
                     Menu {
+                        if let fileSnapshot, fileSnapshot.isOpenable {
+                            Button {
+                                open(fileSnapshot.url)
+                            } label: {
+                                Label("Open...", systemImage: "square.and.arrow.up")
+                            }
+                            Divider()
+                        }
                         Button("Download") {
                             store.setFile(file, included: true, in: torrent)
                         }
                         Button("Skip") {
                             store.setFile(file, included: false, in: torrent)
                         }
-                        .disabled(!canDisable)
+                        .disabled(file.included && includedCount <= 1)
                     } label: {
-                        Label(
-                            file.included ? "Download" : "Skip",
-                            systemImage: file.included ? "checkmark.circle" : "slash.circle"
-                        )
+                        Image(systemName: "ellipsis.circle")
                     }
-                    .menuStyle(.borderlessButton)
-                    .controlSize(.small)
-                    .fixedSize()
                 }
                 .font(.caption)
                 .foregroundStyle(.secondary)
             }
+            .contentShape(Rectangle())
+            .onTapGesture {
+                if let fileSnapshot, fileSnapshot.isOpenable {
+                    open(fileSnapshot.url)
+                } else {
+                    store.lastError = "\(file.name) is not available on this device yet."
+                }
+            }
         }
     }
 
-    private var canDisable: Bool {
-        !file.included || includedCount > 1
+    private func open(_ url: URL) {
+        guard IOSOpenInPresenter.shared.present(url: url) else {
+            store.lastError = "No app is available to open \(url.lastPathComponent)."
+            return
+        }
+        store.lastError = nil
     }
 }

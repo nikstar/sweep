@@ -38,12 +38,7 @@ enum TorrentActions {
     }
 
     static func togglePause(_ torrent: Torrent, in store: TorrentStore) {
-        store.selection = torrent.id
-        if torrent.desiredState == .paused || torrent.error != nil {
-            store.resumeSelectedTorrent()
-        } else {
-            store.pauseSelectedTorrent()
-        }
+        store.togglePause(torrent)
     }
 
     static func remove(_ torrent: Torrent, in store: TorrentStore) {

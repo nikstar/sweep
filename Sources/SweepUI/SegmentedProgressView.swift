@@ -1,13 +1,22 @@
 import SwiftUI
 import SweepCore
 
-struct IOSSegmentedProgressView: View {
+public struct SegmentedProgressView: View {
     let runs: [TorrentPieceRun]
     let fallbackProgress: Double
     let state: String
+    var isSelected = false
     var height: CGFloat = 8
 
-    var body: some View {
+    public init(runs: [TorrentPieceRun], fallbackProgress: Double, state: String, isSelected: Bool = false, height: CGFloat = 8) {
+        self.runs = runs
+        self.fallbackProgress = fallbackProgress
+        self.state = state
+        self.isSelected = isSelected
+        self.height = height
+    }
+
+    public var body: some View {
         GeometryReader { proxy in
             ZStack(alignment: .leading) {
                 RoundedRectangle(cornerRadius: 3)
@@ -58,7 +67,7 @@ struct IOSSegmentedProgressView: View {
         case .downloaded:
             statusFillColor
         case .downloading:
-            .cyan
+            isSelected ? .secondary : .cyan
         case .needed:
             Color.secondary.opacity(0.24)
         case .skipped:
@@ -69,6 +78,9 @@ struct IOSSegmentedProgressView: View {
     }
 
     private var statusFillColor: Color {
+        if isSelected, state != "Paused", state != "Pausing", state != "Error" {
+            return .primary
+        }
         if state == "Complete" {
             return .green
         }

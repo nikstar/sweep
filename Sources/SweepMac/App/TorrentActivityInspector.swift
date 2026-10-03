@@ -1,5 +1,6 @@
 import SwiftUI
 import SweepCore
+import SweepUI
 
 struct TorrentActivityInspector: View {
     @Environment(TorrentStore.self) private var store
@@ -60,22 +61,7 @@ struct MetadataDiscoveryGroup: View {
 
     var body: some View {
         InspectorGroup(discovery.isActive ? "Finding Metadata" : "Last Metadata Attempt") {
-            InspectorMetricLine {
-                InspectorMetric("Found", String(discovery.peersFound))
-                InspectorMetric("Tried", String(discovery.peersTried))
-                InspectorMetric("Active", String(discovery.peersActive))
-                InspectorMetric("Failed", String(discovery.peersFailed))
-            }
-            InspectorRow("Elapsed", value: "\(discovery.elapsedSeconds) seconds")
-            Text("Peers found are candidates. A successful connection and metadata exchange are needed before downloading files.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            if let error = discovery.lastPeerError {
-                Text(error)
-                    .font(.caption)
-                    .foregroundStyle(.orange)
-                    .textSelection(.enabled)
-            }
+            MetadataDiscoveryView(discovery: discovery)
         }
     }
 }

@@ -57,31 +57,17 @@ struct SweepIOSApp: App {
 private enum IOSAppEnvironment {
     @MainActor
     static func makeTorrentStore() -> TorrentStore {
-        let fallbackDownloadDirectory = defaultDownloadDirectory()
-
-        do {
-            prepareAppSupportDirectoryForBackupExclusion()
-            let database = try SweepDatabase.openDefault()
-            let persistedState = try AppPersistence.loadState(from: database)
-            let downloadDirectory = persistedState.downloadDirectory ?? fallbackDownloadDirectory
-            prepareDownloadDirectory(at: downloadDirectory)
-            excludePersistedTorrentDirectoriesFromBackup(persistedState)
-            let persistence = AppPersistence(database: database)
-            let engine = try RqbitEngine(downloadDirectory: downloadDirectory)
-            return TorrentStore(
-                engine: engine,
-                persistence: persistence,
-                downloadDirectory: downloadDirectory,
-                initialState: persistedState
-            )
-        } catch {
-            prepareDownloadDirectory(at: fallbackDownloadDirectory)
-            return TorrentStore(
-                engine: DemoTorrentEngine(downloadDirectory: fallbackDownloadDirectory),
-                downloadDirectory: fallbackDownloadDirectory,
-                initialError: error.localizedDescription
-            )
-        }
+        prepareAppSupportDirectoryForBackupExclusion()
+        return TorrentStoreFactory.make(
+            defaultDownloadDirectory: defaultDownloadDirectory(),
+            prepareState: { state in
+                let state = state.rebasingSandboxDirectories(to: URL(filePath: NSHomeDirectory()))
+                excludePersistedTorrentDirectoriesFromBackup(state)
+                return state
+            },
+            prepareDirectory: prepareDownloadDirectory,
+            makeEngine: { try RqbitEngine(downloadDirectory: $0) }
+        )
     }
 
     private static func defaultDownloadDirectory() -> String {
@@ -90,8 +76,8 @@ private enum IOSAppEnvironment {
             .path
     }
 
-    private static func prepareDownloadDirectory(at path: String) {
-        try? FileManager.default.createDirectory(
+    private static func prepareDownloadDirectory(at path: String) throws {
+        try FileManager.default.createDirectory(
             at: URL(filePath: path, directoryHint: .isDirectory),
             withIntermediateDirectories: true
         )

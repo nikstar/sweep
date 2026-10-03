@@ -10,6 +10,7 @@ let package = Package(
     ],
     products: [
         .library(name: "SweepCore", targets: ["SweepCore"]),
+        .library(name: "SweepUI", targets: ["SweepUI"]),
         .library(name: "SweepActivities", targets: ["SweepActivities"]),
         .library(name: "SweepRQBitBridge", targets: ["SweepRQBitBridge"])
     ],
@@ -28,6 +29,7 @@ let package = Package(
             ],
             path: "Sources/SweepCore"
         ),
+        .target(name: "SweepUI", dependencies: ["SweepCore"]),
         .target(
             name: "SweepActivities",
             dependencies: [],

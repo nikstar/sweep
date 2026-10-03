@@ -97,49 +97,15 @@ struct SweepApp: App {
 private enum AppEnvironment {
     @MainActor
     static func makeTorrentStore() -> TorrentStore {
-        let fallbackDownloadDirectory = defaultDownloadDirectory()
-
-        do {
-            let database = try SweepDatabase.openDefault()
-            let persistedState = try AppPersistence.loadState(from: database)
-            let downloadDirectory = persistedState.downloadDirectory ?? fallbackDownloadDirectory
-            createDownloadDirectory(at: downloadDirectory)
-            let persistence = AppPersistence(database: database)
-            let engine = makeTorrentEngine(downloadDirectory: downloadDirectory)
-            return TorrentStore(
-                engine: engine,
-                persistence: persistence,
-                downloadDirectory: downloadDirectory,
-                initialState: persistedState
-            )
-        } catch {
-            createDownloadDirectory(at: fallbackDownloadDirectory)
-            return TorrentStore(
-                engine: makeTorrentEngine(downloadDirectory: fallbackDownloadDirectory),
-                downloadDirectory: fallbackDownloadDirectory,
-                initialError: "Session storage is unavailable; changes cannot be restored after quitting. \(error.localizedDescription)"
-            )
-        }
-    }
-
-    private static func makeTorrentEngine(downloadDirectory: String) -> TorrentEngine {
-        do {
-            return try RqbitEngine(downloadDirectory: downloadDirectory)
-        } catch {
-            return UnavailableTorrentEngine(reason: error.localizedDescription)
-        }
+        TorrentStoreFactory.make(
+            defaultDownloadDirectory: defaultDownloadDirectory(),
+            makeEngine: { try RqbitEngine(downloadDirectory: $0) }
+        )
     }
 
     private static func defaultDownloadDirectory() -> String {
         FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask)[0]
             .appending(path: "Sweep", directoryHint: .isDirectory)
             .path
-    }
-
-    private static func createDownloadDirectory(at path: String) {
-        try? FileManager.default.createDirectory(
-            at: URL(filePath: path, directoryHint: .isDirectory),
-            withIntermediateDirectories: true
-        )
     }
 }

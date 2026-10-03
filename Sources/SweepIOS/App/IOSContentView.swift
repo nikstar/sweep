@@ -2,12 +2,13 @@ import SwiftUI
 import UIKit
 import UniformTypeIdentifiers
 import SweepCore
+import SweepUI
 
 struct IOSContentView: View {
     @Environment(TorrentStore.self) private var store
 
     @State private var isImportingTorrent = false
-    @State private var confirmingRemoveData = false
+    @State private var torrentToDelete: Torrent?
 
     var body: some View {
         @Bindable var store = store
@@ -39,19 +40,16 @@ struct IOSContentView: View {
                             } label: {
                                 IOSTorrentRow(torrent: torrent)
                             }
-                            .simultaneousGesture(TapGesture().onEnded {
-                                store.selection = torrent.id
-                            })
                             .swipeActions(edge: .leading, allowsFullSwipe: true) {
                                 Button {
-                                    togglePause(torrent)
+                                    store.togglePause(torrent)
                                 } label: {
                                     Label(
-                                        torrent.desiredState == .paused ? "Resume" : "Pause",
-                                        systemImage: torrent.desiredState == .paused ? "play.fill" : "pause.fill"
+                                        torrent.transferActionTitle,
+                                        systemImage: torrent.transferActionSymbol
                                     )
                                 }
-                                .tint(torrent.desiredState == .paused ? .green : .orange)
+                                .tint(torrent.canResume ? .green : .orange)
                             }
                             .swipeActions(edge: .trailing) {
                                 Button(role: .destructive) {
@@ -63,18 +61,18 @@ struct IOSContentView: View {
 
                                 Button(role: .destructive) {
                                     store.selection = torrent.id
-                                    confirmingRemoveData = true
+                                    torrentToDelete = torrent
                                 } label: {
                                     Label("Delete Data", systemImage: "trash")
                                 }
                             }
                             .contextMenu {
                                 Button {
-                                    togglePause(torrent)
+                                    store.togglePause(torrent)
                                 } label: {
                                     Label(
-                                        torrent.desiredState == .paused ? "Resume" : "Pause",
-                                        systemImage: torrent.desiredState == .paused ? "play.fill" : "pause.fill"
+                                        torrent.transferActionTitle,
+                                        systemImage: torrent.transferActionSymbol
                                     )
                                 }
 
@@ -96,7 +94,7 @@ struct IOSContentView: View {
 
                                 Button(role: .destructive) {
                                     store.selection = torrent.id
-                                    confirmingRemoveData = true
+                                    torrentToDelete = torrent
                                 } label: {
                                     Label("Delete Data", systemImage: "trash")
                                 }
@@ -161,7 +159,7 @@ struct IOSContentView: View {
                 )
                 .environment(store)
             }
-            .removeTorrentDataConfirmation(isPresented: $confirmingRemoveData, store: store)
+            .removeTorrentDataConfirmation(torrent: $torrentToDelete, store: store)
             .task {
                 store.startPolling()
             }
@@ -175,13 +173,7 @@ struct IOSContentView: View {
     private func importTorrentFile(_ result: Result<[URL], Error>) {
         do {
             guard let url = try result.get().first else { return }
-            let didStartAccessing = url.startAccessingSecurityScopedResource()
-            defer {
-                if didStartAccessing {
-                    url.stopAccessingSecurityScopedResource()
-                }
-            }
-            store.beginAddingTorrentFile(try TorrentFileSource(contentsOf: url))
+            store.beginAddingTorrentFile(at: url)
         } catch {
             store.lastError = error.localizedDescription
         }
@@ -197,191 +189,28 @@ struct IOSContentView: View {
         store.beginAddingMagnet(text)
     }
 
-    private func togglePause(_ torrent: Torrent) {
-        store.selection = torrent.id
-        if torrent.desiredState == .paused {
-            store.resumeSelectedTorrent()
-        } else {
-            store.pauseSelectedTorrent()
-        }
-    }
-}
-
-private struct IOSTorrentRow: View {
-    let torrent: Torrent
-
-    var body: some View {
-        HStack(alignment: .center, spacing: 10) {
-            IOSTorrentStatusIcon(torrent: torrent)
-
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text(torrent.name)
-                        .font(.body)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-
-                    Spacer(minLength: 8)
-
-                    Text(TorrentDisplayFormat.percent(torrent.progress))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .monospacedDigit()
-                }
-
-                IOSSegmentedProgressView(
-                    runs: torrent.pieceRuns,
-                    fallbackProgress: torrent.progress,
-                    state: torrent.statusLabel,
-                    height: 8
-                )
-
-                Text(statusText)
-                    .font(.caption)
-                    .foregroundStyle(torrent.error == nil ? Color.secondary : Color.red)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-
-                HStack(spacing: 12) {
-                    TransferMetric(systemImage: "arrow.down", value: ByteFormatter.rate(torrent.downloadBps), isActive: torrent.downloadBps > 1)
-                    TransferMetric(systemImage: "arrow.up", value: ByteFormatter.rate(torrent.uploadBps), isActive: torrent.uploadBps > 1)
-                    PeerMetric(torrent: torrent)
-                }
-                .font(.caption2)
-            }
-        }
-        .padding(.vertical, 5)
-    }
-
-    private var statusText: String {
-        if let error = torrent.error, !error.isEmpty {
-            return error
-        }
-
-        var parts = [torrent.statusLabel]
-        if torrent.totalBytes > 0 {
-            parts.append("\(TorrentDisplayFormat.percent(torrent.progress)) of \(ByteFormatter.bytes(torrent.totalBytes))")
-        } else {
-            parts.append("Waiting for metadata")
-        }
-
-        if torrent.remainingBytes > 0 {
-            parts.append("\(ByteFormatter.bytes(torrent.remainingBytes)) remaining")
-        }
-        if let eta = torrent.etaSeconds {
-            parts.append("\(TorrentDisplayFormat.duration(eta)) left")
-        }
-        return parts.joined(separator: " - ")
-    }
-}
-
-private struct IOSTorrentStatusIcon: View {
-    let torrent: Torrent
-
-    var body: some View {
-        Image(systemName: status.systemImage)
-            .font(.system(size: 14, weight: .semibold))
-            .foregroundStyle(status.color)
-            .frame(width: 20, height: 40)
-            .accessibilityLabel(status.label)
-    }
-
-    private var status: (systemImage: String, color: Color, label: String) {
-        if torrent.error != nil {
-            return ("exclamationmark.circle.fill", .red, "Error")
-        }
-        if torrent.desiredState == .paused || torrent.isPausedInEngine {
-            return ("circle.fill", .secondary, "Paused")
-        }
-        if torrent.progress >= 1 {
-            if torrent.uploadBps > 1 {
-                return ("arrow.up.circle.fill", .green, "Seeding")
-            }
-            return ("checkmark.circle.fill", .green, "Complete")
-        }
-        if torrent.downloadBps > 1 {
-            return ("arrow.down.circle.fill", .blue, "Downloading")
-        }
-        return ("circle.dotted", .secondary, "Waiting")
-    }
-}
-
-private struct TransferMetric: View {
-    let systemImage: String
-    let value: String
-    let isActive: Bool
-
-    var body: some View {
-        Label {
-            Text(value)
-                .monospacedDigit()
-        } icon: {
-            Image(systemName: systemImage)
-        }
-        .foregroundStyle(isActive ? .primary : .secondary)
-    }
-}
-
-private struct PeerMetric: View {
-    let torrent: Torrent
-
-    var body: some View {
-        let livePeers = torrent.peers.filter(\.isLiveConnection)
-        Label {
-            Text("\(livePeers.count)")
-                .monospacedDigit()
-        } icon: {
-            Image(systemName: "person.2")
-        }
-        .foregroundStyle(livePeers.isEmpty ? .secondary : .primary)
-    }
-}
-
-private struct IOSSessionStatusBar: View {
-    @Environment(TorrentStore.self) private var store
-
-    var body: some View {
-        HStack(spacing: 14) {
-            Label(ByteFormatter.rate(store.sessionStats.downloadBps), systemImage: "arrow.down")
-            Label(ByteFormatter.rate(store.sessionStats.uploadBps), systemImage: "arrow.up")
-            Label("\(store.sessionStats.livePeers)", systemImage: "person.2")
-
-            Spacer(minLength: 8)
-
-            if let error = store.healthError {
-                Text(error)
-                    .foregroundStyle(.red)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-            } else if let torrent = store.selectedTorrent {
-                Text(torrent.statusLabel)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-            }
-        }
-        .font(.caption)
-        .monospacedDigit()
-        .padding(.horizontal, 14)
-        .frame(height: 34)
-        .background(.bar)
-    }
 }
 
 extension View {
     func removeTorrentDataConfirmation(
-        isPresented: Binding<Bool>,
+        torrent: Binding<Torrent?>,
         store: TorrentStore
     ) -> some View {
         confirmationDialog(
-            removeTorrentDataConfirmationTitle(for: store.selectedTorrent),
-            isPresented: isPresented,
-            titleVisibility: .visible
-        ) {
+            removeTorrentDataConfirmationTitle(for: torrent.wrappedValue),
+            isPresented: Binding(
+                get: { torrent.wrappedValue != nil },
+                set: { if !$0 { torrent.wrappedValue = nil } }
+            ),
+            titleVisibility: .visible,
+            presenting: torrent.wrappedValue
+        ) { target in
             Button("Delete Torrent and Files", role: .destructive) {
+                store.selection = target.id
                 store.removeSelectedTorrent(deleteData: true)
             }
             Button("Cancel", role: .cancel) {}
-        } message: {
+        } message: { _ in
             Text("Downloaded files for this torrent will be deleted from this device.")
         }
     }

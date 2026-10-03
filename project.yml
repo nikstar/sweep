@@ -52,6 +52,9 @@ targets:
         product: SweepCore
         embed: false
       - package: SweepPackage
+        product: SweepUI
+        embed: false
+      - package: SweepPackage
         product: SweepRQBitBridge
         embed: false
       - sdk: Security.framework
@@ -100,6 +103,9 @@ targets:
         embed: false
       - package: SweepPackage
         product: SweepActivities
+        embed: false
+      - package: SweepPackage
+        product: SweepUI
         embed: false
       - package: SweepPackage
         product: SweepRQBitBridge

@@ -10,6 +10,7 @@ struct IOSAddTorrentSheet: View {
     @State private var downloadDirectory: String
     @State private var startPaused = false
     @State private var isAdding = false
+    @State private var addError: String?
 
     init(source: TorrentAddSource?, downloadDirectory: String) {
         let source = source ?? .magnet("")
@@ -31,6 +32,13 @@ struct IOSAddTorrentSheet: View {
                     }
                     Toggle("Start Paused", isOn: $startPaused)
                 }
+                if let addError {
+                    Section {
+                        Text(addError)
+                            .foregroundStyle(.red)
+                            .textSelection(.enabled)
+                    }
+                }
             }
             .navigationTitle("Add Torrent")
             .navigationBarTitleDisplayMode(.inline)
@@ -49,6 +57,7 @@ struct IOSAddTorrentSheet: View {
             }
         }
         .presentationDetents([.medium, .large])
+        .interactiveDismissDisabled(isAdding)
     }
 
     @ViewBuilder
@@ -93,6 +102,7 @@ struct IOSAddTorrentSheet: View {
         let directory = downloadDirectory
         let startPaused = startPaused
         isAdding = true
+        addError = nil
         IOSBackupExclusion.excludeItem(atPath: directory)
 
         Task {
@@ -104,6 +114,8 @@ struct IOSAddTorrentSheet: View {
             isAdding = false
             if torrent != nil {
                 dismiss()
+            } else {
+                addError = store.lastError ?? "The torrent could not be added."
             }
         }
     }

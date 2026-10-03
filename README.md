@@ -200,8 +200,7 @@ metadata cancellation and a 90-second discovery timeout, independent session
 restoration, cached torrent metadata, and a Session Health popover. Swift
 lifecycle tests cover pending/paused restoration, file selection, stale polling,
 error visibility, discovery diagnostics, and removal races. The actual Mac UI
-has also passed pending/paused relaunch and timeout checks. There are now 19 Swift
-tests and three Rust integration tests. The latter resolve a magnet through a
+has also passed pending/paused relaunch and timeout checks. Three Rust integration tests additionally resolve a magnet through a
 local tracker, transfer a synthetic 1 MiB file, verify its contents, restore cached
 metadata, and check cancellation and diagnostics for failed peer handshakes:
 
@@ -211,6 +210,15 @@ cargo test --locked --manifest-path rust/sweep-rqbit/Cargo.toml --lib
 
 See [the macOS validation findings](docs/FEATURES.md#macos-validation-october-3-2026)
 for the public-swarm result and remaining priorities.
+
+The iOS parity pass now shares startup, transfer actions, status formatting and
+file locations through `SweepCore`, and progress/status/health views through
+`SweepUI`. Both platforms retain their own navigation and presentation. The
+iPhone 17 Pro Max running iOS 26.0 is the persistent project simulator (local
+UDID in `AGENTS.md`). iOS completed the real download with all 890 piece hashes
+verified and passed paused, pending, partial-transfer, and update restoration
+checks. The shared suite now has 24 tests. See the
+[iOS validation and remaining work](docs/FEATURES.md#ios-validation-october-3-2026).
 
 Use a new, empty output directory so existing verified pieces cannot make the
 probe succeed without downloading. Physical iPhone installation timed out while

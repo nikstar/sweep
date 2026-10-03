@@ -91,6 +91,15 @@ public final class TorrentStore {
         return torrent.desiredState == .paused || torrent.error != nil
     }
 
+    public func togglePause(_ torrent: Torrent) {
+        selection = torrent.id
+        if torrent.canResume {
+            resumeSelectedTorrent()
+        } else {
+            pauseSelectedTorrent()
+        }
+    }
+
     public func beginAddingMagnet(_ magnet: String = "") {
         pendingAddSource = .magnet(magnet)
         showingAddSheet = true

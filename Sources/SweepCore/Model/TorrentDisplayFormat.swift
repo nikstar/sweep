@@ -1,6 +1,49 @@
 import Foundation
 
 public enum TorrentDisplayFormat {
+    public static func statusSummary(_ torrent: Torrent, discovery: TorrentDiscovery? = nil, includingTransferRates: Bool = false) -> String {
+        if let error = torrent.error, !error.isEmpty {
+            return error
+        }
+
+        var parts = [torrent.statusLabel]
+        if let checking = torrent.checkingProgress {
+            parts.append("\(TorrentDisplayFormat.percent(checking)) checked")
+        }
+        if let discovery, discovery.isActive {
+            parts.append("\(discovery.peersFound) peers found")
+        }
+
+        if torrent.totalBytes > 0 {
+            parts.append("\(TorrentDisplayFormat.percent(torrent.progress)) of \(ByteFormatter.bytes(torrent.totalBytes))")
+        } else if torrent.state != "resolving" {
+            parts.append("Metadata not downloaded")
+        }
+
+        if torrent.remainingBytes > 0 {
+            parts.append("\(ByteFormatter.bytes(torrent.remainingBytes)) remaining")
+        }
+
+        if let eta = torrent.etaSeconds {
+            parts.append("\(TorrentDisplayFormat.duration(eta)) left")
+        }
+
+        if includingTransferRates, torrent.downloadBps > 1 {
+            parts.append("\(ByteFormatter.rate(torrent.downloadBps)) down")
+        }
+
+        if includingTransferRates, torrent.uploadBps > 1 {
+            parts.append("\(ByteFormatter.rate(torrent.uploadBps)) up")
+        }
+
+        if includingTransferRates, !torrent.peers.isEmpty {
+            let peerText = torrent.peers.count == 1 ? "1 peer" : "\(torrent.peers.count) peers"
+            parts.append(peerText)
+        }
+
+        return parts.joined(separator: " - ")
+    }
+
     public static func percent(_ value: Double) -> String {
         let formatter = NumberFormatter()
         formatter.numberStyle = .percent
