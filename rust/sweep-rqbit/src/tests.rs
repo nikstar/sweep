@@ -129,7 +129,11 @@ fn resolves_magnet_transfers_payload_and_restores_cached_metadata() {
         let metadata = download.torrent_file(id.clone()).unwrap();
         download.remove_torrent(id.clone(), false).await.unwrap();
         let restored = download
-            .add_torrent_file(metadata, download_dir.to_str().unwrap().to_owned(), true)
+            .add_torrent_file(
+                metadata.clone(),
+                download_dir.to_str().unwrap().to_owned(),
+                true,
+            )
             .await
             .unwrap();
         assert_eq!(restored.info_hash, id);
@@ -145,6 +149,37 @@ fn resolves_magnet_transfers_payload_and_restores_cached_metadata() {
         })
         .await
         .expect("restoration did not reach paused state");
+
+        // Match the app's restoration sequence exactly: add paused, then issue
+        // Resume immediately, while rqbit may still be checking existing files.
+        download.remove_torrent(id.clone(), false).await.unwrap();
+        let fresh_dir = fixture.folder("restored-fresh");
+        download
+            .add_torrent_file(metadata, fresh_dir.to_str().unwrap().to_owned(), true)
+            .await
+            .unwrap();
+        tokio::time::timeout(Duration::from_secs(15), async {
+            download.resume_torrent(id.clone()).await.unwrap();
+            loop {
+                let snapshot = download.list_torrents().await.unwrap().remove(0);
+                assert!(snapshot.error.is_none(), "{:?}", snapshot.error);
+                if snapshot.state == "live" && snapshot.progress_bytes == payload.len() as u64 {
+                    break;
+                }
+                tokio::time::sleep(Duration::from_millis(20)).await;
+            }
+        })
+        .await
+        .expect("immediate resume after restoration did not download payload");
+        assert!(fs::read(fresh_dir.join("payload.bin")).unwrap() == payload);
+        let network = download.session_snapshot().await.unwrap().network;
+        assert!(network.dht_nodes_v4.is_none());
+        assert!(
+            network
+                .transports
+                .iter()
+                .any(|s| s.name == "TCP IPv4" && s.connected > 0)
+        );
     });
 }
 
@@ -186,32 +221,38 @@ fn cancelling_metadata_discovery_aborts_the_rust_task() {
     });
 }
 
-async fn serve_tracker(peer: SocketAddr) -> (String, tokio::task::JoinHandle<String>) {
+async fn serve_tracker(peer: SocketAddr) -> (String, tokio::sync::oneshot::Receiver<String>) {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let url = format!("http://{}/announce", listener.local_addr().unwrap());
-    let task = tokio::spawn(async move {
-        let (mut socket, _) = listener.accept().await.unwrap();
-        let mut request = Vec::new();
-        while !request.ends_with(b"\r\n\r\n") {
-            request.push(socket.read_u8().await.unwrap());
-            assert!(request.len() < 8192);
+    let (first_tx, first_rx) = tokio::sync::oneshot::channel();
+    tokio::spawn(async move {
+        let mut first_tx = Some(first_tx);
+        loop {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut request = Vec::new();
+            while !request.ends_with(b"\r\n\r\n") {
+                request.push(socket.read_u8().await.unwrap());
+                assert!(request.len() < 8192);
+            }
+            let SocketAddr::V4(peer) = peer else {
+                panic!("test uses IPv4")
+            };
+            let mut body = b"d8:intervali1800e8:completei1e10:incompletei0e5:peers6:".to_vec();
+            body.extend(peer.ip().octets());
+            body.extend(peer.port().to_be_bytes());
+            body.push(b'e');
+            let response = format!(
+                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                body.len()
+            );
+            socket.write_all(response.as_bytes()).await.unwrap();
+            socket.write_all(&body).await.unwrap();
+            if let Some(tx) = first_tx.take() {
+                let _ = tx.send(String::from_utf8(request).unwrap());
+            }
         }
-        let SocketAddr::V4(peer) = peer else {
-            panic!("test uses IPv4")
-        };
-        let mut body = b"d8:intervali1800e8:completei1e10:incompletei0e5:peers6:".to_vec();
-        body.extend(peer.ip().octets());
-        body.extend(peer.port().to_be_bytes());
-        body.push(b'e');
-        let response = format!(
-            "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
-            body.len()
-        );
-        socket.write_all(response.as_bytes()).await.unwrap();
-        socket.write_all(&body).await.unwrap();
-        String::from_utf8(request).unwrap()
     });
-    (url, task)
+    (url, first_rx)
 }
 
 #[test]

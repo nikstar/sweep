@@ -51,6 +51,7 @@ public struct TorrentSessionStats: Hashable, Codable, Sendable {
     public let queuedPeers: UInt32
     public let seenPeers: UInt32
     public let uptimeSeconds: UInt64
+    public let network: TorrentNetworkStats?
 
     public init(
         downloadBps: Double = 0,
@@ -61,7 +62,8 @@ public struct TorrentSessionStats: Hashable, Codable, Sendable {
         connectingPeers: UInt32 = 0,
         queuedPeers: UInt32 = 0,
         seenPeers: UInt32 = 0,
-        uptimeSeconds: UInt64 = 0
+        uptimeSeconds: UInt64 = 0,
+        network: TorrentNetworkStats? = nil
     ) {
         self.downloadBps = downloadBps
         self.uploadBps = uploadBps
@@ -72,6 +74,7 @@ public struct TorrentSessionStats: Hashable, Codable, Sendable {
         self.queuedPeers = queuedPeers
         self.seenPeers = seenPeers
         self.uptimeSeconds = uptimeSeconds
+        self.network = network
     }
 }
 
@@ -402,6 +405,7 @@ public struct Torrent: Identifiable, Hashable, Codable, Sendable {
     public let peers: [TorrentPeer]
     public let pieceRuns: [TorrentPieceRun]
     public let progressBytes: UInt64
+    public let checkedBytes: UInt64?
     public let totalBytes: UInt64
     public let uploadedBytes: UInt64
     public let downloadBps: Double
@@ -426,6 +430,7 @@ public struct Torrent: Identifiable, Hashable, Codable, Sendable {
         peers: [TorrentPeer] = [],
         pieceRuns: [TorrentPieceRun] = [],
         progressBytes: UInt64,
+        checkedBytes: UInt64? = nil,
         totalBytes: UInt64,
         uploadedBytes: UInt64,
         downloadBps: Double,
@@ -450,6 +455,7 @@ public struct Torrent: Identifiable, Hashable, Codable, Sendable {
         self.peers = peers
         self.pieceRuns = pieceRuns
         self.progressBytes = progressBytes
+        self.checkedBytes = checkedBytes
         self.totalBytes = totalBytes
         self.uploadedBytes = uploadedBytes
         self.downloadBps = downloadBps
@@ -475,6 +481,7 @@ public struct Torrent: Identifiable, Hashable, Codable, Sendable {
         case peers
         case pieceRuns = "piece_runs"
         case progressBytes = "progress_bytes"
+        case checkedBytes = "checked_bytes"
         case totalBytes = "total_bytes"
         case uploadedBytes = "uploaded_bytes"
         case downloadBps = "download_bps"
@@ -487,6 +494,11 @@ public struct Torrent: Identifiable, Hashable, Codable, Sendable {
     public var progress: Double {
         guard totalBytes > 0 else { return 0 }
         return min(1, Double(progressBytes) / Double(totalBytes))
+    }
+
+    public var checkingProgress: Double? {
+        guard state == "initializing", let checkedBytes, totalBytes > 0 else { return nil }
+        return min(1, Double(checkedBytes) / Double(totalBytes))
     }
 
     public var remainingBytes: UInt64 {
@@ -513,6 +525,9 @@ public struct Torrent: Identifiable, Hashable, Codable, Sendable {
         }
         if progress >= 1 {
             return "Complete"
+        }
+        if state == "live" {
+            return downloadBps > 1 ? "Downloading" : (peers.contains(where: \.isLiveConnection) ? "Waiting for data" : "Connecting to peers")
         }
         return state.capitalized
     }
@@ -572,6 +587,7 @@ public struct Torrent: Identifiable, Hashable, Codable, Sendable {
             peers: peers ?? self.peers,
             pieceRuns: pieceRuns ?? self.pieceRuns,
             progressBytes: progressBytes ?? self.progressBytes,
+            checkedBytes: (state ?? self.state) == "initializing" ? checkedBytes : nil,
             totalBytes: totalBytes ?? self.totalBytes,
             uploadedBytes: uploadedBytes ?? self.uploadedBytes,
             downloadBps: downloadBps ?? self.downloadBps,
@@ -601,6 +617,7 @@ public struct Torrent: Identifiable, Hashable, Codable, Sendable {
                 peers: peers,
                 pieceRuns: pieceRuns,
                 progressBytes: progressBytes,
+                checkedBytes: checkedBytes,
                 totalBytes: totalBytes,
                 uploadedBytes: uploadedBytes,
                 downloadBps: downloadBps,
@@ -627,6 +644,7 @@ public struct Torrent: Identifiable, Hashable, Codable, Sendable {
                 peers: peers,
                 pieceRuns: pieceRuns,
                 progressBytes: progressBytes,
+                checkedBytes: checkedBytes,
                 totalBytes: totalBytes,
                 uploadedBytes: uploadedBytes,
                 downloadBps: downloadBps,
@@ -646,7 +664,8 @@ public struct Torrent: Identifiable, Hashable, Codable, Sendable {
             downloadDirectory: downloadDirectory ?? cached.downloadDirectory,
             desiredState: cached.desiredState,
             trackers: trackers.isEmpty ? cached.trackers : trackers,
-            pieceRuns: pieceRuns.isEmpty ? cached.pieceRuns : pieceRuns,
+            pieceRuns: state == "initializing" ? cached.pieceRuns : pieceRuns,
+            progressBytes: state == "initializing" ? cached.progressBytes : progressBytes,
             addedAt: cached.addedAt
         )
     }

@@ -1,5 +1,40 @@
 import Foundation
 
+public struct TorrentTransportStats: Hashable, Codable, Sendable {
+    public let name: String
+    public let attempts: UInt64
+    public let connected: UInt64
+    public let failed: UInt64
+
+    public init(name: String, attempts: UInt64, connected: UInt64, failed: UInt64) {
+        self.name = name
+        self.attempts = attempts
+        self.connected = connected
+        self.failed = failed
+    }
+}
+
+/// Cumulative transport counters for this engine session. A connected socket
+/// does not imply a successful BitTorrent handshake or payload transfer.
+public struct TorrentNetworkStats: Hashable, Codable, Sendable {
+    public let dhtNodesV4: UInt64?
+    public let dhtNodesV6: UInt64?
+    public let dhtOutstanding: UInt64?
+    public let transports: [TorrentTransportStats]
+    public let liveTCP: UInt32
+    public let liveUTP: UInt32
+
+    public init(dhtNodesV4: UInt64?, dhtNodesV6: UInt64?, dhtOutstanding: UInt64?,
+                transports: [TorrentTransportStats], liveTCP: UInt32, liveUTP: UInt32) {
+        self.dhtNodesV4 = dhtNodesV4
+        self.dhtNodesV6 = dhtNodesV6
+        self.dhtOutstanding = dhtOutstanding
+        self.transports = transports
+        self.liveTCP = liveTCP
+        self.liveUTP = liveUTP
+    }
+}
+
 /// Session-only diagnostics; these are not payload peer counts or durable state.
 public struct TorrentDiscovery: Sendable, Equatable {
     public let id: Torrent.ID

@@ -223,7 +223,8 @@ public final class TorrentStore {
             updateDiscoveries(discoverySnapshots)
             managedTorrentIDs = Set(liveTorrents.map(\.id))
             let visibleLiveTorrents = filterVisibleLiveTorrents(from: liveTorrents)
-            for torrent in visibleLiveTorrents where pendingAdds[torrent.id] == nil && commandVersions[torrent.id] == nil {
+            for torrent in visibleLiveTorrents where commandVersions[torrent.id] == nil
+                && (pendingAdds[torrent.id] == nil || torrent.state == "initializing") {
                 upsert(liveTorrent: torrent)
             }
             sessionStats = stats.smoothed(from: sessionStats)
@@ -810,7 +811,8 @@ private extension TorrentSessionStats {
             connectingPeers: connectingPeers,
             queuedPeers: queuedPeers,
             seenPeers: seenPeers,
-            uptimeSeconds: uptimeSeconds
+            uptimeSeconds: uptimeSeconds,
+            network: network
         )
     }
 }

@@ -272,6 +272,9 @@ private struct TorrentNameCell: View {
         }
 
         var parts = [torrent.statusLabel]
+        if let checking = torrent.checkingProgress {
+            parts.append("\(TorrentDisplayFormat.percent(checking)) checked")
+        }
         if let discovery = store.discoveries[torrent.id], discovery.isActive {
             parts.append("\(discovery.peersFound) peers found")
         }
@@ -332,6 +335,9 @@ private struct TorrentStatusIcon: View {
         }
         if torrent.desiredState == .paused || torrent.isPausedInEngine {
             return ("circle.fill", .secondary, "Paused", false)
+        }
+        if torrent.state == "initializing" || torrent.state == "restoring" {
+            return ("arrow.trianglehead.2.clockwise", .secondary, torrent.statusLabel, false)
         }
         if torrent.progress >= 1 {
             if torrent.uploadBps > 1 {
@@ -449,6 +455,7 @@ private struct TransferStatusBar: View {
                 Text(torrent.statusLabel)
                     .foregroundStyle(.secondary)
             }
+
         }
         .font(.callout)
         .padding(.horizontal, 12)
@@ -478,6 +485,36 @@ private struct SessionHealthView: View {
             if let error = store.healthError {
                 Divider()
                 Text(error).foregroundStyle(.red).textSelection(.enabled)
+            }
+            if let network = store.sessionStats.network {
+                Divider()
+                Text("Network · This Session").font(.headline)
+                if let nodes = network.dhtNodesV4 {
+                    LabeledContent("DHT nodes", value: "\(nodes) IPv4 · \(network.dhtNodesV6 ?? 0) IPv6")
+                    LabeledContent("DHT requests in flight", value: "\(network.dhtOutstanding ?? 0)")
+                } else {
+                    LabeledContent("DHT", value: "Disabled")
+                }
+                Grid(alignment: .trailing, horizontalSpacing: 12, verticalSpacing: 4) {
+                    GridRow {
+                        Text("Transport").gridColumnAlignment(.leading)
+                        Text("Tried")
+                        Text("Connected")
+                        Text("Errors")
+                    }.foregroundStyle(.secondary)
+                    ForEach(network.transports, id: \.name) { transport in
+                        GridRow {
+                            Text(transport.name)
+                            Text("\(transport.attempts)")
+                            Text("\(transport.connected)")
+                            Text("\(transport.failed)")
+                        }
+                    }
+                }
+                .font(.caption).monospacedDigit()
+                LabeledContent("Live peers", value: "\(network.liveTCP) TCP · \(network.liveUTP) uTP")
+                Text("Connected counts sockets before the BitTorrent handshake. Errors exclude cancelled attempts. DHT nodes are routing-table entries, not peers for this torrent.")
+                    .font(.caption).foregroundStyle(.secondary)
             }
             if store.lastError != nil {
                 Button("Dismiss Action Error") { store.lastError = nil }

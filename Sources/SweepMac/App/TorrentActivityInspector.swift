@@ -29,6 +29,11 @@ struct TorrentActivityInspector: View {
                 }
 
                 InspectorRow("Downloaded", value: ByteFormatter.bytes(torrent.progressBytes))
+                if let checking = torrent.checkingProgress {
+                    InspectorRow("Files Checked", value: TorrentDisplayFormat.percent(checking))
+                    Text("Downloaded shows the last known payload progress until checking finishes.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
                 InspectorRow("Remaining", value: TorrentDisplayFormat.remainingBytes(torrent))
                 InspectorRow("Total Size", value: TorrentDisplayFormat.bytesOrUnknown(torrent.totalBytes))
             }

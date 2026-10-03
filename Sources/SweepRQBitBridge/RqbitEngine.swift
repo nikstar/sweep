@@ -161,6 +161,7 @@ private extension Torrent {
             peers: snapshot.peers.map(TorrentPeer.init(snapshot:)),
             pieceRuns: snapshot.pieceRuns.map(TorrentPieceRun.init(snapshot:)),
             progressBytes: snapshot.progressBytes,
+            checkedBytes: snapshot.checkedBytes,
             totalBytes: snapshot.totalBytes,
             uploadedBytes: snapshot.uploadedBytes,
             downloadBps: snapshot.downloadBps,
@@ -254,7 +255,17 @@ private extension TorrentSessionStats {
             connectingPeers: snapshot.connectingPeers,
             queuedPeers: snapshot.queuedPeers,
             seenPeers: snapshot.seenPeers,
-            uptimeSeconds: snapshot.uptimeSeconds
+            uptimeSeconds: snapshot.uptimeSeconds,
+            network: TorrentNetworkStats(
+                dhtNodesV4: snapshot.network.dhtNodesV4,
+                dhtNodesV6: snapshot.network.dhtNodesV6,
+                dhtOutstanding: snapshot.network.dhtOutstanding,
+                transports: snapshot.network.transports.map {
+                    TorrentTransportStats(name: $0.name, attempts: $0.attempts, connected: $0.connected, failed: $0.failed)
+                },
+                liveTCP: snapshot.network.liveTcp,
+                liveUTP: snapshot.network.liveUtp
+            )
         )
     }
 }

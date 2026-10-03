@@ -12,8 +12,8 @@ use futures_channel::oneshot;
 use librqbit::{
     AddTorrent, AddTorrentOptions, AddTorrentResponse, ConnectionOptions, ListenerMode,
     ListenerOptions, ManagedTorrent, MetadataProgress, Session, SessionOptions,
-    TrackerCommsTrackerStats,
-    api::TorrentIdOrHash, dht::Id20, generate_azereus_style, http_api_types::PeerStatsFilter,
+    TrackerCommsTrackerStats, api::TorrentIdOrHash, dht::Id20, generate_azereus_style,
+    http_api_types::PeerStatsFilter,
 };
 use tokio::runtime::{Builder, Runtime};
 
@@ -103,6 +103,24 @@ pub struct TorrentPeerSnapshot {
 }
 
 #[derive(Debug, Clone, uniffi::Record)]
+pub struct TransportSnapshot {
+    pub name: String,
+    pub attempts: u64,
+    pub connected: u64,
+    pub failed: u64,
+}
+
+#[derive(Debug, Clone, uniffi::Record)]
+pub struct NetworkSnapshot {
+    pub dht_nodes_v4: Option<u64>,
+    pub dht_nodes_v6: Option<u64>,
+    pub dht_outstanding: Option<u64>,
+    pub transports: Vec<TransportSnapshot>,
+    pub live_tcp: u32,
+    pub live_utp: u32,
+}
+
+#[derive(Debug, Clone, uniffi::Record)]
 pub struct TorrentSessionSnapshot {
     pub download_bps: f64,
     pub upload_bps: f64,
@@ -113,10 +131,12 @@ pub struct TorrentSessionSnapshot {
     pub queued_peers: u32,
     pub seen_peers: u32,
     pub uptime_seconds: u64,
+    pub network: NetworkSnapshot,
 }
 
 #[derive(Debug, Clone, uniffi::Record)]
 pub struct TorrentSnapshot {
+    pub checked_bytes: Option<u64>,
     pub id: u64,
     pub name: String,
     pub info_hash: String,
@@ -162,30 +182,22 @@ pub struct SweepEngine {
     discoveries: Mutex<HashMap<String, Arc<Discovery>>>,
 }
 
-#[uniffi::export]
 impl SweepEngine {
-    #[uniffi::constructor]
-    pub fn new(download_dir: String) -> Result<Arc<Self>, SweepError> {
+    /// Rust-only configuration hook for controlled diagnostics and integration tests.
+    /// The Apple apps use `new` and retain the normal TCP/uTP and discovery defaults.
+    pub fn with_session_options(
+        download_dir: String,
+        mut options: SessionOptions,
+    ) -> Result<Arc<Self>, SweepError> {
         let runtime = Builder::new_multi_thread()
             .enable_all()
             .thread_name("sweep-rqbit")
             .build()
             .context("failed to create rqbit runtime")?;
         let peer_id = tracker_compatible_peer_id();
+        options.peer_id = Some(peer_id);
         let session = runtime
-            .block_on(Session::new_with_opts(
-                PathBuf::from(download_dir),
-                SessionOptions {
-                    disable_dht_persistence: true,
-                    peer_id: Some(peer_id),
-                    listen: Some(ListenerOptions {
-                        mode: ListenerMode::TcpAndUtp,
-                        ..Default::default()
-                    }),
-                    connect: Some(ConnectionOptions::default()),
-                    ..Default::default()
-                },
-            ))
+            .block_on(Session::new_with_opts(PathBuf::from(download_dir), options))
             .context("failed to create rqbit session")?;
 
         Ok(Arc::new(Self {
@@ -195,6 +207,25 @@ impl SweepEngine {
             pending_adds: Mutex::new(HashMap::new()),
             discoveries: Mutex::new(HashMap::new()),
         }))
+    }
+}
+
+#[uniffi::export]
+impl SweepEngine {
+    #[uniffi::constructor]
+    pub fn new(download_dir: String) -> Result<Arc<Self>, SweepError> {
+        Self::with_session_options(
+            download_dir,
+            SessionOptions {
+                disable_dht_persistence: true,
+                listen: Some(ListenerOptions {
+                    mode: ListenerMode::TcpAndUtp,
+                    ..Default::default()
+                }),
+                connect: Some(ConnectionOptions::default()),
+                ..Default::default()
+            },
+        )
     }
 
     pub async fn add_magnet(
@@ -354,12 +385,8 @@ impl SweepEngine {
             let initial_peers = if start_paused {
                 Vec::new()
             } else {
-                announce_initial_peers_for_torrent(
-                    &torrent_bytes,
-                    peer_id,
-                    session.announce_port(),
-                )
-                .await
+                announce_initial_peers_for_torrent(&torrent_bytes, peer_id, session.announce_port())
+                    .await
             };
             let result = add_torrent_to_session(
                 session,
@@ -668,6 +695,10 @@ async fn resume_torrent_in_session(
     let handle = session
         .get(id)
         .with_context(|| format!("torrent {id} is not managed"))?;
+    // Starting again during the initial check spawns a second initializer in
+    // rqbit. The first can win with start_paused=true while the second changes
+    // the intent flag to false, leaving an unresumable paused handle.
+    handle.wait_until_initialized().await?;
     if handle.is_paused() {
         session.unpause(&handle).await?;
     }
@@ -705,6 +736,8 @@ async fn update_only_files_in_session(
         })
         .collect::<Result<HashSet<_>, _>>()?;
 
+    // Restored selections must be applied after the check, while still paused.
+    handle.wait_until_initialized().await?;
     session.update_only_files(&handle, &only_files).await?;
     Ok(snapshot(&handle))
 }
@@ -735,6 +768,7 @@ fn snapshot(handle: &Arc<ManagedTorrent>) -> TorrentSnapshot {
         .unwrap_or_default();
 
     TorrentSnapshot {
+        checked_bytes: (stats.state.to_string() == "initializing").then_some(stats.progress_bytes),
         id: handle.id() as u64,
         name: handle
             .name()
@@ -745,7 +779,11 @@ fn snapshot(handle: &Arc<ManagedTorrent>) -> TorrentSnapshot {
         trackers,
         peers,
         piece_runs,
-        progress_bytes: stats.progress_bytes,
+        progress_bytes: if stats.state.to_string() == "initializing" {
+            0
+        } else {
+            stats.progress_bytes
+        },
         total_bytes: stats.total_bytes,
         uploaded_bytes: stats.uploaded_bytes,
         download_bps,
@@ -961,6 +999,7 @@ fn progress_runs(
 
 fn snapshot_session(session: &Arc<Session>) -> TorrentSessionSnapshot {
     let stats = session.stats_snapshot();
+    let dht = session.get_dht().map(|dht| dht.stats());
     TorrentSessionSnapshot {
         download_bps: stats.download_speed.mbps * BYTES_PER_MIB,
         upload_bps: stats.upload_speed.mbps * BYTES_PER_MIB,
@@ -971,5 +1010,26 @@ fn snapshot_session(session: &Arc<Session>) -> TorrentSessionSnapshot {
         queued_peers: stats.peers.queued,
         seen_peers: stats.peers.seen,
         uptime_seconds: stats.uptime_seconds,
+        network: NetworkSnapshot {
+            dht_nodes_v4: dht.as_ref().map(|s| s.routing_table_size as u64),
+            dht_nodes_v6: dht.as_ref().map(|s| s.routing_table_size_v6 as u64),
+            dht_outstanding: dht.as_ref().map(|s| s.outstanding_requests as u64),
+            transports: [
+                ("TCP IPv4", &stats.connections.tcp.v4),
+                ("TCP IPv6", &stats.connections.tcp.v6),
+                ("uTP IPv4", &stats.connections.utp.v4),
+                ("uTP IPv6", &stats.connections.utp.v6),
+            ]
+            .into_iter()
+            .map(|(name, counters)| TransportSnapshot {
+                name: name.to_owned(),
+                attempts: counters.attempts,
+                connected: counters.successes,
+                failed: counters.errors,
+            })
+            .collect(),
+            live_tcp: stats.peers.live_tcp,
+            live_utp: stats.peers.live_utp,
+        },
     }
 }

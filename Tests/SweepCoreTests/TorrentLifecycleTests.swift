@@ -159,6 +159,29 @@ struct TorrentLifecycleTests {
         #expect(await eventually { store.pendingTorrentCount == 0 })
     }
 
+    @Test @MainActor
+    func fileCheckingNeverBecomesDownloadedProgress() async throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanUp() }
+        let cached = sampleTorrent().updating(desiredState: .paused, state: "paused")
+        let checking = Torrent(name: "Test", infoHash: Self.hash, state: "initializing",
+            progressBytes: 0, checkedBytes: 100, totalBytes: 100, uploadedBytes: 0,
+            downloadBps: 0, uploadBps: 0, error: nil)
+        let merged = checking.mergingCachedMetadata(from: cached)
+        #expect(merged.progressBytes == 20)
+        #expect(merged.checkingProgress == 1)
+        try await fixture.persistence.save(torrent: merged)
+        let saved = try #require(try await fixture.persistence.loadState().torrents.first)
+        #expect(saved.progressBytes == 20)
+        #expect(saved.checkedBytes == nil)
+        // A completed check may discover missing/corrupt pieces. Accept the
+        // actual verified result even when it is lower than the saved count.
+        let verified = sampleTorrent().updating(progressBytes: 10).mergingCachedMetadata(from: merged)
+        #expect(verified.progressBytes == 10)
+        #expect(verified.checkingProgress == nil)
+        #expect(verified.updating(state: "paused").checkedBytes == nil)
+    }
+
     private func sampleTorrent() -> Torrent {
         Torrent(name: "Test", infoHash: Self.hash, magnet: Self.magnet, state: "live", progressBytes: 20, totalBytes: 100, uploadedBytes: 0, downloadBps: 123, uploadBps: 0, error: nil)
     }
