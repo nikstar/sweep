@@ -72,6 +72,9 @@ targets:
         DEVELOPMENT_TEAM: 6RX8GEVB43
         PROVISIONING_PROFILE_SPECIFIER: ""
         OTHER_LDFLAGS: "$(inherited) $(SRCROOT)/BuildArtifacts/SweepRustFFI.xcframework/macos-arm64_x86_64/libsweep_rqbit.a -liconv"
+      configs:
+        Release:
+          ENABLE_HARDENED_RUNTIME: YES
 
   SweepCoreTests:
     type: bundle.unit-test
@@ -92,8 +95,6 @@ targets:
     platform: iOS
     sources:
       - Sources/SweepIOS
-      - path: magnet.txt
-        buildPhase: resources
     dependencies:
       - target: SweepRustArtifacts
       - target: SweepLiveActivityExtension

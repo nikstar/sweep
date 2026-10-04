@@ -239,6 +239,12 @@ identical `sweep-clone` checkout. That second directory had no newer source
 changes. Its older device-build stash is preserved in Git as
 `archive/april-device-probe`; it is historical code, not the current build setup.
 
+## Distribution
+
+Distribution uses the personal Apple Developer account: private internal
+TestFlight for iOS, and signed/notarized universal macOS builds on GitHub.
+See [release scripts and setup](docs/RELEASING.md).
+
 ## License
 
 Sweep is licensed under the GNU General Public License v3.0. See [LICENSE](LICENSE).

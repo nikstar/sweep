@@ -47,7 +47,6 @@
 		4AD705AA9C1BA0DD05569D7A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 1C768342A0B00653E1909911 /* Assets.xcassets */; };
 		4E54E8F937BFF4BDEFCC2F0E /* SweepCore in Frameworks */ = {isa = PBXBuildFile; productRef = 43019AB36769834D7901F7E0 /* SweepCore */; };
 		4F956ACE8EBCF67FB05EAF1D /* CoreFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8B6E0A3B239F72062BF939B9 /* CoreFoundation.framework */; };
-		503F4C6350C6D87AFD39EEE6 /* magnet.txt in Resources */ = {isa = PBXBuildFile; fileRef = A7DD29344354B70BB9CF9D24 /* magnet.txt */; };
 		505A107196807BC304CDF0FA /* IOSInspectorControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFD87C78B56E26680E5274DD /* IOSInspectorControls.swift */; };
 		5BEEBDF749B069C5F2DE40C3 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4796DCD769973A3113B4295E /* SettingsView.swift */; };
 		5FCBB610DA64F5A5EE7742C0 /* IOSTorrentPeersInspector.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE5BFD3229C4621A48B49111 /* IOSTorrentPeersInspector.swift */; };
@@ -170,7 +169,6 @@
 		975579290E7E7A3DC7DAAB3E /* SweepLiveActivityExtension.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = SweepLiveActivityExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		97D5317B586197FEB2947826 /* IOSTorrentInfoInspector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IOSTorrentInfoInspector.swift; sourceTree = "<group>"; };
 		A5E1498FACE23FDE2E8078D3 /* AppIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = wrapper.icon; path = AppIcon.icon; sourceTree = "<group>"; };
-		A7DD29344354B70BB9CF9D24 /* magnet.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = magnet.txt; sourceTree = "<group>"; };
 		ACCBBDD31948C776A77AD66D /* TorrentFilesInspector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TorrentFilesInspector.swift; sourceTree = "<group>"; };
 		B3F17CB43E1A23510040DA0F /* TorrentActivityInspector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TorrentActivityInspector.swift; sourceTree = "<group>"; };
 		C0D50F7F08FCE2BF7AEFCB89 /* TorrentInspectorPanelPresenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TorrentInspectorPanelPresenter.swift; sourceTree = "<group>"; };
@@ -234,7 +232,6 @@
 		15A8F15A4730E1B41666382A = {
 			isa = PBXGroup;
 			children = (
-				A7DD29344354B70BB9CF9D24 /* magnet.txt */,
 				9B318B044F06D106954FB34B /* Packages */,
 				9C78CCC06C2E82366D9F8126 /* Sources */,
 				65439C873AE54D44ACC198F7 /* Tests */,
@@ -553,7 +550,6 @@
 			files = (
 				72B710E0642A1F8481C537F6 /* AppIcon.icon in Resources */,
 				110758FC1E31ABD4A9EB4F21 /* ClassicAppIcon.icon in Resources */,
-				503F4C6350C6D87AFD39EEE6 /* magnet.txt in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -720,7 +716,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				DEVELOPMENT_TEAM = 6RX8GEVB43;
-				ENABLE_HARDENED_RUNTIME = NO;
+				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Sources/SweepMac/Resources/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (

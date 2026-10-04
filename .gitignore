@@ -7,6 +7,7 @@ BuildArtifacts/
 *.xcuserstate
 xcuserdata/
 .xcodebuildmcp/
+__pycache__/
 
 rust/target/
 **/target/
