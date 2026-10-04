@@ -28,6 +28,7 @@ final class IOSLiveActivityService {
     @ObservationIgnored private var endingID: String?
     // ActivityKit synchronizes these handles; its SDK interface doesn't express Sendable.
     @ObservationIgnored nonisolated(unsafe) private var activity: Activity<SweepDownloadActivityAttributes>?
+    @ObservationIgnored nonisolated(unsafe) private var retainedCompletion: Activity<SweepDownloadActivityAttributes>?
     private let logger = Logger(subsystem: "me.nikstar.sweep.ios", category: "LiveActivity")
     private static let activityID = "active-downloads"
 
@@ -66,14 +67,17 @@ final class IOSLiveActivityService {
     private func reconcile() async {
         guard let store else { return }
         adoptActivityIfNeeded()
+        let authorized = ActivityAuthorizationInfo().areActivitiesEnabled
+        await dismissSupersededActivities(includeCompleted:
+            activity != nil || !isEnabled || !authorized || UIApplication.shared.applicationState == .active)
         guard isEnabled else {
-            await endActivity(content: nil, immediately: true)
+            await endActivity(content: nil)
             status = "Off"
             lastError = nil
             return
         }
-        guard ActivityAuthorizationInfo().areActivitiesEnabled else {
-            await endActivity(content: nil, immediately: true)
+        guard authorized else {
+            await endActivity(content: nil)
             status = "Disabled in iOS Settings"
             lastError = nil
             return
@@ -85,15 +89,18 @@ final class IOSLiveActivityService {
         let transfers = store.torrents.map(DownloadActivityTransfer.init)
         let tracked = Set(activity?.content.state.torrentIDs ?? lastContent?.torrentIDs ?? [])
         guard let content = DownloadActivityContent.make(transfers: transfers, tracking: tracked, at: .now) else {
-            await endActivity(content: nil, immediately: true)
+            await endActivity(content: nil)
             status = "No active downloads"
+            lastError = nil
             suppressedIDs.removeAll()
             return
         }
         let ids = Set(content.torrentIDs ?? [])
         if content.displayPhase.isTerminal {
-            await endActivity(content: content, immediately: content.displayPhase == .stopped)
+            await endActivity(content: content, dismissalDate: content.completionDismissalDate(
+                isAppActive: UIApplication.shared.applicationState == .active))
             status = content.detail
+            lastError = nil
             return
         }
         if let activity {
@@ -103,7 +110,7 @@ final class IOSLiveActivityService {
             lastContent = content
             lastUpdateAt = .now
             lastError = nil
-            status = content.displayPhase == .paused ? "Active · Paused" : "Active"
+            status = "Active"
             return
         }
         guard content.displayPhase.isActive else { status = "No active downloads"; return }
@@ -119,6 +126,7 @@ final class IOSLiveActivityService {
                 content: ActivityContent(state: content, staleDate: content.staleDate), pushType: nil
             )
             activity = handle
+            await dismissSupersededActivities(includeCompleted: true)
             observeState(of: handle)
             lastContent = content
             lastUpdateAt = .now
@@ -143,14 +151,35 @@ final class IOSLiveActivityService {
             activityStateTask?.cancel()
         }
         guard activity == nil else { return }
-        if let restored = Activity<SweepDownloadActivityAttributes>.activities.first(where: {
+        if let restored = Activity<SweepDownloadActivityAttributes>.activities.filter({
             $0.attributes.activityID == Self.activityID && [.active, .stale].contains($0.activityState)
-        }) {
+        }).max(by: { $0.content.state.updatedAt < $1.content.state.updatedAt }) {
             activity = restored
             // Publish immediately to refresh the deadline and any state from the previous process.
             lastContent = nil
             observeState(of: restored)
             logger.notice("Adopted an existing Live Activity")
+        }
+    }
+
+    private func dismissSupersededActivities(includeCompleted: Bool) async {
+        var handles = Activity<SweepDownloadActivityAttributes>.activities
+        // Ended activities may no longer appear in Activity.activities. Keep our own
+        // completion handle until it expires or new work replaces its retained card.
+        if let retainedCompletion, !handles.contains(where: { $0.id == retainedCompletion.id }) {
+            handles.append(retainedCompletion)
+        }
+        for handle in handles where handle.attributes.activityID == Self.activityID && handle.id != activity?.id {
+            guard handle.activityState != .dismissed else {
+                if retainedCompletion?.id == handle.id { retainedCompletion = nil }
+                continue
+            }
+            let isRetainedCompletion = handle.activityState == .ended && handle.content.state.displayPhase == .completed
+            guard !isRetainedCompletion || includeCompleted else { continue }
+            nonisolated(unsafe) let handle = handle
+            await handle.end(nil, dismissalPolicy: .immediate)
+            if retainedCompletion?.id == handle.id { retainedCompletion = nil }
+            logger.notice("Dismissed a superseded Live Activity")
         }
     }
 
@@ -166,15 +195,16 @@ final class IOSLiveActivityService {
         }
     }
 
-    private func endActivity(content: SweepDownloadActivityAttributes.ContentState?, immediately: Bool) async {
+    private func endActivity(content: SweepDownloadActivityAttributes.ContentState?, dismissalDate: Date? = nil) async {
         guard let activity else { lastContent = nil; return }
         endingID = activity.id
         activityStateTask?.cancel()
         nonisolated(unsafe) let handle = activity
+        if dismissalDate != nil { retainedCompletion = handle }
         // Never manufacture 100% on pause, failure, removal, or a preference change.
         await handle.end(
             ActivityContent(state: content ?? handle.content.state, staleDate: nil),
-            dismissalPolicy: immediately ? .immediate : .after(.now.addingTimeInterval(120))
+            dismissalPolicy: dismissalDate.map { .after($0) } ?? .immediate
         )
         self.activity = nil
         lastContent = nil
@@ -187,7 +217,7 @@ final class IOSLiveActivityService {
 private extension DownloadActivityTransfer {
     init(_ torrent: Torrent) {
         let phase: DownloadActivityPhase
-        if torrent.error != nil { phase = .failed }
+        if let error = torrent.error, !error.isEmpty { phase = .failed }
         else if torrent.desiredState == .paused { phase = .paused }
         else if torrent.state == "initializing" || torrent.state == "restoring" { phase = .checking }
         else if torrent.totalBytes == 0 { phase = .metadata }

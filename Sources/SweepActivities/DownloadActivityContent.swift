@@ -4,7 +4,8 @@ public enum DownloadActivityPhase: String, Codable, Hashable, Sendable {
     case metadata, checking, downloading, waiting, paused, failed, completed, stopped
 
     public var isActive: Bool { [.metadata, .checking, .downloading, .waiting].contains(self) }
-    public var isTerminal: Bool { [.failed, .completed, .stopped].contains(self) }
+    // Terminal for the Live Activity, even if the transfer can be resumed/retried.
+    public var isTerminal: Bool { !isActive }
     public var title: String {
         switch self {
         case .metadata: "Finding metadata"

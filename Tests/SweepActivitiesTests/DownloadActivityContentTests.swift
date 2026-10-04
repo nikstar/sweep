@@ -28,6 +28,37 @@ struct DownloadActivityContentTests {
         #expect(DownloadActivityContent.make(transfers: [], tracking: ["removed"], at: date) == nil)
     }
 
+    @Test func retryDoesNotInheritAnOldFailure() throws {
+        let failed = try #require(DownloadActivityContent.make(
+            transfers: [transfer(.failed, downloaded: 0, total: 0)], tracking: ["test"], at: date))
+        #expect(failed.displayPhase.isTerminal)
+        #expect(failed.completionDismissalDate(isAppActive: false) == nil)
+        let retry = try #require(DownloadActivityContent.make(
+            transfers: [transfer(.metadata, downloaded: 0, total: 0)],
+            tracking: [], at: date.addingTimeInterval(1)))
+        let recovered = try #require(DownloadActivityContent.make(
+            transfers: [transfer(.downloading)], tracking: Set(retry.torrentIDs ?? []), at: date.addingTimeInterval(2)))
+        #expect(retry.torrentIDs == failed.torrentIDs)
+        #expect(recovered.torrentIDs == failed.torrentIDs)
+        #expect(recovered.detail == "Downloading")
+        #expect(recovered.staleDate != nil)
+        #expect(DownloadActivityContent.shouldPublish(retry, after: failed))
+        #expect(DownloadActivityContent.shouldPublish(recovered, after: retry))
+    }
+
+    @Test func onlyBackgroundCompletionRetainsASummary() throws {
+        for phase in [DownloadActivityPhase.paused, .failed, .stopped, .completed] {
+            let state = SweepDownloadActivityAttributes.ContentState(
+                headline: "Test", detail: phase.title, activeDownloadCount: 0, progress: 0.4,
+                progressBytes: 40, totalBytes: 100, downloadBps: 0, uploadBps: 0,
+                isIndeterminate: false, updatedAt: date, phase: phase, torrentIDs: ["test"])
+            #expect(phase.isTerminal)
+            #expect(state.completionDismissalDate(isAppActive: true) == nil)
+            #expect(state.completionDismissalDate(isAppActive: false) ==
+                (phase == .completed ? date.addingTimeInterval(120) : nil))
+        }
+    }
+
     @Test func checkingAFullFileStillRepresentsOngoingWork() throws {
         let state = try #require(DownloadActivityContent.make(transfers: [transfer(.checking, downloaded: 100)], tracking: ["test"], at: date))
         #expect(state.displayPhase == .checking)

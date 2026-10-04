@@ -7,7 +7,6 @@ struct SweepDownloadLiveActivityWidget: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: SweepDownloadActivityAttributes.self) { context in
             SweepActivityCard(state: context.state, isStale: context.isStale)
-            // Keep the system background: it adapts to the Lock Screen, Dark Mode, and StandBy.
         } dynamicIsland: { context in
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
@@ -54,6 +53,8 @@ struct SweepDownloadLiveActivityWidget: Widget {
 }
 
 private struct SweepActivityCard: View {
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.isLuminanceReduced) private var isLuminanceReduced
     let state: SweepDownloadActivityAttributes.ContentState
     let isStale: Bool
 
@@ -105,6 +106,11 @@ private struct SweepActivityCard: View {
         // Apple's Lock Screen Live Activity margin is 14 pt; the system owns the outer shape.
         .padding(14)
         .foregroundStyle(.primary)
+        // ActivityKit composites the translucent tint over the Lock Screen material.
+        // The default (nil) tint is opaque, even on iOS 26.
+        .activityBackgroundTint(.black.opacity(reduceTransparency ? 1 : (isLuminanceReduced ? 0.7 : 0.3)))
+        .activitySystemActionForegroundColor(.white)
+        .environment(\.colorScheme, .dark)
     }
 
     private var byteSummary: String {

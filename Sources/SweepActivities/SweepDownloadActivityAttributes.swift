@@ -28,6 +28,12 @@ public struct SweepDownloadActivityAttributes: Codable, Hashable, Sendable {
             displayPhase.isActive ? updatedAt.addingTimeInterval(60) : nil
         }
 
+        /// Only a completion that happens while away deserves a retained summary.
+        /// Pause, failure, removal, and foreground completion dismiss immediately.
+        public func completionDismissalDate(isAppActive: Bool) -> Date? {
+            displayPhase == .completed && !isAppActive ? updatedAt.addingTimeInterval(120) : nil
+        }
+
         public init(
             headline: String,
             detail: String,

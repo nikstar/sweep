@@ -279,8 +279,15 @@ struct TorrentLifecycleTests {
         store.togglePause(failed)
         #expect(await eventually { await engine.addCount() == 2 })
         #expect(store.discoveries[Self.hash] == nil)
-        await engine.failMetadata()
+        #expect(store.selectedTorrent?.error == nil)
+        await engine.completeMetadata()
         #expect(await eventually { store.pendingTorrentCount == 0 })
+        await store.refreshNow()
+        #expect(store.selectedTorrent?.error == nil)
+        #expect(store.selectedTorrent?.state == "live")
+        #expect(store.selectedTorrent?.transferActionTitle == "Pause")
+        #expect(store.discoveries[Self.hash] == nil)
+        #expect(try await fixture.persistence.loadState().torrents.first?.error == nil)
     }
 
     @Test @MainActor
