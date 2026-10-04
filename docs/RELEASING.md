@@ -61,6 +61,24 @@ becoming available in the private group. Inspect App Store Connect → Sweep →
 TestFlight after upload. Resolve any processing/export-compliance questions and
 assign the build to the owner-only group if automatic distribution is not set.
 
+### Encryption declaration
+
+The iOS app and Live Activity extension declare
+`ITSAppUsesNonExemptEncryption = NO` for the current private TestFlight path.
+The app uses standard TLS through bundled `rustls`/`reqwest`; peer traffic is
+unencrypted, and the engine does not implement proprietary encryption. The
+extension does not include the torrent engine. This flag declares that no
+encryption documentation is required for this distribution, not that TLS is absent.
+
+For an older build that still shows the questionnaire, choose **standard
+encryption algorithms instead of, or in addition to, Apple's operating system**.
+The plist change takes effect on new uploads; it cannot modify an uploaded build.
+Reassess the declaration if encryption functionality or distribution changes,
+especially before App Store availability in France. Apple's
+[documentation requirements](https://developer.apple.com/help/app-store-connect/reference/app-information/export-compliance-documentation-for-encryption)
+and [plist key reference](https://developer.apple.com/documentation/bundleresources/information-property-list/itsappusesnonexemptencryption)
+describe the distinction and when an Apple-issued compliance code is needed.
+
 ## Outputs, recovery, and optional CI authentication
 
 Archives, exports, validation logs and release manifests are under the ignored
