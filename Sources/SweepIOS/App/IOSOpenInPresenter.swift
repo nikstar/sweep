@@ -1,4 +1,5 @@
 import UIKit
+import UniformTypeIdentifiers
 
 @MainActor
 final class IOSOpenInPresenter {
@@ -12,10 +13,20 @@ final class IOSOpenInPresenter {
             return false
         }
 
+        // Sweep's Documents are exposed through iOS's local file provider by the
+        // UIFileSharingEnabled + LSSupportsOpeningDocumentsInPlace plist keys.
+        // Offer the original growing file to readers that request open-in-place.
+        // A receiving app can still choose a copy (e.g. a messaging attachment).
+        let provider = NSItemProvider()
+        provider.suggestedName = url.lastPathComponent
+        let type = UTType(filenameExtension: url.pathExtension) ?? .data
+        provider.registerFileRepresentation(forTypeIdentifier: type.identifier, fileOptions: .openInPlace,
+                                            visibility: .all) { completion in
+            completion(url, true, nil)
+            return nil
+        }
         let activityViewController = UIActivityViewController(
-            activityItems: [url],
-            applicationActivities: nil
-        )
+            activityItemsConfiguration: UIActivityItemsConfiguration(itemProviders: [provider]))
 
         let anchor = CGRect(
             x: view.bounds.midX,

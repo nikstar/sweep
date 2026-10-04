@@ -29,7 +29,7 @@ import Testing
         #expect(TorrentMedia(files: [file(0, "The.Sample.Movie.mp4", 100)]).primaryVideo?.id == 0)
     }
 
-    @Test func preallocatedAndCheckingFilesCannotBeOpenedAsCompletedMedia() throws {
+    @Test func partialAndCheckingFilesOpenTheOriginalPayload() throws {
         let root = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: root) }
@@ -39,10 +39,16 @@ import Testing
         let torrent = Torrent(name: "Movie", infoHash: "test", downloadDirectory: root.path, state: "live",
                               files: [complete], progressBytes: 100, totalBytes: 100, uploadedBytes: 0,
                               downloadBps: 0, uploadBps: 0, error: nil)
-        #expect(TorrentFileLocation.completedFileURL(for: partial, in: torrent, defaultDirectory: "/unused") == nil)
-        #expect(TorrentFileLocation.completedFileURL(for: complete, in: torrent.updating(state: "initializing"), defaultDirectory: "/unused") == nil)
-        #expect(TorrentFileLocation.completedFileURL(for: complete, in: torrent, defaultDirectory: "/unused") != nil)
+        let original = root.appending(path: "movie.mp4").resolvingSymlinksInPath()
+        #expect(TorrentFileLocation.openableFileURL(for: partial, in: torrent, defaultDirectory: "/unused") == original)
+        #expect(TorrentFileLocation.openableFileURL(for: partial, in: torrent.updating(state: "initializing"), defaultDirectory: "/unused") == original)
+        #expect(TorrentFileLocation.openableFileURL(for: complete, in: torrent, defaultDirectory: "/unused") == original)
+        let padding = file(1, "movie.mp4", 100, padding: true)
+        #expect(TorrentFileLocation.openableFileURL(for: padding, in: torrent, defaultDirectory: "/unused") == nil)
+        #expect(TorrentFileLocation.openableFileURL(for: file(2, "../movie.mp4", 100), in: torrent, defaultDirectory: "/unused") == nil)
         try FileManager.default.removeItem(at: root.appending(path: "movie.mp4"))
-        #expect(TorrentFileLocation.completedFileURL(for: complete, in: torrent, defaultDirectory: "/unused") == nil)
+        #expect(TorrentFileLocation.openableFileURL(for: complete, in: torrent, defaultDirectory: "/unused") == nil)
+        try FileManager.default.createDirectory(at: original, withIntermediateDirectories: true)
+        #expect(TorrentFileLocation.openableFileURL(for: partial, in: torrent, defaultDirectory: "/unused") == nil)
     }
 }

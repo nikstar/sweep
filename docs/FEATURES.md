@@ -8,16 +8,55 @@ turning the app into a dashboard.
 
 ## iOS Details and Media Actions, October 4, 2026
 
+Follow-up: Live Activity recovery and partial files
+
+- Lock Screen cards now use ActivityKit's translucent dark tint with light
+  foreground content, instead of its opaque default background. The system owns
+  the material and shape; Reduce Transparency and dimmed displays get stronger
+  backgrounds for legibility.
+- Live Activities exist while download work is active. Pause, failure, and removal
+  end and dismiss the card immediately; Resume/Retry starts a fresh activity.
+  Completion in the foreground dismisses immediately too. Background completion
+  leaves a summary for at most two minutes, cleared sooner when Sweep reopens or
+  new work starts. Adoption keeps the newest active card and dismisses duplicates.
+  This follows [Apple's lifecycle guidance](https://developer.apple.com/design/human-interface-guidelines/live-activities)
+  to end when work stops and retain only a useful, brief final summary. Unrelated
+  action/startup errors are still preserved in session health.
+- Play/Open accepts existing partial files, including preallocated files and
+  files being checked. The shared location helper still rejects missing files,
+  directories, padding, and unsafe paths. Opening does not imply completion.
+- AVKit reads the original payload. Missing media headers/chunks may prevent
+  playback; Try Again and Reload Video create a fresh asset to read newly arrived
+  bytes. Reload preserves the current playback position where available.
+- External-app actions use an `NSItemProvider` open-in-place representation of
+  the original file exposed through Sweep's Documents provider. The recipient
+  chooses whether to request it in place or import a copy. Cross-app behavior
+  depends on that player; no compatible external player was installed in the
+  simulator. This is local partial-file access, not piece-prioritized streaming.
+- Verified on the persistent iPhone 17 Pro Max: translucent cards in light/dark
+  appearance, an actual 90-second metadata timeout, and recovery after relaunch.
+  Pause immediately removed the card; Resume created it again. Completion while
+  locked retained the 100% summary, and returning to Sweep cleared it immediately.
+  A second metadata timeout dismissed the card; Retry cleared the torrent error
+  and foreground completion left no residual card.
+  A partial MP4 failed with its header missing, then played after adding the
+  header to the same file and retrying while its final quarter was still absent.
+  Reload continued at the current position after more bytes arrived.
+  The external-app sheet displayed the partial video. All 42 shared tests and
+  macOS, iOS Simulator, and unsigned iOS device builds pass.
+  Temporary fixtures were removed; the original download and simulator data remain.
+
+Earlier details improvements:
+
 - Details remembers its last selected tab across torrents and app relaunches.
   Play and Pause/Resume are prominent buttons above the inspector tabs.
 - Shared file metadata identifies a main movie while excluding artwork,
   samples, extras, and padding. Episode collections are naturally ordered and
   each video has its own Play action. Comparable movie collections do not get
   an arbitrary primary video.
-- Completed local videos use AVKit when supported. Unsupported formats offer
+- Local videos use AVKit when supported. Unsupported formats offer
   Open in Another App; the supplied MKV requires a compatible external player.
-  Playback is foreground-only, and incomplete/preallocated files cannot be
-  opened as completed media. Streaming unfinished torrents is not implemented.
+  Playback is foreground-only. Partial-file behavior is described above.
 - File rows have 44-point menu targets, visible Download switches, and direct
   Play/Open buttons. Selection includes Download All, Videos Only, and Only This
   File. Queued edits use the latest selection; paused torrents can be edited

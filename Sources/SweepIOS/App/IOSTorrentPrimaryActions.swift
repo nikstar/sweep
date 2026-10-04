@@ -14,11 +14,14 @@ struct IOSTorrentPrimaryActions: View {
                 HStack(spacing: 12) { actions(media) }
                 VStack(spacing: 8) { actions(media) }
             }
-            if let file = media.primaryVideo,
-               TorrentFileLocation.completedFileURL(for: file, in: torrent, defaultDirectory: store.downloadDirectory) == nil {
-                Text("Play is available once the video has finished downloading and checking.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+            if let file = media.primaryVideo {
+                if TorrentFileLocation.openableFileURL(for: file, in: torrent, defaultDirectory: store.downloadDirectory) == nil {
+                    Text("Play is available once the download creates the file.")
+                        .font(.caption).foregroundStyle(.secondary)
+                } else if file.progressBytes < file.length {
+                    Text("You can play while downloading. Playback may pause until more of the video is available.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
             }
         }
         .controlSize(.large)
@@ -30,7 +33,7 @@ struct IOSTorrentPrimaryActions: View {
                 Label("Play", systemImage: "play.fill").frame(maxWidth: .infinity, minHeight: 24)
             }
             .buttonStyle(.borderedProminent)
-            .disabled(TorrentFileLocation.completedFileURL(for: file, in: torrent, defaultDirectory: store.downloadDirectory) == nil)
+            .disabled(TorrentFileLocation.openableFileURL(for: file, in: torrent, defaultDirectory: store.downloadDirectory) == nil)
             .accessibilityIdentifier("torrent.play")
         } else if !media.videos.isEmpty {
             Button(action: showFiles) {

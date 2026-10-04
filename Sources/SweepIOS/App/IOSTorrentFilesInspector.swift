@@ -86,7 +86,7 @@ private struct IOSTorrentFileRow: View {
     let play: (TorrentFile) -> Void
 
     var body: some View {
-        let url = TorrentFileLocation.completedFileURL(for: file, in: torrent, defaultDirectory: store.downloadDirectory)
+        let url = TorrentFileLocation.openableFileURL(for: file, in: torrent, defaultDirectory: store.downloadDirectory)
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .top, spacing: 8) {
                 Image(systemName: file.isVideo ? "film" : "doc")

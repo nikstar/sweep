@@ -115,10 +115,10 @@ struct IOSTorrentInspectorView: View {
     }
 
     private func play(_ file: TorrentFile) {
-        guard let torrent, let url = TorrentFileLocation.completedFileURL(
+        guard let torrent, let url = TorrentFileLocation.openableFileURL(
             for: file, in: torrent, defaultDirectory: store.downloadDirectory
         ) else { return }
-        mediaFile = IOSMediaFile(url: url, name: file.name)
+        mediaFile = IOSMediaFile(url: url, name: file.name, isIncomplete: file.progressBytes < file.length)
     }
 }
 
