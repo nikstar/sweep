@@ -6,11 +6,13 @@ struct IOSTorrentRow: View {
     @Environment(TorrentStore.self) private var store
 
     let torrent: Torrent
+    private let iconWidth: CGFloat = 20
+    private let titleSpacing: CGFloat = 10
 
     var body: some View {
-        HStack(alignment: .center, spacing: 10) {
+        HStack(alignment: .center, spacing: titleSpacing) {
             TorrentStatusIcon(torrent: torrent, fontSize: 14)
-                .frame(width: 20, height: 40)
+                .frame(width: iconWidth, height: 40)
 
             VStack(alignment: .leading, spacing: 6) {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
@@ -49,6 +51,7 @@ struct IOSTorrentRow: View {
             }
         }
         .padding(.vertical, 5)
+        .alignmentGuide(.listRowSeparatorLeading) { $0[.leading] + iconWidth + titleSpacing }
     }
 
     private var statusText: String {

@@ -24,6 +24,15 @@ public struct TorrentDownloadLocationSnapshot {
 }
 
 public enum TorrentFileLocation {
+    /// Existence alone is insufficient: rqbit preallocates incomplete payloads.
+    public static func completedFileURL(for file: TorrentFile, in torrent: Torrent, defaultDirectory: String) -> URL? {
+        guard !file.isPadding, file.progressBytes >= file.length,
+              !["initializing", "restoring", "resolving"].contains(torrent.state.lowercased()),
+              let snapshot = fileSnapshot(for: file, in: torrent, defaultDirectory: defaultDirectory),
+              snapshot.isOpenable else { return nil }
+        return snapshot.url
+    }
+
     public static func fileURL(for file: TorrentFile, in torrent: Torrent, defaultDirectory: String) -> URL? {
         let components = file.path.split(whereSeparator: { $0 == "/" || $0 == "\\" }).map(String.init)
         guard !components.isEmpty, !file.path.hasPrefix("/"), !file.path.hasPrefix("\\"),

@@ -8,13 +8,18 @@ struct IOSTorrentInspectorView: View {
 
     let torrentID: Torrent.ID
 
-    @State private var selectedTab: IOSInspectorTab = .info
+    @AppStorage("IOSInspectorSelectedTab") private var selectedTab: IOSInspectorTab = .info
     @State private var torrentToDelete: Torrent?
+    @State private var mediaFile: IOSMediaFile?
 
     var body: some View {
         Group {
             if let torrent {
                 VStack(spacing: 0) {
+                    IOSTorrentPrimaryActions(torrent: torrent, showFiles: { selectedTab = .files }, play: play)
+                        .padding(.horizontal, 16)
+                        .padding(.top, 8)
+
                     Picker("Inspector Section", selection: $selectedTab) {
                         ForEach(IOSInspectorTab.allCases) { tab in
                             Text(tab.title).tag(tab)
@@ -36,15 +41,6 @@ struct IOSTorrentInspectorView: View {
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItemGroup(placement: .topBarTrailing) {
-                        Button {
-                            store.togglePause(torrent)
-                        } label: {
-                            Label(
-                                torrent.transferActionTitle,
-                                systemImage: torrent.transferActionSymbol
-                            )
-                        }
-
                         Menu {
                             Button {
                                 store.refresh()
@@ -75,6 +71,9 @@ struct IOSTorrentInspectorView: View {
         }
         .safeAreaInset(edge: .bottom) { IOSSessionStatusBar() }
         .removeTorrentDataConfirmation(torrent: $torrentToDelete, store: store)
+        .fullScreenCover(item: $mediaFile) { file in
+            IOSMediaPlayerView(file: file)
+        }
         .task {
             store.selection = torrentID
             store.startPolling()
@@ -104,7 +103,7 @@ struct IOSTorrentInspectorView: View {
             IOSTorrentPeersInspector(torrent: torrent)
 
         case .files:
-            IOSTorrentFilesInspector(torrent: torrent, defaultDownloadDirectory: store.downloadDirectory)
+            IOSTorrentFilesInspector(torrent: torrent, defaultDownloadDirectory: store.downloadDirectory, play: play)
 
         case .options:
             IOSTorrentOptionsInspector(
@@ -113,6 +112,13 @@ struct IOSTorrentInspectorView: View {
                 confirmRemoveData: { torrentToDelete = torrent }
             )
         }
+    }
+
+    private func play(_ file: TorrentFile) {
+        guard let torrent, let url = TorrentFileLocation.completedFileURL(
+            for: file, in: torrent, defaultDirectory: store.downloadDirectory
+        ) else { return }
+        mediaFile = IOSMediaFile(url: url, name: file.name)
     }
 }
 

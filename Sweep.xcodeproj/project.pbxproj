@@ -40,6 +40,7 @@
 		2F3FEB623D8C2DFCD0599454 /* IOSSessionStatusBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0435EF6FED41664B9C2798DA /* IOSSessionStatusBar.swift */; };
 		2FDB3131F4201B15947A5F36 /* TorrentActivityInspector.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3F17CB43E1A23510040DA0F /* TorrentActivityInspector.swift */; };
 		31F807EE66CEA8022DB12BB2 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83C54817B7513419209B220D /* ContentView.swift */; };
+		36935E41FE9192A19E405102 /* IOSTorrentPrimaryActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B408060D3E3CB5C56B3A617 /* IOSTorrentPrimaryActions.swift */; };
 		3795B496E3B8B7BCE4F856CB /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = A5E1498FACE23FDE2E8078D3 /* AppIcon.icon */; };
 		426BC46A2A662A466EFB1C44 /* IOSTorrentRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 131BD565C4409BDA8970A7F1 /* IOSTorrentRow.swift */; };
 		49A01D17B1835427A0151790 /* CoreFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8B6E0A3B239F72062BF939B9 /* CoreFoundation.framework */; };
@@ -84,6 +85,7 @@
 		EFBC3A9ECDF6DB6140608DE2 /* IOSTorrentTrackersInspector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F1373B78F8FC8ABD1B75C13 /* IOSTorrentTrackersInspector.swift */; };
 		F34C570AE343CB4DC823EFB5 /* IOSBackgroundDownloadService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35862CE528C60EB5E5C36EFA /* IOSBackgroundDownloadService.swift */; };
 		F4C27E305533708EF5D3AB86 /* Security.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 38BAA30A1485BC9D5E62B893 /* Security.framework */; };
+		F78F2D293178C3581F513158 /* IOSMediaPlayerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49ACC0416883A50D1EF1C78A /* IOSMediaPlayerView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -131,6 +133,7 @@
 		071F6DBE6CA57A53CD20707E /* IOSTorrentActivityInspector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IOSTorrentActivityInspector.swift; sourceTree = "<group>"; };
 		131BD565C4409BDA8970A7F1 /* IOSTorrentRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IOSTorrentRow.swift; sourceTree = "<group>"; };
 		193A77A37E82D3DE990B59CC /* IOSContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IOSContentView.swift; sourceTree = "<group>"; };
+		1B408060D3E3CB5C56B3A617 /* IOSTorrentPrimaryActions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IOSTorrentPrimaryActions.swift; sourceTree = "<group>"; };
 		1C768342A0B00653E1909911 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		1E715F02C8E5279E2C7A6E15 /* Sweep.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Sweep.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		2170D7D5E1DE9A57C6877DE6 /* TorrentListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TorrentListView.swift; sourceTree = "<group>"; };
@@ -143,6 +146,7 @@
 		35862CE528C60EB5E5C36EFA /* IOSBackgroundDownloadService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IOSBackgroundDownloadService.swift; sourceTree = "<group>"; };
 		38BAA30A1485BC9D5E62B893 /* Security.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Security.framework; path = System/Library/Frameworks/Security.framework; sourceTree = SDKROOT; };
 		4796DCD769973A3113B4295E /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		49ACC0416883A50D1EF1C78A /* IOSMediaPlayerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IOSMediaPlayerView.swift; sourceTree = "<group>"; };
 		4C61406C6F91B25AC424B2DD /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		4FF8965A756198D6E04161E4 /* TorrentFileLocation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TorrentFileLocation.swift; sourceTree = "<group>"; };
 		5054954C7DF72F4D7D169167 /* IOSBackupExclusion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IOSBackupExclusion.swift; sourceTree = "<group>"; };
@@ -296,6 +300,7 @@
 				FD6F1B2A7C9C2EAFAFEFC5F5 /* IOSExecutionHealthView.swift */,
 				DFD87C78B56E26680E5274DD /* IOSInspectorControls.swift */,
 				2920AEAAEBEDE653480289FC /* IOSLiveActivityService.swift */,
+				49ACC0416883A50D1EF1C78A /* IOSMediaPlayerView.swift */,
 				6B11DE283104B5AACAF8815C /* IOSOpenInPresenter.swift */,
 				0435EF6FED41664B9C2798DA /* IOSSessionStatusBar.swift */,
 				071F6DBE6CA57A53CD20707E /* IOSTorrentActivityInspector.swift */,
@@ -304,6 +309,7 @@
 				6E8D80BB3EAC6640C921EED9 /* IOSTorrentInspectorView.swift */,
 				6191FCF7D7E019574D399A77 /* IOSTorrentOptionsInspector.swift */,
 				CE5BFD3229C4621A48B49111 /* IOSTorrentPeersInspector.swift */,
+				1B408060D3E3CB5C56B3A617 /* IOSTorrentPrimaryActions.swift */,
 				131BD565C4409BDA8970A7F1 /* IOSTorrentRow.swift */,
 				5F1373B78F8FC8ABD1B75C13 /* IOSTorrentTrackersInspector.swift */,
 				275B892DB00D6893E87DF9CE /* SweepIOSApp.swift */,
@@ -617,6 +623,7 @@
 				BA9627A30480D015DC57DA54 /* IOSExecutionHealthView.swift in Sources */,
 				505A107196807BC304CDF0FA /* IOSInspectorControls.swift in Sources */,
 				E23D8AD5B56DD6149517361E /* IOSLiveActivityService.swift in Sources */,
+				F78F2D293178C3581F513158 /* IOSMediaPlayerView.swift in Sources */,
 				BA848BDDBD4942CD5EBC7BF4 /* IOSOpenInPresenter.swift in Sources */,
 				2F3FEB623D8C2DFCD0599454 /* IOSSessionStatusBar.swift in Sources */,
 				85BD37DA531EA0DE88015D90 /* IOSTorrentActivityInspector.swift in Sources */,
@@ -625,6 +632,7 @@
 				8010A5BD1E39900CAE8060EB /* IOSTorrentInspectorView.swift in Sources */,
 				70FDAC31574D6CD4A21EC76F /* IOSTorrentOptionsInspector.swift in Sources */,
 				5FCBB610DA64F5A5EE7742C0 /* IOSTorrentPeersInspector.swift in Sources */,
+				36935E41FE9192A19E405102 /* IOSTorrentPrimaryActions.swift in Sources */,
 				426BC46A2A662A466EFB1C44 /* IOSTorrentRow.swift in Sources */,
 				EFBC3A9ECDF6DB6140608DE2 /* IOSTorrentTrackersInspector.swift in Sources */,
 				7A895CE3BB483860D2C5A0B1 /* SweepIOSApp.swift in Sources */,

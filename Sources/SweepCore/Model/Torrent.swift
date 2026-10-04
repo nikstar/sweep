@@ -159,6 +159,11 @@ public struct TorrentFile: Identifiable, Hashable, Codable, Sendable {
         return min(1, Double(min(progressBytes, length)) / Double(length))
     }
 
+    public func withDownloadSelection(_ included: Bool) -> TorrentFile {
+        TorrentFile(id: id, path: path, length: length, progressBytes: progressBytes,
+                    progressRuns: progressRuns, included: included, isPadding: isPadding, priority: priority)
+    }
+
     enum CodingKeys: String, CodingKey {
         case id
         case path

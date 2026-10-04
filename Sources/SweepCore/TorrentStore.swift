@@ -20,6 +20,7 @@ public final class TorrentStore {
     public private(set) var refreshError: String?
     public private(set) var persistenceError: String?
     public private(set) var discoveries: [Torrent.ID: TorrentDiscovery] = [:]
+    public private(set) var changingFileSelection: Set<Torrent.ID> = []
     public let startupError: String?
     public var engineError: String? { engine.unavailabilityReason }
     public var hasPersistence: Bool { persistence != nil }
@@ -43,6 +44,8 @@ public final class TorrentStore {
     @ObservationIgnored private var isRefreshing = false
     @ObservationIgnored private var mutationRevision = 0
     @ObservationIgnored private var commandVersions: [Torrent.ID: UUID] = [:]
+    @ObservationIgnored private var fileSelectionTasks: [Torrent.ID: Task<Void, Never>] = [:]
+    @ObservationIgnored private var fileSelectionVersions: [Torrent.ID: UUID] = [:]
 
     public init(
         engine: TorrentEngine,
@@ -274,8 +277,35 @@ public final class TorrentStore {
     }
 
     public func setFile(_ file: TorrentFile, included: Bool, in torrent: Torrent) {
-        Task {
-            await setFileSelection(file: file, included: included, in: torrent)
+        enqueueFileSelection(id: torrent.id) { current in
+            var ids = Set(current.files.filter(\.included).map(\.id))
+            if included { ids.insert(file.id) } else { ids.remove(file.id) }
+            return ids
+        }
+    }
+
+    public func setFiles(includedFileIDs: [Int], in torrent: Torrent) {
+        enqueueFileSelection(id: torrent.id) { _ in Set(includedFileIDs) }
+    }
+
+    private func enqueueFileSelection(id: Torrent.ID, selection: @escaping (Torrent) -> Set<Int>) {
+        let previous = fileSelectionTasks[id]
+        let token = UUID()
+        fileSelectionVersions[id] = token
+        changingFileSelection.insert(id)
+        fileSelectionTasks[id] = Task {
+            await previous?.value
+            await launchTask?.value
+            await addTasks[id]?.value
+            defer {
+                if fileSelectionVersions[id] == token {
+                    changingFileSelection.remove(id)
+                    fileSelectionTasks.removeValue(forKey: id)
+                    fileSelectionVersions.removeValue(forKey: id)
+                }
+            }
+            guard let current = torrents.first(where: { $0.id == id }), !locallyRemovedTorrentIDs.contains(id) else { return }
+            await setFileSelection(includedFileIDs: selection(current), in: current)
         }
     }
 
@@ -637,23 +667,32 @@ public final class TorrentStore {
             || message.contains("could not delete all torrent payload files")
     }
 
-    private func setFileSelection(file: TorrentFile, included: Bool, in torrent: Torrent) async {
-        var includedFileIDs = Set(torrent.files.filter(\.included).map(\.id))
-        if included {
-            includedFileIDs.insert(file.id)
-        } else {
-            includedFileIDs.remove(file.id)
-        }
-
+    private func setFileSelection(includedFileIDs: Set<Int>, in torrent: Torrent) async {
+        let validIDs = Set(torrent.files.filter { !$0.isPadding }.map(\.id))
+        let includedFileIDs = includedFileIDs.intersection(validIDs)
         guard !includedFileIDs.isEmpty else {
             lastError = "At least one file must remain selected for download."
             return
         }
-
+        mutationRevision += 1
+        defer { mutationRevision += 1 }
         do {
-            let liveTorrent = try await engine
+            // Paused torrents are intentionally not restored into rqbit at launch.
+            // Their choices still need to be editable and applied on the next Resume.
+            if !managedTorrentIDs.contains(torrent.id) {
+                let updated = torrent.updating(files: torrent.files.map {
+                    $0.withDownloadSelection(includedFileIDs.contains($0.id))
+                })
+                upsert(updated)
+                try await persistence?.save(torrent: updated)
+                lastError = nil
+                return
+            }
+            let snapshot = try await engine
                 .setFileSelection(id: torrent.id, includedFileIDs: includedFileIDs.sorted())
-                .mergingCachedMetadata(from: torrent)
+            guard !locallyRemovedTorrentIDs.contains(torrent.id),
+                  let latest = torrents.first(where: { $0.id == torrent.id }) else { return }
+            let liveTorrent = snapshot.mergingCachedMetadata(from: latest)
             upsert(liveTorrent)
             try await persistence?.save(torrent: liveTorrent)
             lastError = nil

@@ -4,6 +4,25 @@ import Testing
 
 @Suite
 struct TorrentLifecycleTests {
+    @Test @MainActor
+    func pausedFilesCanBeSelectedBeforeEngineRestoration() async throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanUp() }
+        let files = (0..<2).map { TorrentFile(id: $0, path: "episode\($0).mp4", length: 100, progressBytes: 0) }
+        let torrent = sampleTorrent().updating(desiredState: .paused, files: files)
+            .withAddSource(.torrentFile(TorrentFileSource(fileName: "cached.torrent", bytes: [1, 2, 3])))
+        let engine = LifecycleEngine()
+        let store = fixture.store(engine: engine, initialState: PersistedAppState(torrents: [torrent], selectedTorrentID: torrent.id, downloadDirectory: fixture.directory.path))
+        await store.refreshNow()
+        #expect(await engine.addCount() == 0)
+        store.setFile(files[0], included: false, in: torrent)
+        #expect(await eventually { !store.changingFileSelection.contains(torrent.id) })
+        #expect(store.lastError == nil)
+        #expect(try await fixture.persistence.loadState().torrents.first?.files.filter(\.included).map(\.id) == [1])
+        store.resumeSelectedTorrent()
+        #expect(await eventually { await engine.selectedFiles() == [1] })
+    }
+
     private static let hash = "0123456789abcdef0123456789abcdef01234567"
     private static let magnet = "magnet:?xt=urn:btih:\(hash)&dn=Lifecycle%20test"
 
@@ -16,6 +35,31 @@ struct TorrentLifecycleTests {
         #expect(throws: (any Error).self) {
             try MagnetLink("\(Self.magnet)&xt=urn:btih:\(String(repeating: "b", count: 40))")
         }
+    }
+
+    @Test @MainActor
+    func rapidFileChoicesUseLatestSelectionAndPersistBulkChanges() async throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanUp() }
+        let files = (0..<3).map { TorrentFile(id: $0, path: "file\($0).mp4", length: 100, progressBytes: 0) }
+        let torrent = sampleTorrent().updating(files: files)
+        let engine = LifecycleEngine(torrents: [torrent])
+        let store = fixture.store(engine: engine, initialState: PersistedAppState(torrents: [torrent], selectedTorrentID: torrent.id, downloadDirectory: fixture.directory.path))
+        await store.refreshNow()
+        store.setFile(files[0], included: false, in: torrent)
+        store.setFile(files[1], included: false, in: torrent)
+        #expect(store.changingFileSelection.contains(torrent.id))
+        #expect(await eventually { !store.changingFileSelection.contains(torrent.id) })
+        #expect(await engine.selectedFiles() == [2])
+        #expect(try await fixture.persistence.loadState().torrents.first?.files.filter(\.included).map(\.id) == [2])
+        store.setFiles(includedFileIDs: [], in: torrent)
+        #expect(await eventually { !store.changingFileSelection.contains(torrent.id) })
+        #expect(store.lastError == "At least one file must remain selected for download.")
+        #expect(await engine.selectedFiles() == [2])
+        store.setFiles(includedFileIDs: [0, 1, 2], in: torrent)
+        #expect(await eventually { !store.changingFileSelection.contains(torrent.id) })
+        #expect(await engine.selectedFiles() == [0, 1, 2])
+        #expect(store.lastError == nil)
     }
 
     @Test @MainActor
@@ -334,7 +378,13 @@ private actor LifecycleEngine: TorrentEngine {
     func remove(id: String, deleteData: Bool) async throws { torrents.removeAll { $0.id == id } }
     func setFileSelection(id: String, includedFileIDs: [Int]) async throws -> Torrent {
         fileSelection = includedFileIDs
-        return torrents.first { $0.id == id }!
+        let index = torrents.firstIndex { $0.id == id }!
+        let files = torrents[index].files.map {
+            TorrentFile(id: $0.id, path: $0.path, length: $0.length, progressBytes: $0.progressBytes,
+                        included: includedFileIDs.contains($0.id), isPadding: $0.isPadding)
+        }
+        torrents[index] = torrents[index].updating(files: files)
+        return torrents[index]
     }
     func cancelPendingAdd(id: String) async {
         guard !ignoresCancellation else { return }

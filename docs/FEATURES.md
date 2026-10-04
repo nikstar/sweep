@@ -6,6 +6,30 @@ and eMule. The goal is to recover useful craft that many mainstream clients
 lost: readable state, rich progress information, and direct controls without
 turning the app into a dashboard.
 
+## iOS Details and Media Actions, October 4, 2026
+
+- Details remembers its last selected tab across torrents and app relaunches.
+  Play and Pause/Resume are prominent buttons above the inspector tabs.
+- Shared file metadata identifies a main movie while excluding artwork,
+  samples, extras, and padding. Episode collections are naturally ordered and
+  each video has its own Play action. Comparable movie collections do not get
+  an arbitrary primary video.
+- Completed local videos use AVKit when supported. Unsupported formats offer
+  Open in Another App; the supplied MKV requires a compatible external player.
+  Playback is foreground-only, and incomplete/preallocated files cannot be
+  opened as completed media. Streaming unfinished torrents is not implemented.
+- File rows have 44-point menu targets, visible Download switches, and direct
+  Play/Open buttons. Selection includes Download All, Videos Only, and Only This
+  File. Queued edits use the latest selection; paused torrents can be edited
+  before engine restoration, then apply those saved choices on Resume.
+- List separators explicitly align with the torrent titles. File actions adapt
+  to light/dark appearance and accessibility text sizes.
+- All 40 shared tests pass, as do macOS, iOS device, and simulator builds. On the
+  persistent iPhone 17 Pro Max simulator, native movie/episode playback, the MKV
+  fallback, selection persistence/Resume, tab restoration, and both appearances
+  were checked. Generated media fixtures were removed afterward; the existing
+  real download and simulator data were preserved.
+
 ## Download Layout and Local Installation, October 4, 2026
 
 - Rootless multi-file magnets and `.torrent` files now use a named containing
