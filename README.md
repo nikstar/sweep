@@ -122,6 +122,7 @@ but the changes we rely on are tracked in this repo:
 - `rust/patches/rqbit-plaintext-announce.patch`
 - `rust/patches/rqbit-pending-magnet-announce.patch`
 - `rust/patches/rqbit-udp-tracker-flows.patch`
+- `rust/patches/rqbit-output-folder.patch`
 - `rust/patches/librqbit-dualstack-sockets/`
 
 The build script creates the checkout when it is missing, verifies its revision,
@@ -244,6 +245,11 @@ changes. Its older device-build stash is preserved in Git as
 Distribution uses the personal Apple Developer account: private internal
 TestFlight for iOS, and signed/notarized universal macOS builds on GitHub.
 See [release scripts and setup](docs/RELEASING.md).
+
+New multi-file torrents are contained in a folder named after the torrent unless
+their file paths already share a root directory. Single-file torrents retain
+their original filename. The exact engine destination is saved for restoration;
+existing downloads keep their saved paths instead of being relocated on upgrade.
 
 ## License
 

@@ -51,8 +51,24 @@ public enum TorrentFileLocation {
     }
 
     public static func expectedItemURL(for torrent: Torrent, defaultDirectory: String) -> URL {
-        directoryURL(for: torrent, defaultDirectory: defaultDirectory)
-            .appending(path: torrent.name)
+        let directory = directoryURL(for: torrent, defaultDirectory: defaultDirectory)
+        let files = torrent.files.filter { !$0.isPadding }
+        guard !files.isEmpty else {
+            let pendingFile = TorrentFile(id: 0, path: torrent.name, length: 0, progressBytes: 0)
+            return fileURL(for: pendingFile, in: torrent, defaultDirectory: defaultDirectory) ?? directory
+        }
+        let urls = files.compactMap { fileURL(for: $0, in: torrent, defaultDirectory: defaultDirectory) }
+        guard urls.count == files.count else { return directory }
+        if urls.count == 1 { return urls[0] }
+        // The persisted directory is the engine's exact destination. Find the
+        // shared parent of the payload paths instead of appending the display name.
+        var common = urls[0].deletingLastPathComponent()
+        for url in urls.dropFirst() {
+            while !url.deletingLastPathComponent().pathComponents.starts(with: common.pathComponents) {
+                common.deleteLastPathComponent()
+            }
+        }
+        return common
     }
 
     public static func snapshot(for torrent: Torrent, defaultDirectory: String) -> TorrentDownloadLocationSnapshot {

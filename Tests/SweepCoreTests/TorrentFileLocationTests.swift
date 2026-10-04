@@ -5,6 +5,27 @@ import Testing
 @Suite
 struct TorrentFileLocationTests {
     @Test
+    func revealsActualPayloadRootInsteadOfAppendingDisplayName() {
+        func torrent(_ paths: [String]) -> Torrent {
+            Torrent(name: "Display Name", infoHash: "test", downloadDirectory: "/tmp/Downloads/Album",
+                    state: "paused", files: paths.enumerated().map {
+                        TorrentFile(id: $0.offset, path: $0.element, length: 4, progressBytes: 4)
+                    }, progressBytes: 8, totalBytes: 8, uploadedBytes: 0,
+                    downloadBps: 0, uploadBps: 0, error: nil)
+        }
+        func item(_ paths: [String]) -> String {
+            TorrentFileLocation.expectedItemURL(for: torrent(paths), defaultDirectory: "/unused")
+                .resolvingSymlinksInPath().path
+        }
+        let base = URL(filePath: "/tmp/Downloads/Album").resolvingSymlinksInPath().path
+        #expect(item(["01.mp3", "02.mp3"]) == base)
+        #expect(item(["Existing/01.mp3", "Existing/02.mp3"]) == base + "/Existing")
+        #expect(item(["Disc 1/01.mp3", "Disc 2/02.mp3"]) == base)
+        #expect(item(["Different Filename.mp3"]) == base + "/Different Filename.mp3")
+        #expect(item(["../outside", "02.mp3"]) == base)
+    }
+
+    @Test
     func resolvesNestedFilesAndRejectsPathsOutsideDownloadDirectory() throws {
         let root = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
         let download = root.appending(path: "Downloads")

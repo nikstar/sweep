@@ -1,0 +1,13 @@
+--- a/crates/librqbit/src/torrent_state/mod.rs
++++ b/crates/librqbit/src/torrent_state/mod.rs
+@@ -248,6 +248,10 @@
+                 .or_else(|| self.shared.magnet_name.clone());
+         }
+         self.shared.magnet_name.clone()
++    }
++
++    pub fn output_folder(&self) -> &std::path::Path {
++        &self.shared.options.output_folder
+     }
+ 
+     pub fn shared(&self) -> &ManagedTorrentShared {

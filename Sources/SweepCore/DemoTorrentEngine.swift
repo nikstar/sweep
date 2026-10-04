@@ -70,7 +70,8 @@ public actor DemoTorrentEngine: TorrentEngine {
     public func addTorrent(
         _ source: TorrentAddSource,
         downloadDirectory: String,
-        startPaused: Bool
+        startPaused: Bool,
+        createSubfolder: Bool
     ) async throws -> Torrent {
         let infoHash = infoHash(from: source)
             ?? UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased()

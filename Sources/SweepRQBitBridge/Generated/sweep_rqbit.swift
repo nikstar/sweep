@@ -557,9 +557,9 @@ fileprivate struct FfiConverterData: FfiConverterRustBuffer {
 
 public protocol SweepEngineProtocol: AnyObject, Sendable {
 
-    func addMagnet(magnet: String, downloadDir: String, startPaused: Bool) async throws  -> TorrentSnapshot
+    func addMagnet(magnet: String, downloadDir: String, startPaused: Bool, createSubfolder: Bool) async throws  -> TorrentSnapshot
 
-    func addTorrentFile(torrentBytes: Data, downloadDir: String, startPaused: Bool) async throws  -> TorrentSnapshot
+    func addTorrentFile(torrentBytes: Data, downloadDir: String, startPaused: Bool, createSubfolder: Bool) async throws  -> TorrentSnapshot
 
     func cancelPendingAdd(id: String)
 
@@ -641,13 +641,13 @@ public convenience init(downloadDir: String)throws  {
 
 
 
-open func addMagnet(magnet: String, downloadDir: String, startPaused: Bool)async throws  -> TorrentSnapshot  {
+open func addMagnet(magnet: String, downloadDir: String, startPaused: Bool, createSubfolder: Bool)async throws  -> TorrentSnapshot  {
     return
         try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_sweep_rqbit_fn_method_sweepengine_add_magnet(
                     self.uniffiCloneHandle(),
-                    FfiConverterString.lower(magnet),FfiConverterString.lower(downloadDir),FfiConverterBool.lower(startPaused)
+                    FfiConverterString.lower(magnet),FfiConverterString.lower(downloadDir),FfiConverterBool.lower(startPaused),FfiConverterBool.lower(createSubfolder)
                 )
             },
             pollFunc: ffi_sweep_rqbit_rust_future_poll_rust_buffer,
@@ -658,13 +658,13 @@ open func addMagnet(magnet: String, downloadDir: String, startPaused: Bool)async
         )
 }
 
-open func addTorrentFile(torrentBytes: Data, downloadDir: String, startPaused: Bool)async throws  -> TorrentSnapshot  {
+open func addTorrentFile(torrentBytes: Data, downloadDir: String, startPaused: Bool, createSubfolder: Bool)async throws  -> TorrentSnapshot  {
     return
         try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_sweep_rqbit_fn_method_sweepengine_add_torrent_file(
                     self.uniffiCloneHandle(),
-                    FfiConverterData.lower(torrentBytes),FfiConverterString.lower(downloadDir),FfiConverterBool.lower(startPaused)
+                    FfiConverterData.lower(torrentBytes),FfiConverterString.lower(downloadDir),FfiConverterBool.lower(startPaused),FfiConverterBool.lower(createSubfolder)
                 )
             },
             pollFunc: ffi_sweep_rqbit_rust_future_poll_rust_buffer,
@@ -1343,6 +1343,7 @@ public func FfiConverterTypeTorrentSessionSnapshot_lower(_ value: TorrentSession
 
 
 public struct TorrentSnapshot: Equatable, Hashable {
+    public var downloadDirectory: String
     public var checkedBytes: UInt64?
     public var id: UInt64
     public var name: String
@@ -1361,7 +1362,8 @@ public struct TorrentSnapshot: Equatable, Hashable {
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(checkedBytes: UInt64?, id: UInt64, name: String, infoHash: String, state: String, files: [TorrentFileSnapshot], trackers: [TorrentTrackerSnapshot], peers: [TorrentPeerSnapshot], pieceRuns: [TorrentPieceRunSnapshot], progressBytes: UInt64, totalBytes: UInt64, uploadedBytes: UInt64, downloadBps: Double, uploadBps: Double, error: String?) {
+    public init(downloadDirectory: String, checkedBytes: UInt64?, id: UInt64, name: String, infoHash: String, state: String, files: [TorrentFileSnapshot], trackers: [TorrentTrackerSnapshot], peers: [TorrentPeerSnapshot], pieceRuns: [TorrentPieceRunSnapshot], progressBytes: UInt64, totalBytes: UInt64, uploadedBytes: UInt64, downloadBps: Double, uploadBps: Double, error: String?) {
+        self.downloadDirectory = downloadDirectory
         self.checkedBytes = checkedBytes
         self.id = id
         self.name = name
@@ -1395,6 +1397,7 @@ public struct FfiConverterTypeTorrentSnapshot: FfiConverterRustBuffer {
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> TorrentSnapshot {
         return
             try TorrentSnapshot(
+                downloadDirectory: FfiConverterString.read(from: &buf),
                 checkedBytes: FfiConverterOptionUInt64.read(from: &buf),
                 id: FfiConverterUInt64.read(from: &buf),
                 name: FfiConverterString.read(from: &buf),
@@ -1414,6 +1417,7 @@ public struct FfiConverterTypeTorrentSnapshot: FfiConverterRustBuffer {
     }
 
     public static func write(_ value: TorrentSnapshot, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.downloadDirectory, into: &buf)
         FfiConverterOptionUInt64.write(value.checkedBytes, into: &buf)
         FfiConverterUInt64.write(value.id, into: &buf)
         FfiConverterString.write(value.name, into: &buf)
@@ -2061,10 +2065,10 @@ private let initializationResult: InitializationResult = {
     if bindings_contract_version != scaffolding_contract_version {
         return InitializationResult.contractVersionMismatch
     }
-    if (uniffi_sweep_rqbit_checksum_method_sweepengine_add_magnet() != 15745) {
+    if (uniffi_sweep_rqbit_checksum_method_sweepengine_add_magnet() != 24542) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_sweep_rqbit_checksum_method_sweepengine_add_torrent_file() != 11627) {
+    if (uniffi_sweep_rqbit_checksum_method_sweepengine_add_torrent_file() != 22853) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_sweep_rqbit_checksum_method_sweepengine_cancel_pending_add() != 58728) {

@@ -128,18 +128,21 @@ struct TorrentLifecycleTests {
         let store = fixture.store(engine: engine)
         _ = await store.addTorrent(.magnet(Self.magnet), downloadDirectory: fixture.directory.path, startPaused: false)
         #expect(await eventually { store.pendingTorrentCount == 0 && store.selectedTorrent?.torrentFileBytes != nil })
+        #expect(await engine.lastCreateSubfolder() == true)
         let resolved = try #require(store.selectedTorrent)
         #expect(resolved.magnet == Self.magnet)
         #expect(resolved.torrentFileBytes == [1, 2, 3])
         let skipped = TorrentFile(id: 1, path: "skip.txt", length: 10, progressBytes: 0, included: false)
         let included = TorrentFile(id: 0, path: "keep.txt", length: 10, progressBytes: 0)
-        try await fixture.persistence.save(torrent: resolved.updating(files: [included, skipped]))
+        try await fixture.persistence.save(torrent: resolved.updating(downloadDirectory: fixture.directory.appending(path: "Resolved Folder").path, files: [included, skipped]))
         let state = try await fixture.persistence.loadState()
         let restoredEngine = LifecycleEngine()
         let restored = fixture.store(engine: restoredEngine, initialState: state)
         #expect(await eventually { !restored.isRestoringSession && restored.pendingTorrentCount == 0 })
         #expect(await restoredEngine.firstSource()?.torrentFile?.bytes == [1, 2, 3])
         #expect(await restoredEngine.selectedFiles() == [0])
+        #expect(await restoredEngine.lastCreateSubfolder() == false)
+        #expect(await restoredEngine.lastDirectory() == fixture.directory.appending(path: "Resolved Folder").path)
         #expect(restored.torrents.first?.desiredState == .running)
     }
 
@@ -280,6 +283,10 @@ private actor LifecycleEngine: TorrentEngine {
     private let holdMetadata: Bool
     private let ignoresCancellation: Bool
     private var sources: [TorrentAddSource] = []
+    private var createSubfolderRequest: Bool?
+    private var directoryRequest: String?
+    func lastCreateSubfolder() -> Bool? { createSubfolderRequest }
+    func lastDirectory() -> String? { directoryRequest }
     private var pending: [String: CheckedContinuation<Torrent, any Error>] = [:]
     private var cancellations = 0
     private var fileSelection: [Int] = []
@@ -305,8 +312,10 @@ private actor LifecycleEngine: TorrentEngine {
         return torrents
     }
     func sessionStats() async throws -> TorrentSessionStats { .empty }
-    func addTorrent(_ source: TorrentAddSource, downloadDirectory: String, startPaused: Bool) async throws -> Torrent {
+    func addTorrent(_ source: TorrentAddSource, downloadDirectory: String, startPaused: Bool, createSubfolder: Bool) async throws -> Torrent {
         sources.append(source)
+        createSubfolderRequest = createSubfolder
+        directoryRequest = downloadDirectory
         let id = try source.magnet.map { try MagnetLink($0).infoHash } ?? "0123456789abcdef0123456789abcdef01234567"
         if holdMetadata {
             return try await withCheckedThrowingContinuation { pending[id] = $0 }

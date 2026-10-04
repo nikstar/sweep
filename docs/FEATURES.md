@@ -6,6 +6,23 @@ and eMule. The goal is to recover useful craft that many mainstream clients
 lost: readable state, rich progress information, and direct controls without
 turning the app into a dashboard.
 
+## Download Layout, October 4, 2026
+
+- Rootless multi-file magnets and `.torrent` files now use a named containing
+  folder. Single files and an existing common root retain their layout. Unsafe
+  torrent names fall back to the info hash when choosing the folder name.
+- Rust snapshots expose the exact output directory. The shared store persists
+  it and restores it without applying folder creation again. Older downloads
+  retain their existing destinations. Reveal/Open uses actual payload paths.
+- Five Rust tests pass, including local single/multi-file magnet transfers,
+  byte-for-byte verification, a fresh engine restoring the same directory, and
+  cancellation/discovery diagnostics. All 34 shared Swift tests pass, including
+  destination persistence, restoration policy, and payload location checks.
+- The supplied eight-file Hemingway download was organized into its named
+  folder with a database backup. All 940 piece hashes match before and after the
+  move. The installed Mac app restored it at 100% on two launches; the unrelated
+  single-file download retained its path and completed state.
+
 ## macOS Validation, October 3, 2026
 
 On the original VPN connection, the supplied real-world magnet did not deliver

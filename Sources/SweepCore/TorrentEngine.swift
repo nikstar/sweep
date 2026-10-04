@@ -67,10 +67,13 @@ public protocol TorrentEngine: Sendable {
     var unavailabilityReason: String? { get }
     func list() async throws -> [Torrent]
     func sessionStats() async throws -> TorrentSessionStats
+    /// When true, contain rootless multi-file torrents in a named folder.
+    /// When restoring resolved metadata, pass false and the persisted exact directory.
     func addTorrent(
         _ source: TorrentAddSource,
         downloadDirectory: String,
-        startPaused: Bool
+        startPaused: Bool,
+        createSubfolder: Bool
     ) async throws -> Torrent
     func pause(id: Torrent.ID) async throws -> Torrent
     func resume(id: Torrent.ID) async throws -> Torrent
@@ -106,7 +109,8 @@ public extension TorrentEngine {
         try await addTorrent(
             .magnet(magnet),
             downloadDirectory: downloadDirectory,
-            startPaused: startPaused
+            startPaused: startPaused,
+            createSubfolder: true
         )
     }
 
@@ -127,7 +131,7 @@ public struct UnavailableTorrentEngine: TorrentEngine {
 
     public func list() async throws -> [Torrent] { throw failure }
     public func sessionStats() async throws -> TorrentSessionStats { throw failure }
-    public func addTorrent(_ source: TorrentAddSource, downloadDirectory: String, startPaused: Bool) async throws -> Torrent { throw failure }
+    public func addTorrent(_ source: TorrentAddSource, downloadDirectory: String, startPaused: Bool, createSubfolder: Bool) async throws -> Torrent { throw failure }
     public func pause(id: Torrent.ID) async throws -> Torrent { throw failure }
     public func resume(id: Torrent.ID) async throws -> Torrent { throw failure }
     public func remove(id: Torrent.ID, deleteData: Bool) async throws { throw failure }

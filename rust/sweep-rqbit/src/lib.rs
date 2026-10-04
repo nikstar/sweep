@@ -136,6 +136,7 @@ pub struct TorrentSessionSnapshot {
 
 #[derive(Debug, Clone, uniffi::Record)]
 pub struct TorrentSnapshot {
+    pub download_directory: String,
     pub checked_bytes: Option<u64>,
     pub id: u64,
     pub name: String,
@@ -233,6 +234,7 @@ impl SweepEngine {
         magnet: String,
         download_dir: String,
         start_paused: bool,
+        create_subfolder: bool,
     ) -> Result<TorrentSnapshot, SweepError> {
         let parsed = librqbit::Magnet::parse(&magnet)?;
         let info_hash = parsed
@@ -270,6 +272,7 @@ impl SweepEngine {
                     AddTorrent::from_url(magnet),
                     download_dir,
                     start_paused,
+                    create_subfolder,
                     Vec::new(),
                     Some(task_discovery.progress.clone()),
                 ),
@@ -375,6 +378,7 @@ impl SweepEngine {
         torrent_bytes: Vec<u8>,
         download_dir: String,
         start_paused: bool,
+        create_subfolder: bool,
     ) -> Result<TorrentSnapshot, SweepError> {
         let session = self.session.clone();
         let peer_id = self.peer_id;
@@ -393,6 +397,7 @@ impl SweepEngine {
                 AddTorrent::from_bytes(torrent_bytes),
                 download_dir,
                 start_paused,
+                create_subfolder,
                 initial_peers,
             )
             .await;
@@ -477,6 +482,7 @@ async fn add_torrent_to_session(
     add_torrent: AddTorrent<'static>,
     download_dir: String,
     start_paused: bool,
+    create_subfolder: bool,
     initial_peers: Vec<SocketAddr>,
 ) -> Result<TorrentSnapshot, SweepError> {
     add_torrent_with_progress(
@@ -484,6 +490,7 @@ async fn add_torrent_to_session(
         add_torrent,
         download_dir,
         start_paused,
+        create_subfolder,
         initial_peers,
         None,
     )
@@ -495,9 +502,52 @@ async fn add_torrent_with_progress(
     add_torrent: AddTorrent<'static>,
     download_dir: String,
     start_paused: bool,
+    create_subfolder: bool,
     initial_peers: Vec<SocketAddr>,
     metadata_progress: Option<MetadataProgress>,
 ) -> Result<TorrentSnapshot, SweepError> {
+    // Resolve metadata before choosing storage. List-only never opens payload files,
+    // and gives magnets and .torrent files exactly the same layout policy.
+    let (add_torrent, download_dir, initial_peers) = if create_subfolder {
+        let response = session
+            .add_torrent(
+                add_torrent,
+                Some(AddTorrentOptions {
+                    list_only: true,
+                    output_folder: Some(download_dir.clone()),
+                    initial_peers: Some(initial_peers.clone()),
+                    metadata_progress: metadata_progress.clone(),
+                    ..Default::default()
+                }),
+            )
+            .await?;
+        match response {
+            AddTorrentResponse::AlreadyManaged(_, handle) => return Ok(snapshot(&handle)),
+            AddTorrentResponse::Added(_, _) => unreachable!("list-only cannot add a torrent"),
+            AddTorrentResponse::ListOnly(metadata) => {
+                let paths = metadata
+                    .info
+                    .iter_file_details()
+                    .map(|file| file.filename.to_pathbuf())
+                    .collect::<Vec<_>>();
+                let name = metadata.info.name();
+                let folder =
+                    torrent_subfolder(&paths, name.as_deref(), &metadata.info_hash.as_string());
+                let output = PathBuf::from(download_dir).join(folder.unwrap_or_default());
+                let mut peers = initial_peers;
+                peers.extend(metadata.seen_peers);
+                (
+                    AddTorrent::from_bytes(metadata.torrent_bytes),
+                    output.to_string_lossy().into_owned(),
+                    peers,
+                )
+            }
+        }
+    } else {
+        // Restored records already contain the exact output folder. This also
+        // preserves paths for downloads created by versions that used a flat layout.
+        (add_torrent, download_dir, initial_peers)
+    };
     let response = session
         .add_torrent(
             add_torrent,
@@ -523,6 +573,27 @@ async fn add_torrent_with_progress(
     };
 
     Ok(snapshot(&handle))
+}
+
+/// Keep single files and an existing common root directory as they are. Otherwise
+/// contain the entire torrent in one directory, including mixed/nested layouts.
+fn torrent_subfolder(paths: &[PathBuf], name: Option<&str>, info_hash: &str) -> Option<PathBuf> {
+    if paths.len() < 2 {
+        return None;
+    }
+    let first = paths[0].components().next();
+    if paths
+        .iter()
+        .all(|path| path.components().count() > 1 && path.components().next() == first)
+    {
+        return None;
+    }
+    // Torrent names are untrusted. Use one safe component; never let an absolute
+    // name, a separator, or traversal choose a location outside the destination.
+    let name = name.filter(|name| {
+        !name.is_empty() && *name != "." && *name != ".." && !name.contains(['/', '\\', '\0', ':'])
+    });
+    Some(PathBuf::from(name.unwrap_or(info_hash)))
 }
 
 fn tracker_compatible_peer_id() -> Id20 {
@@ -768,6 +839,7 @@ fn snapshot(handle: &Arc<ManagedTorrent>) -> TorrentSnapshot {
         .unwrap_or_default();
 
     TorrentSnapshot {
+        download_directory: handle.output_folder().to_string_lossy().into_owned(),
         checked_bytes: (stats.state.to_string() == "initializing").then_some(stats.progress_bytes),
         id: handle.id() as u64,
         name: handle

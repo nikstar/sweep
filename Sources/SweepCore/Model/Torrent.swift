@@ -397,6 +397,7 @@ public struct Torrent: Identifiable, Hashable, Codable, Sendable {
     public let magnet: String?
     public let torrentFileName: String?
     public let torrentFileBytes: [UInt8]?
+    /// Exact engine destination. Each file's path is relative to this directory.
     public let downloadDirectory: String?
     public let desiredState: TorrentDesiredState
     public let state: String

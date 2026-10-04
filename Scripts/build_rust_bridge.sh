@@ -311,6 +311,11 @@ apply_rqbit_patches() {
     "UDP tracker endpoint isolation" \
     "crates/tracker_comms/src/tracker_comms_udp.rs" \
     "fn socket_for_tracker"
+  apply_rqbit_patch_if_missing \
+    "$ROOT_DIR/rust/patches/rqbit-output-folder.patch" \
+    "resolved output folder" \
+    "crates/librqbit/src/torrent_state/mod.rs" \
+    "pub fn output_folder"
 }
 
 ensure_rqbit_checkout() {

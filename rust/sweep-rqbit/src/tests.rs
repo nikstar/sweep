@@ -62,6 +62,157 @@ fn local_engine(path: PathBuf) -> Arc<SweepEngine> {
 }
 
 #[test]
+fn chooses_one_safe_root_only_when_needed() {
+    let root = |paths: &[&str], name| {
+        torrent_subfolder(
+            &paths.iter().map(PathBuf::from).collect::<Vec<_>>(),
+            name,
+            "fallback-hash",
+        )
+    };
+    assert_eq!(root(&["one.mp3"], Some("Album")), None);
+    assert_eq!(
+        root(&["Album/one.mp3", "Album/two.mp3"], Some("Album")),
+        None
+    );
+    for paths in [
+        vec!["one.mp3", "two.mp3"],
+        vec!["Disc 1/one.mp3", "Disc 2/two.mp3"],
+        vec!["one.mp3", "Extras/cover.jpg"],
+    ] {
+        assert_eq!(root(&paths, Some("Album")), Some(PathBuf::from("Album")));
+        for name in [
+            None,
+            Some(""),
+            Some(".."),
+            Some("/outside"),
+            Some("../outside"),
+            Some("a\\b"),
+            Some("a\0b"),
+        ] {
+            assert_eq!(root(&paths, name), Some(PathBuf::from("fallback-hash")));
+        }
+    }
+}
+
+#[test]
+fn multifile_magnet_download_and_relaunch_reuse_the_resolved_folder() {
+    let fixture = Fixture::new();
+    let seed_dir = fixture.folder("seed");
+    let download_dir = fixture.folder("download");
+    let payload: Vec<u8> = (0..131_072).map(|n| (n % 251) as u8).collect();
+    fs::write(seed_dir.join("01.bin"), &payload).unwrap();
+    fs::write(seed_dir.join("02.bin"), &payload).unwrap();
+    fs::write(download_dir.join("unrelated.txt"), b"keep me").unwrap();
+    let seed = local_engine(seed_dir.clone());
+    let download = local_engine(download_dir.clone());
+    let (metadata, destination) = seed.runtime.block_on(async {
+        let (metadata, handle) = seed
+            .session
+            .create_and_serve_torrent(
+                &seed_dir,
+                librqbit::CreateTorrentOptions {
+                    name: Some("Album"),
+                    piece_length: Some(65536),
+                    ..Default::default()
+                },
+            )
+            .await
+            .unwrap();
+        tokio::time::timeout(Duration::from_secs(10), async {
+            while !handle.stats().finished {
+                tokio::time::sleep(Duration::from_millis(20)).await;
+            }
+        })
+        .await
+        .unwrap();
+        let (tracker, _) = serve_tracker(seed.session.listen_addr().unwrap()).await;
+        let added = download
+            .add_magnet(
+                format!(
+                    "magnet:?xt=urn:btih:{}&tr={tracker}",
+                    handle.info_hash().as_string()
+                ),
+                download_dir.to_str().unwrap().to_owned(),
+                false,
+                true,
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            PathBuf::from(&added.download_directory),
+            download_dir.join("Album")
+        );
+        assert_eq!(added.files.len(), 2);
+        tokio::time::timeout(Duration::from_secs(15), async {
+            loop {
+                let snapshot = download.list_torrents().await.unwrap().remove(0);
+                assert!(snapshot.error.is_none(), "{:?}", snapshot.error);
+                if snapshot.progress_bytes == 2 * payload.len() as u64 {
+                    break;
+                }
+                tokio::time::sleep(Duration::from_millis(20)).await;
+            }
+        })
+        .await
+        .unwrap();
+        for name in ["01.bin", "02.bin"] {
+            assert_eq!(
+                fs::read(download_dir.join("Album").join(name)).unwrap(),
+                payload
+            );
+            assert!(!download_dir.join(name).exists());
+        }
+        (
+            metadata.as_bytes().unwrap().to_vec(),
+            added.download_directory,
+        )
+    });
+    // A new engine represents a full app relaunch, not just removing/re-adding.
+    drop(download);
+    let restored = local_engine(download_dir.clone());
+    restored.runtime.block_on(async {
+        let added = restored
+            .add_torrent_file(metadata.clone(), destination.clone(), true, false)
+            .await
+            .unwrap();
+        assert_eq!(added.download_directory, destination);
+        tokio::time::timeout(Duration::from_secs(10), async {
+            loop {
+                let snapshot = restored.list_torrents().await.unwrap().remove(0);
+                if snapshot.state == "paused" {
+                    assert_eq!(snapshot.progress_bytes, 2 * payload.len() as u64);
+                    break;
+                }
+                tokio::time::sleep(Duration::from_millis(20)).await;
+            }
+        })
+        .await
+        .unwrap();
+        assert!(!download_dir.join("Album/Album").exists());
+        // A new .torrent add uses the same policy, without nesting or touching siblings.
+        restored
+            .remove_torrent(added.info_hash, false)
+            .await
+            .unwrap();
+        let again = restored
+            .add_torrent_file(
+                metadata,
+                download_dir.to_str().unwrap().to_owned(),
+                true,
+                true,
+            )
+            .await
+            .unwrap();
+        assert_eq!(again.download_directory, destination);
+        assert_eq!(
+            fs::read(download_dir.join("unrelated.txt")).unwrap(),
+            b"keep me"
+        );
+    });
+}
+
+#[test]
 fn resolves_magnet_transfers_payload_and_restores_cached_metadata() {
     let fixture = Fixture::new();
     let seed_dir = fixture.folder("seed");
@@ -97,7 +248,12 @@ fn resolves_magnet_transfers_payload_and_restores_cached_metadata() {
         );
         let added = tokio::time::timeout(
             Duration::from_secs(10),
-            download.add_magnet(magnet, download_dir.to_str().unwrap().to_owned(), false),
+            download.add_magnet(
+                magnet,
+                download_dir.to_str().unwrap().to_owned(),
+                false,
+                true,
+            ),
         )
         .await
         .expect("local magnet discovery timed out")
@@ -133,6 +289,7 @@ fn resolves_magnet_transfers_payload_and_restores_cached_metadata() {
                 metadata.clone(),
                 download_dir.to_str().unwrap().to_owned(),
                 true,
+                false,
             )
             .await
             .unwrap();
@@ -155,7 +312,7 @@ fn resolves_magnet_transfers_payload_and_restores_cached_metadata() {
         download.remove_torrent(id.clone(), false).await.unwrap();
         let fresh_dir = fixture.folder("restored-fresh");
         download
-            .add_torrent_file(metadata, fresh_dir.to_str().unwrap().to_owned(), true)
+            .add_torrent_file(metadata, fresh_dir.to_str().unwrap().to_owned(), true, true)
             .await
             .unwrap();
         tokio::time::timeout(Duration::from_secs(15), async {
@@ -199,7 +356,7 @@ fn cancelling_metadata_discovery_aborts_the_rust_task() {
         let task_engine = engine.clone();
         let task = tokio::spawn(async move {
             task_engine
-                .add_magnet(magnet, "/unused".to_owned(), true)
+                .add_magnet(magnet, "/unused".to_owned(), true, true)
                 .await
         });
         tokio::time::timeout(Duration::from_secs(2), async {
@@ -275,6 +432,7 @@ fn reports_tracker_and_peer_failures_before_metadata() {
                 .add_magnet(
                     format!("magnet:?xt=urn:btih:{id}&tr={tracker_url}"),
                     "/unused".to_owned(),
+                    true,
                     true,
                 )
                 .await

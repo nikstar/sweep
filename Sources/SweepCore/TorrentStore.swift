@@ -177,13 +177,11 @@ public final class TorrentStore {
                 return torrent
             }
             mutationRevision += 1
-            let torrent = try await engine
-                .addTorrent(source, downloadDirectory: downloadDirectory, startPaused: startPaused)
+            var torrent = try await engine
+                .addTorrent(source, downloadDirectory: downloadDirectory, startPaused: startPaused, createSubfolder: true)
                 .withAddSource(source)
-                .updating(
-                    downloadDirectory: downloadDirectory,
-                    desiredState: startPaused ? .paused : .running
-                )
+                .updating(desiredState: startPaused ? .paused : .running)
+            torrent = torrent.updating(downloadDirectory: torrent.downloadDirectory ?? downloadDirectory)
             locallyRemovedTorrentIDs.remove(torrent.id)
             managedTorrentIDs.insert(torrent.id)
             mutationRevision += 1
@@ -316,7 +314,7 @@ public final class TorrentStore {
                 .withSmoothedTransferStats(from: cached)
                 .withEstimatedPeerRates(from: cached)
         } else {
-            torrents.append(torrent.updating(downloadDirectory: downloadDirectory))
+            torrents.append(torrent.updating(downloadDirectory: torrent.downloadDirectory ?? downloadDirectory))
         }
         torrents.sort { $0.addedAt < $1.addedAt }
     }
@@ -407,7 +405,8 @@ public final class TorrentStore {
             var restored = try await engine.addTorrent(
                 source,
                 downloadDirectory: cached.downloadDirectory ?? downloadDirectory,
-                startPaused: true
+                startPaused: true,
+                createSubfolder: cached.files.isEmpty
             )
             guard pendingAdds[id] == token, !Task.isCancelled else {
                 if locallyRemovedTorrentIDs.contains(id) {

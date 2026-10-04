@@ -21,7 +21,8 @@ struct TorrentStoreTests {
 
         let database = try SweepDatabase.open(at: databaseURL)
         let persistence = AppPersistence(database: database)
-        let engine = RecordingTorrentEngine()
+        let resolvedDirectory = downloadDirectory + "/Album"
+        let engine = RecordingTorrentEngine(resolvedDirectory: resolvedDirectory)
         let store = TorrentStore(
             engine: engine,
             persistence: persistence,
@@ -42,7 +43,7 @@ struct TorrentStoreTests {
             startPaused: true
         )
 
-        #expect(torrent?.downloadDirectory == downloadDirectory)
+        #expect(torrent?.downloadDirectory == resolvedDirectory)
         #expect(torrent?.desiredState == .paused)
         #expect(torrent?.addSource == source)
         #expect(store.selection == torrent?.id)
@@ -52,12 +53,13 @@ struct TorrentStoreTests {
             RecordedAddRequest(
                 source: source,
                 downloadDirectory: downloadDirectory,
-                startPaused: true
+                startPaused: true,
+                createSubfolder: true
             )
         ])
 
         let state = try await persistence.loadState()
-        #expect(state.torrents.first?.downloadDirectory == downloadDirectory)
+        #expect(state.torrents.first?.downloadDirectory == resolvedDirectory)
         #expect(state.torrents.first?.desiredState == .paused)
         #expect(state.torrents.first?.addSource == source)
     }
@@ -297,6 +299,7 @@ private struct RecordedAddRequest: Equatable, Sendable {
     let source: TorrentAddSource
     let downloadDirectory: String
     let startPaused: Bool
+    let createSubfolder: Bool
 }
 
 private struct RecordedRemoveRequest: Equatable, Sendable {
@@ -313,10 +316,12 @@ private actor RecordingTorrentEngine: TorrentEngine {
     private var queuedListResponses: [[Torrent]] = []
     private let removeError: (any Error & Sendable)?
     private var listCalls = 0
+    private let resolvedDirectory: String?
 
-    init(torrents: [Torrent] = [], removeError: (any Error & Sendable)? = nil) {
+    init(torrents: [Torrent] = [], removeError: (any Error & Sendable)? = nil, resolvedDirectory: String? = nil) {
         self.torrents = torrents
         self.removeError = removeError
+        self.resolvedDirectory = resolvedDirectory
     }
 
     func list() async throws -> [Torrent] {
@@ -334,19 +339,21 @@ private actor RecordingTorrentEngine: TorrentEngine {
     func addTorrent(
         _ source: TorrentAddSource,
         downloadDirectory: String,
-        startPaused: Bool
+        startPaused: Bool,
+        createSubfolder: Bool
     ) async throws -> Torrent {
         requests.append(
             RecordedAddRequest(
                 source: source,
                 downloadDirectory: downloadDirectory,
-                startPaused: startPaused
+                startPaused: startPaused,
+                createSubfolder: createSubfolder
             )
         )
         let torrent = Torrent(
             name: source.displayName,
             infoHash: "0123456789abcdef0123456789abcdef01234567",
-            downloadDirectory: nil,
+            downloadDirectory: resolvedDirectory,
             desiredState: startPaused ? .paused : .running,
             state: startPaused ? "paused" : "live",
             progressBytes: 0,

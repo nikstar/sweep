@@ -90,11 +90,11 @@ async fn async_main(
             && magnet.trim().starts_with("magnet:")
         {
             engine
-                .add_magnet(magnet.trim().to_owned(), output_dir, start_paused)
+                .add_magnet(magnet.trim().to_owned(), output_dir, start_paused, true)
                 .await
         } else {
             engine
-                .add_torrent_file(torrent_bytes, output_dir, start_paused)
+                .add_torrent_file(torrent_bytes, output_dir, start_paused, true)
                 .await
         }
     };
