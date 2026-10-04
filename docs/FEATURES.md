@@ -6,7 +6,7 @@ and eMule. The goal is to recover useful craft that many mainstream clients
 lost: readable state, rich progress information, and direct controls without
 turning the app into a dashboard.
 
-## Download Layout, October 4, 2026
+## Download Layout and Local Installation, October 4, 2026
 
 - Rootless multi-file magnets and `.torrent` files now use a named containing
   folder. Single files and an existing common root retain their layout. Unsafe
@@ -22,6 +22,10 @@ turning the app into a dashboard.
   folder with a database backup. All 940 piece hashes match before and after the
   move. The installed Mac app restored it at 100% on two launches; the unrelated
   single-file download retained its path and completed state.
+- `Scripts/install_macos.sh` builds Release by default, verifies personal-team
+  development signing, safely replaces `/Applications/Sweep.app`, and launches
+  it. The Mac Release and unsigned iOS device builds pass. Installation and
+  relaunch of the signed local Mac app were verified.
 
 ## macOS Validation, October 3, 2026
 

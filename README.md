@@ -242,6 +242,19 @@ changes. Its older device-build stash is preserved in Git as
 
 ## Distribution
 
+For a local Mac build and installation into `/Applications/Sweep.app`:
+
+```sh
+Scripts/install_macos.sh
+```
+
+This builds the working tree in Release, checks signing against the personal
+developer team, quits the running app, installs it, and launches it. Use
+`--configuration Debug` for development or `--no-launch` to leave it closed.
+Build logs are saved to `BuildArtifacts/LocalInstall/build.log`. The script
+preserves app settings and downloads. It uses local development signing;
+public distribution uses the notarized release pipeline below.
+
 Distribution uses the personal Apple Developer account: private internal
 TestFlight for iOS, and signed/notarized universal macOS builds on GitHub.
 See [release scripts and setup](docs/RELEASING.md).
