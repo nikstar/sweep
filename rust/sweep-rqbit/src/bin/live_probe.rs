@@ -1,7 +1,7 @@
 use std::{env, fs, path::PathBuf, time::Duration};
 
 use librqbit::{ConnectionOptions, ListenerMode, ListenerOptions, SessionOptions};
-use sweep_rqbit::SweepEngine;
+use sweep_rqbit::{SweepEngine, TorrentTrackerSnapshot};
 use tokio::runtime::Builder;
 
 fn main() -> anyhow::Result<()> {
@@ -84,7 +84,8 @@ async fn async_main(
     min_bytes: u64,
     max_seconds: u64,
 ) -> anyhow::Result<()> {
-    let start_paused = std::env::var_os("SWEEP_PROBE_START_PAUSED").is_some();
+    let metadata_only = std::env::var_os("SWEEP_PROBE_METADATA_ONLY").is_some();
+    let start_paused = metadata_only || std::env::var_os("SWEEP_PROBE_START_PAUSED").is_some();
     let adding = async {
         if let Ok(magnet) = std::str::from_utf8(&torrent_bytes)
             && magnet.trim().starts_with("magnet:")
@@ -118,11 +119,34 @@ async fn async_main(
         }
     })
     .await
-    .map_err(|_| anyhow::anyhow!("metadata discovery did not finish in {max_seconds}s"))??;
+    .map_err(|_| anyhow::anyhow!("metadata discovery did not finish in {max_seconds}s"))
+    .and_then(|result| result.map_err(anyhow::Error::from));
+    // Keep the last tracker and transport evidence even when adding the magnet fails.
+    print_network(&engine).await?;
+    for discovery in engine.discovery_snapshots() {
+        println!(
+            "final discovery t={}s found={} tried={} active={} failed={} last_peer_error={:?}",
+            discovery.elapsed_seconds,
+            discovery.peers_found,
+            discovery.peers_tried,
+            discovery.peers_active,
+            discovery.peers_failed,
+            discovery.last_peer_error
+        );
+        for tracker in &discovery.trackers {
+            print_tracker(tracker);
+        }
+    }
+    let added = added?;
     println!(
         "added {} {} total={} progress={}",
         added.id, added.name, added.total_bytes, added.progress_bytes
     );
+
+    if metadata_only {
+        println!("metadata resolved; leaving torrent paused without requesting payload");
+        return Ok(());
+    }
 
     if start_paused {
         tokio::time::timeout(
@@ -170,16 +194,25 @@ async fn async_main(
         }
         if second == max_seconds {
             for tracker in &torrent.trackers {
-                eprintln!(
-                    "tracker={} status={} peers={:?} error={:?}",
-                    tracker.url, tracker.status, tracker.last_peer_count, tracker.last_error
-                );
+                print_tracker(tracker);
             }
         }
         tokio::time::sleep(Duration::from_secs(1)).await;
     }
 
     anyhow::bail!("download did not reach {min_bytes} bytes in {max_seconds}s")
+}
+
+fn print_tracker(tracker: &TorrentTrackerSnapshot) {
+    println!(
+        "tracker={} status={} peers={:?} seeders={:?} leechers={:?} error={:?}",
+        tracker.url,
+        tracker.status,
+        tracker.last_peer_count,
+        tracker.seeders,
+        tracker.leechers,
+        tracker.last_error
+    );
 }
 
 async fn print_network(engine: &SweepEngine) -> anyhow::Result<()> {

@@ -90,6 +90,50 @@ Earlier details improvements:
   it. The Mac Release and unsigned iOS device builds pass. Installation and
   relaunch of the signed local Mac app were verified.
 
+## Magnet Connectivity Investigation, October 15, 2026
+
+Investigated the phone report for v1 info hash
+`021e7e8456515a36514d00ca54ab1d664f92a79e`. The live measurements below are
+from the Mac's existing network path, not the phone; the VPN was unchanged.
+
+- A fresh, 90-second metadata-only probe received one peer from the HTTPS
+  tracker. No UDP tracker completed an announce. DHT remained at zero IPv4
+  and IPv6 nodes, and neither TCP nor uTP established a peer connection.
+  The peer failed at connection setup, before a BitTorrent/metadata handshake.
+- A 20-second tracker-only repeat received two addresses from the HTTPS
+  tracker, which reported zero seeders and two leechers. Neither address
+  connected. These results do not verify or disprove swarm counts reported
+  by other trackers or the phone on a different path.
+- Independent IPv4 DHT `find_node` requests to all three addresses resolved
+  from rqbit's two bootstrap hostnames also received no replies. Separate
+  sockets, one shared socket, and reversed shared-socket destination order each
+  timed out. This does not identify the filtering layer or establish a phone
+  diagnosis, but it does not reproduce the earlier tracker destination-pinning
+  issue: there were no DHT replies to compare.
+- Source inspection confirms DHT, TCP, uTP, and metadata exchange are enabled.
+  DHT routing tables are not persisted. Peer exchange is supported after metadata
+  resolves, but the magnet metadata reader ignores PEX messages. MSE/PE peer
+  encryption and BEP 55 hole punching are not implemented in the pinned engine.
+- The 90-second terminal failure is Sweep policy. Within an attempt, each unique
+  peer endpoint is tried once; repeated announcements of that endpoint do not
+  retry it. TCP/uTP racing ends at socket connection, so a subsequent BitTorrent
+  handshake failure does not trigger a second attempt over the other transport.
+
+Next work should distinguish discovery sources, socket setup, BitTorrent
+handshakes, and metadata responses in the UI; persist validated DHT contacts;
+and replace terminal metadata timeouts with cancellable retries using backoff.
+Encrypted peer support and PEX during metadata acquisition are separate
+compatibility improvements, not proven explanations for this failed connection.
+
+`live_probe` now supports `SWEEP_PROBE_METADATA_ONLY=1`, which forces a paused
+add and exits after resolution without requesting payload. It retains final
+tracker results (including reported swarm counts), transport counters, and the
+last peer error on add failure. Use `SWEEP_PROBE_DISCOVERY=dht|trackers|both`
+and `SWEEP_PROBE_TRANSPORT=tcp|utp|both` to isolate paths. The CLI builds, all five
+Rust tests pass, and a local fixture confirms metadata-only success with zero
+peer connections and zero downloaded bytes. Probe logs are under the ignored
+`BuildArtifacts/MetadataInvestigation/` directory.
+
 ## macOS Validation, October 3, 2026
 
 On the original VPN connection, the supplied real-world magnet did not deliver
