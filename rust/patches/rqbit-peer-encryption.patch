@@ -1,0 +1,843 @@
+--- a/crates/librqbit/Cargo.toml
++++ b/crates/librqbit/Cargo.toml
+@@ -80,6 +80,8 @@
+ tracing.workspace = true
+ size_format.workspace = true
+ rand.workspace = true
++urtorrent-mse = "=0.14.3"
++urtorrent-profile = "=0.14.3"
+ tracing-subscriber = { workspace = true, features = ["json", "fmt", "env-filter"], optional = true }
+ uuid = { workspace = true, features = ["v4"] }
+ futures.workspace = true
+--- a/crates/librqbit/src/lib.rs
++++ b/crates/librqbit/src/lib.rs
+@@ -63,6 +63,7 @@
+ mod merge_streams;
+ mod metadata_progress;
+ pub use metadata_progress::{MetadataProgress, MetadataProgressSnapshot};
++mod mse;
+ mod peer_connection;
+ mod peer_info_reader;
+ mod piece_tracker;
+--- a/crates/librqbit/src/stream_connect.rs
++++ b/crates/librqbit/src/stream_connect.rs
+@@ -12,7 +12,7 @@
+     vectored_traits::AsyncReadVectoredIntoCompat,
+ };
+ 
+-#[derive(Debug, Clone, Copy, Serialize)]
++#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+ pub enum ConnectionKind {
+     #[serde(rename = "tcp")]
+     Tcp,
+@@ -20,6 +20,22 @@
+     Utp,
+     #[serde(rename = "socks")]
+     Socks,
++    #[serde(rename = "tcp_mse")]
++    TcpMse,
++    #[serde(rename = "utp_mse")]
++    UtpMse,
++    #[serde(rename = "socks_mse")]
++    SocksMse,
++}
++
++impl ConnectionKind {
++    pub(crate) fn with_mse(self) -> Self {
++        match self {
++            Self::Tcp | Self::TcpMse => Self::TcpMse,
++            Self::Utp | Self::UtpMse => Self::UtpMse,
++            Self::Socks | Self::SocksMse => Self::SocksMse,
++        }
++    }
+ }
+ 
+ impl std::fmt::Display for ConnectionKind {
+@@ -28,6 +44,9 @@
+             ConnectionKind::Tcp => f.write_str("tcp"),
+             ConnectionKind::Utp => f.write_str("uTP"),
+             ConnectionKind::Socks => f.write_str("socks"),
++            ConnectionKind::TcpMse => f.write_str("tcp (MSE)"),
++            ConnectionKind::UtpMse => f.write_str("uTP (MSE)"),
++            ConnectionKind::SocksMse => f.write_str("socks (MSE)"),
+         }
+     }
+ }
+@@ -163,9 +182,9 @@
+ 
+     fn get_stat(&self, kind: ConnectionKind, is_v6: bool) -> &SingleStatAtomic {
+         let stat = match kind {
+-            ConnectionKind::Tcp => &self.stats.tcp,
+-            ConnectionKind::Utp => &self.stats.utp,
+-            ConnectionKind::Socks => &self.stats.socks,
++            ConnectionKind::Tcp | ConnectionKind::TcpMse => &self.stats.tcp,
++            ConnectionKind::Utp | ConnectionKind::UtpMse => &self.stats.utp,
++            ConnectionKind::Socks | ConnectionKind::SocksMse => &self.stats.socks,
+         };
+         if is_v6 { &stat.v6 } else { &stat.v4 }
+     }
+@@ -207,9 +226,21 @@
+         &self.stats
+     }
+ 
+-    pub async fn connect(
++    pub fn alternate(&self, kind: ConnectionKind) -> Option<ConnectionKind> {
++        if self.proxy_config.is_some() {
++            return None;
++        }
++        match kind {
++            ConnectionKind::Tcp if self.utp_socket.is_some() => Some(ConnectionKind::Utp),
++            ConnectionKind::Utp if self.enable_tcp => Some(ConnectionKind::Tcp),
++            _ => None,
++        }
++    }
++
++    pub async fn connect_using(
+         &self,
+         addr: SocketAddr,
++        only: Option<ConnectionKind>,
+     ) -> Result<(ConnectionKind, BoxAsyncReadVectored, BoxAsyncWrite)> {
+         if addr.port() == 0 {
+             return Err(Error::Anyhow(anyhow::anyhow!(
+@@ -237,10 +268,12 @@
+             ));
+         }
+ 
++        let tcp_enabled = self.enable_tcp && only.is_none_or(|kind| kind == ConnectionKind::Tcp);
++        let utp_enabled = only.is_none_or(|kind| kind == ConnectionKind::Utp);
+         // Try to connect over TCP first. If in 1 second we haven't connected, try uTP also (if configured).
+         // Whoever connects first wins.
+         let tcp_connect = async {
+-            if !self.enable_tcp {
++            if !tcp_enabled {
+                 return Ok(None);
+             }
+             let conn = self.tcp_connect(addr).await?;
+@@ -251,13 +284,16 @@
+         let tcp_failed_notify = tokio::sync::Notify::new();
+ 
+         let utp_connect = async {
++            if !utp_enabled {
++                return Ok(None);
++            }
+             let sock = match self.utp_socket.as_ref() {
+                 Some(sock) => sock,
+                 None => return Ok(None),
+             };
+ 
+             // Give TCP priority as it's more mature and simpler.
+-            if self.enable_tcp {
++            if tcp_enabled {
+                 // wait until either 1 second has passed or TCP failed.
+                 tokio::select! {
+                     _ = tcp_failed_notify.notified() => {},
+--- a/crates/librqbit/src/peer_connection.rs
++++ b/crates/librqbit/src/peer_connection.rs
+@@ -179,10 +179,10 @@
+         )
+         .await?;
+ 
+-        let handshake_supports_extended = handshake.supports_extended();
++        let handshake_supports_extended = incoming.handshake.supports_extended();
+ 
+         self.handler
+-            .on_handshake(handshake, incoming.kind)
++            .on_handshake(incoming.handshake, incoming.kind)
+             .map_err(Error::Anyhow)?;
+ 
+         self.manage_peer(ManagePeerArgs {
+@@ -214,59 +214,103 @@
+             .unwrap_or_else(|| Duration::from_secs(10));
+ 
+         let now = Instant::now();
+-        let (ckind, mut read, mut write) = with_timeout(
++        let (first_kind, read, write) = with_timeout(
+             "connecting",
+             connect_timeout,
+-            self.connector.connect(self.addr),
++            self.connector.connect_using(self.addr, None),
+         )
+         .await?;
+-
+-        async move {
+-            self.handler.on_connected(now.elapsed());
+-
++        self.handler.on_connected(now.elapsed());
++        let mut first = Some((read, write));
++        let mut attempts = vec![(first_kind, false), (first_kind, true)];
++        if let Some(alternate) = self.connector.alternate(first_kind) {
++            attempts.extend([(alternate, false), (alternate, true)]);
++        }
++        let mut errors = Vec::new();
++        for (kind, encrypted) in attempts {
++            let (read, write) = match first.take() {
++                Some(streams) => streams,
++                None => {
++                    let start = Instant::now();
++                    match with_timeout(
++                        "connecting",
++                        connect_timeout,
++                        self.connector.connect_using(self.addr, Some(kind)),
++                    )
++                    .await
++                    {
++                        Ok((_, read, write)) => {
++                            self.handler.on_connected(start.elapsed());
++                            (read, write)
++                        }
++                        Err(error) => {
++                            errors.push(format!("{kind}: {error}"));
++                            continue;
++                        }
++                    }
++                }
++            };
+             let mut write_buf = Box::new([0u8; MAX_MSG_LEN]);
+             let handshake = Handshake::new(self.info_hash, self.peer_id);
+             let hsz = handshake.serialize_unchecked_len(&mut *write_buf);
+-            with_timeout(
+-                "writing",
+-                rwtimeout,
+-                write
+-                    .write_all(&write_buf[..hsz])
+-                    .map_err(Error::WriteHandshake),
+-            )
+-            .await?;
+-
+-            let mut read_buf = ReadBuf::new();
+-            let h = read_buf.read_handshake(&mut read, rwtimeout).await?;
++            let result = with_timeout("peer handshake", rwtimeout, async {
++                let (mut read, mut write) = if encrypted {
++                    crate::mse::initiate(read, write, self.info_hash.0, write_buf[..hsz].to_vec())
++                        .await
++                        .map_err(Error::Anyhow)?
++                } else {
++                    (read, write)
++                };
++                if !encrypted {
++                    write
++                        .write_all(&write_buf[..hsz])
++                        .await
++                        .map_err(Error::WriteHandshake)?;
++                }
++                let mut read_buf = ReadBuf::new();
++                let h = read_buf.read_handshake(&mut read, rwtimeout).await?;
++                if h.info_hash != self.info_hash {
++                    return Err(Error::WrongInfoHash);
++                }
++                if h.peer_id == self.peer_id {
++                    return Err(Error::ConnectingToOurselves);
++                }
++                Ok((read, write, read_buf, h))
++            })
++            .await;
++            let (read, write, read_buf, h) = match result {
++                Ok(result) => result,
++                Err(error @ (Error::WrongInfoHash | Error::ConnectingToOurselves)) => {
++                    return Err(error);
++                }
++                Err(error) => {
++                    errors.push(format!(
++                        "{kind} {} handshake: {error}",
++                        if encrypted { "MSE" } else { "plaintext" }
++                    ));
++                    continue;
++                }
++            };
++            let ckind = if encrypted { kind.with_mse() } else { kind };
+             let handshake_supports_extended = h.supports_extended();
+-            trace!(
+-                peer_id=?h.peer_id,
+-                decoded_id=?try_decode_peer_id(h.peer_id),
+-                "connected",
+-            );
+-            if h.info_hash != self.info_hash {
+-                return Err(Error::WrongInfoHash);
+-            }
+-
+-            if h.peer_id == self.peer_id {
+-                return Err(Error::ConnectingToOurselves);
+-            }
+-
+             self.handler.on_handshake(h, ckind).map_err(Error::Anyhow)?;
+-
+-            self.manage_peer(ManagePeerArgs {
+-                handshake_supports_extended,
+-                read_buf,
+-                write_buf,
+-                read,
+-                write,
+-                outgoing_chan,
+-                have_broadcast,
+-            })
+-            .await
+-        }
+-        .instrument(trace_span!("", kind=%ckind))
+-        .await
++            return self
++                .manage_peer(ManagePeerArgs {
++                    handshake_supports_extended,
++                    read_buf,
++                    write_buf,
++                    read,
++                    write,
++                    outgoing_chan,
++                    have_broadcast,
++                })
++                .instrument(trace_span!("", kind=%ckind))
++                .await;
++        }
++        Err(Error::Anyhow(anyhow::anyhow!(
++            "peer handshake attempts failed: {}",
++            errors.join("; ")
++        )))
+     }
+ 
+     async fn manage_peer(&self, args: ManagePeerArgs) -> Result<()> {
+@@ -473,10 +517,21 @@
+                 tokio::task::yield_now().await;
+ 
+                 if let Message::Extended(ExtendedMessage::Handshake(h)) = &message {
+-                    *extended_handshake_ref.write() = Some(h.peer_extended_messages());
+-                    self.handler
+-                        .on_extended_handshake(h)
+-                        .map_err(Error::Anyhow)?;
++                    let first = {
++                        let mut current = extended_handshake_ref.write();
++                        let first = current.is_none();
++                        current
++                            .get_or_insert_with(PeerExtendedMessageIds::default)
++                            .apply_update(h.peer_extended_messages());
++                        first
++                    };
++                    // Repeated BEP 10 updates may omit m entirely. Preserve IDs and
++                    // avoid restarting metadata requests or spawning duplicate PEX tasks.
++                    if first {
++                        self.handler
++                            .on_extended_handshake(h)
++                            .map_err(Error::Anyhow)?;
++                    }
+                 } else {
+                     self.handler
+                         .on_received_message(message)
+--- a/crates/librqbit/src/read_buf.rs
++++ b/crates/librqbit/src/read_buf.rs
+@@ -55,9 +55,10 @@
+         timeout: Duration,
+     ) -> Result<Handshake> {
+         self.len = with_timeout(
+-            "reading",
++            "reading handshake",
+             timeout,
+-            conn.read(&mut *self.buf).map_err(Error::ReadHandshake),
++            conn.read_exact(&mut self.buf[..68])
++                .map_err(Error::ReadHandshake),
+         )
+         .await?;
+         if self.len == 0 {
+--- a/crates/librqbit/src/session.rs
++++ b/crates/librqbit/src/session.rs
+@@ -834,7 +834,7 @@
+         self: Arc<Self>,
+         addr: SocketAddr,
+         kind: ConnectionKind,
+-        mut reader: BoxAsyncReadVectored,
++        reader: BoxAsyncReadVectored,
+         writer: BoxAsyncWrite,
+     ) -> anyhow::Result<(Arc<TorrentStateLive>, CheckedIncomingConnection)> {
+         let rwtimeout = self
+@@ -858,6 +858,11 @@
+             bail!("Incoming ip {incoming_ip} is not in allowlist");
+         }
+ 
++        let hashes: Vec<_> = self.db.read().torrents.values().map(|t| t.info_hash().0).collect();
++        let ((mut reader, writer), encrypted) = tokio::time::timeout(
++            rwtimeout, crate::mse::accept(reader, writer, hashes)
++        ).await.context("incoming peer encryption handshake timed out")??;
++        let kind = if encrypted { kind.with_mse() } else { kind };
+         let mut read_buf = ReadBuf::new();
+         let h = read_buf
+             .read_handshake(&mut reader, rwtimeout)
+--- a/crates/librqbit/src/torrent_state/live/peers/stats/mod.rs
++++ b/crates/librqbit/src/torrent_state/live/peers/stats/mod.rs
+@@ -35,9 +35,9 @@
+ 
+     fn live_kind_counter(&self, l: &LivePeerState) -> &AtomicU32 {
+         match l.connection_kind {
+-            ConnectionKind::Tcp => &self.live_tcp,
+-            ConnectionKind::Utp => &self.live_utp,
+-            ConnectionKind::Socks => &self.live_socks,
++            ConnectionKind::Tcp | ConnectionKind::TcpMse => &self.live_tcp,
++            ConnectionKind::Utp | ConnectionKind::UtpMse => &self.live_utp,
++            ConnectionKind::Socks | ConnectionKind::SocksMse => &self.live_socks,
+         }
+     }
+ 
+--- a/crates/tracker_comms/src/tracker_comms_http.rs
++++ b/crates/tracker_comms/src/tracker_comms_http.rs
+@@ -200,8 +200,8 @@
+         if let Some(key) = &self.key {
+             write!(s, "&key={key:08X}").unwrap();
+         }
+-        // rqbit currently supports plaintext peer handshakes only.
+-        s.push_str("&supportcrypto=0");
++        // Sweep accepts plaintext and MSE peer handshakes.
++        s.push_str("&supportcrypto=1");
+         if let Some(trackerid) = &self.trackerid {
+             write!(s, "&trackerid={trackerid}").unwrap();
+         }
+--- /dev/null
++++ b/crates/librqbit/src/mse.rs
+@@ -0,0 +1,379 @@
++//! MSE interoperability adapter. Protocol/key exchange lives in urtorrent-mse;
++//! this module supplies bounded Tokio I/O and cancellation-safe stream wrapping.
++use crate::{
++    type_aliases::{BoxAsyncReadVectored, BoxAsyncWrite},
++    vectored_traits::AsyncReadVectoredIntoCompat,
++};
++use std::{
++    collections::VecDeque,
++    io,
++    pin::Pin,
++    task::{Context, Poll},
++};
++use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, ReadBuf};
++use urtorrent_mse::{Initiator, Outcome, Rc4Stream, Responder, SkeyIndex};
++
++struct Randomness;
++impl urtorrent_profile::Rng for Randomness {
++    fn next_u32(&mut self) -> u32 {
++        rand::random()
++    }
++}
++
++type Streams = (BoxAsyncReadVectored, BoxAsyncWrite);
++
++pub(crate) async fn initiate(
++    mut read: BoxAsyncReadVectored,
++    mut write: BoxAsyncWrite,
++    info_hash: [u8; 20],
++    handshake: Vec<u8>,
++) -> anyhow::Result<Streams> {
++    let mut rng = Randomness;
++    let mut state = Initiator::new(info_hash, rand::random(), handshake, 3, &mut rng);
++    let mut buf = [0; 4096];
++    let mut received = 0;
++    loop {
++        write.write_all(&state.take_outbound()).await?;
++        let n = read.read(&mut buf).await?;
++        anyhow::ensure!(n > 0, "peer closed MSE handshake");
++        received += n;
++        anyhow::ensure!(received <= 80 * 1024, "oversized MSE handshake");
++        if let Some(outcome) = state.receive(&buf[..n], &mut rng)? {
++            write.write_all(&state.take_outbound()).await?;
++            return Ok(wrap(read, write, outcome));
++        }
++    }
++}
++
++pub(crate) async fn accept(
++    mut read: BoxAsyncReadVectored,
++    mut write: BoxAsyncWrite,
++    hashes: impl IntoIterator<Item = [u8; 20]>,
++) -> anyhow::Result<(Streams, bool)> {
++    let mut prefix = [0; 20];
++    read.read_exact(&mut prefix).await?;
++    if &prefix == b"\x13BitTorrent protocol" {
++        return Ok((
++            (
++                Box::new(
++                    CryptoRead {
++                        inner: read,
++                        cipher: None,
++                        prefix: prefix.into(),
++                    }
++                    .into_vectored_compat(),
++                ),
++                write,
++            ),
++            false,
++        ));
++    }
++    let mut keys = SkeyIndex::new();
++    for hash in hashes {
++        keys.insert(hash);
++    }
++    let mut state = Responder::new(rand::random(), 3, true);
++    let mut rng = Randomness;
++    let mut data = prefix.to_vec();
++    let mut received = data.len();
++    loop {
++        let outcome = state.receive(&data, &keys, &mut rng)?;
++        write.write_all(&state.take_outbound()).await?;
++        if let Some(outcome) = outcome {
++            return Ok((wrap(read, write, outcome), true));
++        }
++        data.resize(4096, 0);
++        let n = read.read(&mut data).await?;
++        anyhow::ensure!(n > 0, "peer closed MSE handshake");
++        received += n;
++        anyhow::ensure!(received <= 80 * 1024, "oversized MSE handshake");
++        data.truncate(n);
++    }
++}
++
++fn wrap(read: BoxAsyncReadVectored, write: BoxAsyncWrite, outcome: Outcome) -> Streams {
++    let read = Box::new(
++        CryptoRead {
++            inner: read,
++            cipher: outcome.decrypt,
++            prefix: outcome.plaintext.into(),
++        }
++        .into_vectored_compat(),
++    );
++    let write: BoxAsyncWrite = match outcome.encrypt {
++        Some(cipher) => Box::new(CryptoWrite {
++            inner: write,
++            cipher,
++            keystream: VecDeque::new(),
++            scratch: Vec::new(),
++        }),
++        None => write,
++    };
++    (read, write)
++}
++
++struct CryptoRead {
++    inner: BoxAsyncReadVectored,
++    cipher: Option<Rc4Stream>,
++    prefix: VecDeque<u8>,
++}
++impl AsyncRead for CryptoRead {
++    fn poll_read(
++        self: Pin<&mut Self>,
++        cx: &mut Context<'_>,
++        buf: &mut ReadBuf<'_>,
++    ) -> Poll<io::Result<()>> {
++        let this = self.get_mut();
++        if buf.remaining() == 0 {
++            return Poll::Ready(Ok(()));
++        }
++        if !this.prefix.is_empty() {
++            let n = buf.remaining().min(this.prefix.len());
++            for byte in this.prefix.drain(..n) {
++                buf.put_slice(&[byte]);
++            }
++            return Poll::Ready(Ok(()));
++        }
++        let start = buf.filled().len();
++        std::task::ready!(Pin::new(&mut this.inner).poll_read(cx, buf))?;
++        if let Some(cipher) = &mut this.cipher {
++            cipher.apply(&mut buf.filled_mut()[start..]);
++        }
++        Poll::Ready(Ok(()))
++    }
++}
++
++struct CryptoWrite {
++    inner: BoxAsyncWrite,
++    cipher: Rc4Stream,
++    // Precompute keystream, but consume it only for bytes the socket accepts.
++    // This handles partial writes, Pending, and cancellation without cipher drift.
++    keystream: VecDeque<u8>,
++    scratch: Vec<u8>,
++}
++impl AsyncWrite for CryptoWrite {
++    fn poll_write(
++        self: Pin<&mut Self>,
++        cx: &mut Context<'_>,
++        input: &[u8],
++    ) -> Poll<io::Result<usize>> {
++        let this = self.get_mut();
++        let n = input.len().min(16 * 1024);
++        if this.keystream.len() < n {
++            let mut more = vec![0; n - this.keystream.len()];
++            this.cipher.apply(&mut more);
++            this.keystream.extend(more);
++        }
++        this.scratch.clear();
++        this.scratch
++            .extend(input[..n].iter().zip(&this.keystream).map(|(a, b)| a ^ b));
++        let written = std::task::ready!(Pin::new(&mut this.inner).poll_write(cx, &this.scratch))?;
++        this.keystream.drain(..written);
++        Poll::Ready(Ok(written))
++    }
++    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
++        Pin::new(&mut self.get_mut().inner).poll_flush(cx)
++    }
++    fn poll_shutdown(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
++        Pin::new(&mut self.get_mut().inner).poll_shutdown(cx)
++    }
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++    use librqbit_core::hash_id::Id20;
++    use peer_binary_protocol::Handshake;
++    use std::sync::{Arc, Mutex};
++    use tokio::io::DuplexStream;
++
++    // Force handshake and payload fragmentation independently of TCP buffering.
++    struct Fragmented(DuplexStream);
++    impl AsyncRead for Fragmented {
++        fn poll_read(
++            mut self: Pin<&mut Self>,
++            cx: &mut Context<'_>,
++            out: &mut ReadBuf<'_>,
++        ) -> Poll<io::Result<()>> {
++            let mut data = [0; 7];
++            let n = out.remaining().min(data.len());
++            let mut buf = ReadBuf::new(&mut data[..n]);
++            std::task::ready!(Pin::new(&mut self.0).poll_read(cx, &mut buf))?;
++            out.put_slice(buf.filled());
++            Poll::Ready(Ok(()))
++        }
++    }
++    impl AsyncWrite for Fragmented {
++        fn poll_write(
++            mut self: Pin<&mut Self>,
++            cx: &mut Context<'_>,
++            data: &[u8],
++        ) -> Poll<io::Result<usize>> {
++            Pin::new(&mut self.0).poll_write(cx, &data[..data.len().min(11)])
++        }
++        fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
++            Pin::new(&mut self.0).poll_flush(cx)
++        }
++        fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
++            Pin::new(&mut self.0).poll_shutdown(cx)
++        }
++    }
++    fn split(stream: DuplexStream) -> Streams {
++        let (r, w) = tokio::io::split(Fragmented(stream));
++        (Box::new(r.into_vectored_compat()), Box::new(w))
++    }
++    fn handshake(hash: [u8; 20]) -> Vec<u8> {
++        let mut bytes = vec![0; 68];
++        let _ = Handshake::new(Id20::new(hash), Id20::new([42; 20]))
++            .serialize_unchecked_len(&mut bytes);
++        bytes
++    }
++
++    #[tokio::test]
++    async fn sweep_mse_fragmented_handshake_and_bidirectional_payload() {
++        let (a, b) = tokio::io::duplex(4096);
++        let (ar, aw) = split(a);
++        let (br, bw) = split(b);
++        let hash = [7; 20];
++        let initial = handshake(hash);
++        let payload: Vec<u8> = (0..65537).map(|n| (n % 251) as u8).collect();
++        tokio::time::timeout(std::time::Duration::from_secs(5), async {
++            let client = async {
++                let (mut read, mut write) = initiate(ar, aw, hash, initial.clone()).await.unwrap();
++                let mut echoed = vec![0; payload.len()];
++                write.write_all(&payload).await.unwrap();
++                read.read_exact(&mut echoed).await.unwrap();
++                assert_eq!(echoed, payload);
++            };
++            let server = async {
++                let ((mut read, mut write), mse) = accept(br, bw, [hash]).await.unwrap();
++                assert!(mse);
++                let mut buf = crate::read_buf::ReadBuf::new();
++                assert_eq!(
++                    buf.read_handshake(&mut read, std::time::Duration::from_secs(1))
++                        .await
++                        .unwrap()
++                        .info_hash
++                        .0,
++                    hash
++                );
++                let mut received = vec![0; payload.len()];
++                read.read_exact(&mut received).await.unwrap();
++                assert_eq!(received, payload);
++                write.write_all(&received).await.unwrap();
++            };
++            tokio::join!(client, server);
++        })
++        .await
++        .unwrap();
++    }
++
++    #[tokio::test]
++    async fn sweep_mse_accepts_fragmented_plaintext_without_losing_following_bytes() {
++        let (a, b) = tokio::io::duplex(4096);
++        let (br, bw) = split(b);
++        let hash = [9; 20];
++        let sender = async {
++            let (_, mut write) = split(a);
++            write.write_all(&handshake(hash)).await.unwrap();
++            write.write_all(b"next message").await.unwrap();
++        };
++        let receiver = async {
++            let ((mut read, _), mse) = accept(br, bw, [hash]).await.unwrap();
++            assert!(!mse);
++            let mut buf = crate::read_buf::ReadBuf::new();
++            assert_eq!(
++                buf.read_handshake(&mut read, std::time::Duration::from_secs(1))
++                    .await
++                    .unwrap()
++                    .info_hash
++                    .0,
++                hash
++            );
++            let mut following = [0; 12];
++            read.read_exact(&mut following).await.unwrap();
++            assert_eq!(&following, b"next message");
++        };
++        tokio::time::timeout(std::time::Duration::from_secs(2), async {
++            tokio::join!(sender, receiver);
++        })
++        .await
++        .unwrap();
++    }
++
++    #[tokio::test]
++    async fn sweep_mse_rejects_unknown_torrent() {
++        let (a, b) = tokio::io::duplex(4096);
++        let (ar, aw) = split(a);
++        let (br, bw) = split(b);
++        tokio::time::timeout(std::time::Duration::from_secs(2), async {
++            let (client, server) = tokio::join!(
++                initiate(ar, aw, [1; 20], handshake([1; 20])),
++                accept(br, bw, [[2; 20]])
++            );
++            assert!(client.is_err());
++            assert!(server.is_err());
++        })
++        .await
++        .unwrap();
++    }
++
++    struct PartialWriter {
++        bytes: Arc<Mutex<Vec<u8>>>,
++        pending: bool,
++    }
++    impl AsyncWrite for PartialWriter {
++        fn poll_write(
++            mut self: Pin<&mut Self>,
++            cx: &mut Context<'_>,
++            bytes: &[u8],
++        ) -> Poll<io::Result<usize>> {
++            if self.pending {
++                self.pending = false;
++                cx.waker().wake_by_ref();
++                return Poll::Pending;
++            }
++            self.pending = true;
++            let n = bytes.len().min(3);
++            self.bytes.lock().unwrap().extend_from_slice(&bytes[..n]);
++            Poll::Ready(Ok(n))
++        }
++        fn poll_flush(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<io::Result<()>> {
++            Poll::Ready(Ok(()))
++        }
++        fn poll_shutdown(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<io::Result<()>> {
++            Poll::Ready(Ok(()))
++        }
++    }
++    #[tokio::test]
++    async fn sweep_mse_partial_pending_and_cancelled_writes_keep_cipher_position() {
++        let bytes = Arc::new(Mutex::new(Vec::new()));
++        let key = [5; 20];
++        let mut writer = CryptoWrite {
++            inner: Box::new(PartialWriter {
++                bytes: bytes.clone(),
++                pending: true,
++            }),
++            cipher: Rc4Stream::new(&key),
++            keystream: VecDeque::new(),
++            scratch: Vec::new(),
++        };
++        // Cancel a Pending write, then supply a different buffer and length.
++        std::future::poll_fn(|cx| {
++            assert!(
++                Pin::new(&mut writer)
++                    .poll_write(cx, &[99; 500])
++                    .is_pending()
++            );
++            Poll::Ready(())
++        })
++        .await;
++        let payload: Vec<u8> = (0..32777).map(|n| (n % 251) as u8).collect();
++        writer.write_all(&payload).await.unwrap();
++        writer.flush().await.unwrap();
++        let mut encrypted = bytes.lock().unwrap().clone();
++        assert_ne!(encrypted, payload);
++        Rc4Stream::new(&key).apply(&mut encrypted);
++        assert_eq!(encrypted, payload);
++    }
++}
+--- a/crates/peer_binary_protocol/src/extended/handshake.rs
++++ b/crates/peer_binary_protocol/src/extended/handshake.rs
+@@ -8,6 +8,7 @@
+ 
+ #[derive(Deserialize, Serialize, Debug, Default, Eq, PartialEq)]
+ pub struct ExtendedHandshake<ByteBuf: ByteBufT> {
++    #[serde(default)]
+     pub m: PeerExtendedMessageIds,
+     #[serde(skip_serializing_if = "Option::is_none")]
+     pub p: Option<u32>,
+--- a/crates/peer_binary_protocol/src/extended/mod.rs
++++ b/crates/peer_binary_protocol/src/extended/mod.rs
+@@ -31,6 +31,16 @@
+ }
+ 
+ impl PeerExtendedMessageIds {
++    /// BEP 10 updates are additive. Zero disables an extension.
++    pub fn apply_update(&mut self, update: Self) {
++        if let Some(id) = update.ut_metadata {
++            self.ut_metadata = (id != 0).then_some(id);
++        }
++        if let Some(id) = update.ut_pex {
++            self.ut_pex = (id != 0).then_some(id);
++        }
++    }
++
+     pub fn my() -> Self {
+         Self {
+             ut_metadata: Some(MY_EXTENDED_UT_METADATA),
+@@ -122,6 +132,25 @@
+             ut_metadata::{UtMetadata, UtMetadataData},
+         },
+     };
++
++    #[test]
++    fn sweep_extension_updates_preserve_omitted_ids_and_disable_zero() {
++        use super::handshake::ExtendedHandshake;
++        let empty: ExtendedHandshake<ByteBuf> =
++            bencode::from_bytes(b"d11:upload_onlyi1ee").unwrap();
++        let mut ids = PeerExtendedMessageIds {
++            ut_metadata: Some(3),
++            ut_pex: Some(4),
++        };
++        ids.apply_update(empty.m);
++        assert_eq!(ids.ut_metadata, Some(3));
++        assert_eq!(ids.ut_pex, Some(4));
++        let update: ExtendedHandshake<ByteBuf> =
++            bencode::from_bytes(b"d1:md11:ut_metadatai0eee").unwrap();
++        ids.apply_update(update.m);
++        assert_eq!(ids.ut_metadata, None);
++        assert_eq!(ids.ut_pex, Some(4));
++    }
+ 
+     #[track_caller]
+     fn ut_metadata_trailing_bytes_is_error(msg: ExtendedMessage<ByteBuf>) {
+--- a/crates/librqbit/src/dht_utils.rs
++++ b/crates/librqbit/src/dht_utils.rs
+@@ -95,6 +95,15 @@
+     let mut addrs_completed = false;
+ 
+     loop {
++        // A peer can introduce another source and disconnect in the same poll.
++        // Drain its queued introductions before deciding discovery is exhausted.
++        while let Ok(addr) = pex_rx.try_recv() {
++            if let Some(progress) = &progress { progress.candidate("pex", addr); }
++            if seen.len() < 4096 && seen.insert(addr) {
++                if let Some(progress) = &progress { progress.discovered(); }
++                unordered.push(read_info_guarded(addr));
++            }
++        }
+         if addrs_completed && unordered.is_empty() {
+             return ReadMetainfoResult::ChannelClosed { seen };
+         }

@@ -35,6 +35,10 @@ impl Drop for Fixture {
 }
 
 fn local_engine(path: PathBuf) -> Arc<SweepEngine> {
+    local_engine_with_mode(path, ListenerMode::TcpOnly)
+}
+
+fn local_engine_with_mode(path: PathBuf, mode: ListenerMode) -> Arc<SweepEngine> {
     let runtime = Builder::new_multi_thread().enable_all().build().unwrap();
     let session = runtime
         .block_on(Session::new_with_opts(
@@ -43,7 +47,7 @@ fn local_engine(path: PathBuf) -> Arc<SweepEngine> {
                 disable_dht: true,
                 disable_local_service_discovery: true,
                 listen: Some(ListenerOptions {
-                    mode: ListenerMode::TcpOnly,
+                    mode,
                     listen_addr: "127.0.0.1:0".parse().unwrap(),
                     ..Default::default()
                 }),
@@ -260,8 +264,8 @@ fn resolves_magnet_transfers_payload_and_restores_cached_metadata() {
         .expect("local magnet discovery timed out")
         .unwrap();
         let request = request.await.unwrap();
-        assert!(request.contains("supportcrypto=0"), "{request}");
-        assert!(!request.contains("supportcrypto=1"));
+        assert!(request.contains("supportcrypto=1"), "{request}");
+        assert!(!request.contains("supportcrypto=0"));
         assert!(
             request.contains("&left=1&"),
             "an unresolved magnet must not announce as a seed: {request}"
@@ -380,6 +384,13 @@ fn cancelling_metadata_discovery_aborts_the_rust_task() {
 }
 
 async fn serve_tracker(peer: SocketAddr) -> (String, tokio::sync::oneshot::Receiver<String>) {
+    serve_tracker_after(peer, 0).await
+}
+
+async fn serve_tracker_after(
+    peer: SocketAddr,
+    mut empty_responses: usize,
+) -> (String, tokio::sync::oneshot::Receiver<String>) {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let url = format!("http://{}/announce", listener.local_addr().unwrap());
     let (first_tx, first_rx) = tokio::sync::oneshot::channel();
@@ -395,9 +406,15 @@ async fn serve_tracker(peer: SocketAddr) -> (String, tokio::sync::oneshot::Recei
             let SocketAddr::V4(peer) = peer else {
                 panic!("test uses IPv4")
             };
-            let mut body = b"d8:intervali1800e8:completei1e10:incompletei0e5:peers6:".to_vec();
-            body.extend(peer.ip().octets());
-            body.extend(peer.port().to_be_bytes());
+            let mut body = b"d8:intervali1800e8:completei1e10:incompletei0e5:peers".to_vec();
+            if empty_responses > 0 {
+                empty_responses -= 1;
+                body.extend(b"0:");
+            } else {
+                body.extend(b"6:");
+                body.extend(peer.ip().octets());
+                body.extend(peer.port().to_be_bytes());
+            }
             body.push(b'e');
             let response = format!(
                 "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
@@ -465,7 +482,7 @@ fn reports_tracker_and_peer_failures_before_metadata() {
         assert!(snapshot.last_peer_error.unwrap().contains("handshake"));
         assert_eq!(snapshot.trackers[0].status, "Working");
         assert_eq!(snapshot.trackers[0].last_peer_count, Some(1));
-        assert!(request.await.unwrap().contains("supportcrypto=0"));
+        assert!(request.await.unwrap().contains("supportcrypto=1"));
         reject.await.unwrap();
         engine.cancel_pending_add(id.to_owned());
         assert!(
@@ -570,7 +587,8 @@ fn metadata_can_be_found_through_pex_from_a_peer_without_metadata() {
             pex.push(b'e');
             socket.write_u32(pex.len() as u32).await.unwrap();
             socket.write_all(&pex).await.unwrap();
-            tokio::time::sleep(Duration::from_secs(3)).await;
+            // The introduction must survive this peer disconnecting immediately.
+            socket.shutdown().await.unwrap();
         });
         let added = tokio::time::timeout(
             Duration::from_secs(2),
@@ -591,5 +609,145 @@ fn metadata_can_be_found_through_pex_from_a_peer_without_metadata() {
         assert_eq!(added.total_bytes, 20);
         assert_eq!(added.progress_bytes, 0);
         introduce.abort();
+    });
+}
+
+#[test]
+fn utp_fallback_runs_after_tcp_connects_but_rejects_handshakes() {
+    let fixture = Fixture::new();
+    let seed_dir = fixture.folder("seed");
+    let download_dir = fixture.folder("download");
+    let payload = b"Transport fallback fixture";
+    let source = seed_dir.join("fallback.bin");
+    fs::write(&source, payload).unwrap();
+    let seed = local_engine_with_mode(seed_dir, ListenerMode::UtpOnly);
+    let download = local_engine_with_mode(download_dir.clone(), ListenerMode::TcpAndUtp);
+    seed.runtime.block_on(async {
+        let (_, handle) = seed
+            .session
+            .create_and_serve_torrent(&source, Default::default())
+            .await
+            .unwrap();
+        // TCP accepts sockets at the same endpoint, but never speaks BitTorrent.
+        // The first-connect race alone would get stuck with this transport.
+        let reject = tokio::net::TcpListener::bind(seed.session.listen_addr().unwrap())
+            .await
+            .unwrap();
+        let rejected = Arc::new(AtomicU64::new(0));
+        let count = rejected.clone();
+        let task = tokio::spawn(async move {
+            loop {
+                let (mut socket, _) = reject.accept().await.unwrap();
+                let mut byte = [0];
+                let _ = socket.read(&mut byte).await;
+                count.fetch_add(1, Ordering::Relaxed);
+            }
+        });
+        let (tracker, _) = serve_tracker(seed.session.listen_addr().unwrap()).await;
+        let added = tokio::time::timeout(
+            Duration::from_secs(10),
+            download.add_magnet(
+                format!(
+                    "magnet:?xt=urn:btih:{}&tr={tracker}",
+                    handle.info_hash().as_string()
+                ),
+                download_dir.to_str().unwrap().to_owned(),
+                false,
+                true,
+            ),
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        tokio::time::timeout(Duration::from_secs(10), async {
+            loop {
+                if download.list_torrents().await.unwrap().iter().any(|t| {
+                    t.info_hash == added.info_hash && t.progress_bytes == payload.len() as u64
+                }) {
+                    break;
+                }
+                tokio::time::sleep(Duration::from_millis(20)).await;
+            }
+        })
+        .await
+        .unwrap();
+        assert_eq!(
+            fs::read(download_dir.join("fallback.bin")).unwrap(),
+            payload
+        );
+        assert!(
+            rejected.load(Ordering::Relaxed) >= 2,
+            "plaintext and MSE TCP attempts must precede uTP fallback"
+        );
+        let network = download.session_snapshot().await.unwrap().network;
+        assert!(
+            network
+                .transports
+                .iter()
+                .any(|t| t.name == "uTP IPv4" && t.connected > 0)
+        );
+        task.abort();
+    });
+}
+
+#[test]
+fn a_later_metadata_attempt_can_recover_without_manual_resume() {
+    let fixture = Fixture::new();
+    let seed_dir = fixture.folder("seed");
+    let destination = fixture.folder("download");
+    let source = seed_dir.join("retry.bin");
+    fs::write(&source, b"Retry recovery fixture").unwrap();
+    let seed = local_engine(seed_dir);
+    let mut download = local_engine(destination.clone());
+    Arc::get_mut(&mut download).unwrap().retry_policy = MetadataRetryPolicy {
+        attempt_timeout: Duration::from_millis(400),
+        initial_backoff: Duration::from_millis(100),
+        max_backoff: Duration::from_millis(100),
+    };
+    seed.runtime.block_on(async {
+        let (_, handle) = seed
+            .session
+            .create_and_serve_torrent(&source, Default::default())
+            .await
+            .unwrap();
+        let (tracker, _) = serve_tracker_after(seed.session.listen_addr().unwrap(), 1).await;
+        let engine = download.clone();
+        let task = tokio::spawn(async move {
+            engine
+                .add_magnet(
+                    format!(
+                        "magnet:?xt=urn:btih:{}&tr={tracker}",
+                        handle.info_hash().as_string()
+                    ),
+                    destination.to_str().unwrap().to_owned(),
+                    true,
+                    true,
+                )
+                .await
+        });
+        tokio::time::timeout(Duration::from_secs(2), async {
+            loop {
+                if download
+                    .discovery_snapshots()
+                    .iter()
+                    .any(|s| s.attempt == 1 && s.retry_in_seconds.is_some())
+                {
+                    break;
+                }
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+        })
+        .await
+        .unwrap();
+        let added = tokio::time::timeout(Duration::from_secs(3), task)
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
+        assert!(added.error.is_none());
+        assert_eq!(added.total_bytes, 22);
+        assert_eq!(added.progress_bytes, 0);
+        assert!(download.discovery_snapshots().is_empty());
+        assert!(download.pending_adds.lock().unwrap().is_empty());
     });
 }

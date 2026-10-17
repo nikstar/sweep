@@ -153,8 +153,9 @@ generate_swift_bindings() {
   mkdir -p "$GENERATED_DIR"
 
   cd "$CRATE_DIR"
+  # Reuse the host library built above instead of compiling a second native archive.
   if [ -n "$CARGO_RUN_PROFILE" ]; then
-    run_host_cargo "$CARGO" run --locked --quiet "$CARGO_RUN_PROFILE" --manifest-path "$MANIFEST_PATH" --bin uniffi-bindgen-swift -- \
+    run_host_cargo "$CARGO" run --locked --quiet --target "$bridge_target" "$CARGO_RUN_PROFILE" --manifest-path "$MANIFEST_PATH" --bin uniffi-bindgen-swift -- \
       "$BRIDGE_PATH" "$GENERATED_DIR" \
       --swift-sources \
       --headers \
@@ -162,7 +163,7 @@ generate_swift_bindings() {
       --module-name sweep_rqbitFFI \
       --modulemap-filename module.modulemap
   else
-    run_host_cargo "$CARGO" run --locked --quiet --manifest-path "$MANIFEST_PATH" --bin uniffi-bindgen-swift -- \
+    run_host_cargo "$CARGO" run --locked --quiet --target "$bridge_target" --manifest-path "$MANIFEST_PATH" --bin uniffi-bindgen-swift -- \
       "$BRIDGE_PATH" "$GENERATED_DIR" \
       --swift-sources \
       --headers \
@@ -296,11 +297,14 @@ apply_rqbit_patches() {
     "metadata discovery progress" \
     "crates/librqbit/src/session.rs" \
     "pub metadata_progress:"
-  apply_rqbit_patch_if_missing \
-    "$RQBIT_PLAINTEXT_ANNOUNCE_PATCH" \
-    "plaintext tracker announce" \
-    "crates/tracker_comms/src/tracker_comms_http.rs" \
-    "supportcrypto=0"
+  # The later MSE patch supersedes the temporary plaintext-only capability.
+  if ! grep -q 'Sweep accepts plaintext and MSE' "$RQBIT_DIR/crates/tracker_comms/src/tracker_comms_http.rs"; then
+    apply_rqbit_patch_if_missing \
+      "$RQBIT_PLAINTEXT_ANNOUNCE_PATCH" \
+      "plaintext tracker announce" \
+      "crates/tracker_comms/src/tracker_comms_http.rs" \
+      "supportcrypto=0"
+  fi
   apply_rqbit_patch_if_missing \
     "$RQBIT_PENDING_MAGNET_ANNOUNCE_PATCH" \
     "pending magnet announce" \
@@ -321,6 +325,11 @@ apply_rqbit_patches() {
     "DHT persistence and metadata discovery diagnostics" \
     "crates/librqbit/src/metadata_progress.rs" \
     "pub metadata_peers:"
+  apply_rqbit_patch_if_missing \
+    "$ROOT_DIR/rust/patches/rqbit-peer-encryption.patch" \
+    "MSE peer compatibility" \
+    "crates/librqbit/src/lib.rs" \
+    "mod mse;"
 }
 
 ensure_rqbit_checkout() {

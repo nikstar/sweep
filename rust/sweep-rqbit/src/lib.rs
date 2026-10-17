@@ -772,7 +772,7 @@ async fn announce_initial_peers(
     let mut url = reqwest::Url::parse(tracker)?;
     let key = u32::from_be_bytes(peer_id.0[8..12].try_into()?);
     let mut query = format!(
-        "info_hash={}&peer_id={}&port={announce_port}&uploaded=0&downloaded=0&left={left}&numwant=80&key={key:08X}&compact=1&supportcrypto=0&event=started",
+        "info_hash={}&peer_id={}&port={announce_port}&uploaded=0&downloaded=0&left={left}&numwant=80&key={key:08X}&compact=1&supportcrypto=1&event=started",
         urlencoding::encode_binary(&info_hash.0),
         urlencoding::encode_binary(&peer_id.0)
     );

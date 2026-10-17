@@ -1,7 +1,7 @@
 use std::{env, fs, path::PathBuf, time::Duration};
 
 use librqbit::{ConnectionOptions, ListenerMode, ListenerOptions, SessionOptions};
-use sweep_rqbit::{SweepEngine, TorrentTrackerSnapshot};
+use sweep_rqbit::{DiscoverySnapshot, SweepEngine, TorrentTrackerSnapshot};
 use tokio::runtime::Builder;
 
 fn main() -> anyhow::Result<()> {
@@ -39,12 +39,6 @@ fn main() -> anyhow::Result<()> {
         "SWEEP_PROBE_DISCOVERY must be both, dht, or trackers"
     );
     let torrent_bytes = fs::read(PathBuf::from(torrent_path))?;
-    anyhow::ensure!(
-        discovery == "both"
-            || std::str::from_utf8(&torrent_bytes)
-                .is_ok_and(|value| value.trim().starts_with("magnet:")),
-        "isolated discovery tests require a magnet text file"
-    );
     println!("probe transport={transport} discovery={discovery}");
     let engine = SweepEngine::with_session_options(
         output_dir.to_owned(),
@@ -54,6 +48,11 @@ fn main() -> anyhow::Result<()> {
             disable_trackers: discovery == "dht",
             disable_local_service_discovery: true,
             listen: Some(ListenerOptions {
+                listen_addr: env::var("SWEEP_PROBE_LISTEN_ADDR")
+                    .ok()
+                    .map(|v| v.parse())
+                    .transpose()?
+                    .unwrap_or_else(|| "[::]:0".parse().unwrap()),
                 mode,
                 ..Default::default()
             }),
@@ -107,12 +106,7 @@ async fn async_main(
                 _ = tokio::time::sleep(Duration::from_secs(2)) => {
                     print_network(&engine).await?;
                     for discovery in engine.discovery_snapshots() {
-                        println!("discovery t={}s found={} tried={} active={} failed={} trackers_working={} trackers_failed={} last_peer_error={:?}",
-                            discovery.elapsed_seconds, discovery.peers_found, discovery.peers_tried,
-                            discovery.peers_active, discovery.peers_failed,
-                            discovery.trackers.iter().filter(|t| t.status == "Working").count(),
-                            discovery.trackers.iter().filter(|t| t.status == "Error").count(),
-                            discovery.last_peer_error);
+                        print_discovery(&discovery);
                     }
                 }
             }
@@ -124,15 +118,7 @@ async fn async_main(
     // Keep the last tracker and transport evidence even when adding the magnet fails.
     print_network(&engine).await?;
     for discovery in engine.discovery_snapshots() {
-        println!(
-            "final discovery t={}s found={} tried={} active={} failed={} last_peer_error={:?}",
-            discovery.elapsed_seconds,
-            discovery.peers_found,
-            discovery.peers_tried,
-            discovery.peers_active,
-            discovery.peers_failed,
-            discovery.last_peer_error
-        );
+        print_discovery(&discovery);
         for tracker in &discovery.trackers {
             print_tracker(tracker);
         }
@@ -156,6 +142,11 @@ async fn async_main(
         .await??;
         println!("resumed after checking files");
     }
+    let seed_seconds = env::var("SWEEP_PROBE_SEED_SECONDS")
+        .ok()
+        .map(|s| s.parse::<u64>())
+        .transpose()?
+        .unwrap_or(0);
     let mut last_progress = None;
     let mut last_peers = None;
     for second in 0..=max_seconds {
@@ -181,6 +172,11 @@ async fn async_main(
                 peers
             );
         }
+        if should_print {
+            for peer in &torrent.peers {
+                println!("peer={:?}", peer);
+            }
+        }
         last_progress = Some(torrent.progress_bytes);
         last_peers = Some(peers);
         if let Some(error) = &torrent.error {
@@ -190,7 +186,9 @@ async fn async_main(
             && (torrent.progress_bytes >= min_bytes
                 || (torrent.total_bytes > 0 && torrent.progress_bytes >= torrent.total_bytes))
         {
-            return Ok(());
+            if second >= seed_seconds {
+                return Ok(());
+            }
         }
         if second == max_seconds {
             for tracker in &torrent.trackers {
@@ -201,6 +199,34 @@ async fn async_main(
     }
 
     anyhow::bail!("download did not reach {min_bytes} bytes in {max_seconds}s")
+}
+
+fn print_discovery(discovery: &DiscoverySnapshot) {
+    println!(
+        "discovery t={}s attempt={} retry_in={:?} found={} tried={} active={} failed={} sources=tracker:{},dht:{},pex:{},other:{}",
+        discovery.elapsed_seconds,
+        discovery.attempt,
+        discovery.retry_in_seconds,
+        discovery.peers_found,
+        discovery.peers_tried,
+        discovery.peers_active,
+        discovery.peers_failed,
+        discovery.tracker_candidates,
+        discovery.dht_candidates,
+        discovery.pex_candidates,
+        discovery.other_candidates
+    );
+    println!(
+        "stages sockets={} handshakes={} metadata_peers={} blocks={} failures=connect:{},handshake:{},metadata:{} last_peer_error={:?}",
+        discovery.sockets_connected,
+        discovery.handshakes_completed,
+        discovery.metadata_peers,
+        discovery.metadata_blocks,
+        discovery.connect_failures,
+        discovery.handshake_failures,
+        discovery.metadata_failures,
+        discovery.last_peer_error
+    );
 }
 
 fn print_tracker(tracker: &TorrentTrackerSnapshot) {
@@ -218,12 +244,16 @@ fn print_tracker(tracker: &TorrentTrackerSnapshot) {
 async fn print_network(engine: &SweepEngine) -> anyhow::Result<()> {
     let network = engine.session_snapshot().await?.network;
     println!(
-        "network DHT_nodes_v4={:?} DHT_nodes_v6={:?} DHT_inflight={:?} live_tcp={} live_utp={}",
+        "network DHT_nodes_v4={:?} DHT_nodes_v6={:?} DHT_inflight={:?} live_tcp={} live_utp={} DHT_queries={} DHT_replies={} DHT_timeouts={} last_DHT_reply_age={:?}",
         network.dht_nodes_v4,
         network.dht_nodes_v6,
         network.dht_outstanding,
         network.live_tcp,
-        network.live_utp
+        network.live_utp,
+        network.dht_queries,
+        network.dht_responses,
+        network.dht_timeouts,
+        network.dht_last_response_age_seconds
     );
     for transport in network.transports {
         println!(

@@ -117,6 +117,66 @@ Earlier details improvements:
   This establishes an observed network symptom, not which layer is filtering it
   or whether the phone's path behaves identically. The VPN was unchanged.
 
+## Peer Compatibility, October 17, 2026
+
+- MSE/PE negotiation now wraps TCP, uTP, and SOCKS peer streams using the pinned
+  Apache-2.0 `urtorrent-mse` 0.14.3 protocol implementation. Plaintext remains the
+  first outgoing attempt; a failed wire handshake triggers MSE on that transport,
+  followed by the alternative TCP/uTP transport if enabled. SOCKS never falls back
+  to a direct connection. Incoming connections accept plaintext and MSE.
+- Tracker announces now advertise peer encryption support. Peer details show
+  `tcp (MSE)` / `uTP (MSE)` for MSE-negotiated connections. MSE can negotiate
+  plaintext or RC4 payloads; the label identifies the negotiation protocol.
+- Fixed fragmented BitTorrent handshakes, optional/additive BEP 10 extension
+  maps, and reporting the local peer ID instead of the remote ID on incoming
+  connections. Subsequent extension maps update outgoing message IDs without
+  restarting metadata requests or PEX tasks.
+- The stream adapter bounds negotiation bytes, preserves buffered bytes after the
+  handshake, and handles partial writes, Pending, and write cancellation without
+  losing cipher position. Four adapter regressions and one extension-map test pass.
+- Nine wrapper tests pass, including a fresh attempt recovering automatically
+  after a tracker initially returns no peers, and uTP succeeding after a TCP
+  endpoint accepts connections but rejects both plaintext and MSE handshakes.
+- `Scripts/test_peer_encryption.py` verifies incoming and outgoing transfers
+  against Transmission 4.1.3 with encryption required, using a generated 1 MiB
+  fixture and a local tracker, with DHT/LSD and port mapping disabled. Outgoing
+  metadata resolution and payload transfer pass; incoming payload transfer passes;
+  both payloads match byte-for-byte and Transmission reports encrypted peers.
+  Repeating both directions with `--transport utp` also passes.
+  Pass `--local-address` with this Mac's existing non-loopback IPv4 address because
+  Transmission intentionally rejects tracker-supplied loopback peers. No network
+  settings or normal Transmission configuration are changed. The existing VPN
+  remains connected.
+- `live_probe` supports `SWEEP_PROBE_LISTEN_ADDR` and
+  `SWEEP_PROBE_SEED_SECONDS` for controlled interoperability checks, and prints
+  discovery sources/stages, retry state, DHT reply counters, and peer transports.
+
+A fresh 125-second metadata-only probe of `021e7e8456515a36514d00ca54ab1d664f92a79e`
+completed the first 90-second attempt, waited 15 seconds, and started attempt 2.
+The HTTPS tracker returned one peer (zero seeders / one leecher). Neither TCP nor
+uTP connected; socket/BitTorrent/metadata success counters stayed zero. DHT sent
+18 queries and received zero replies. No payload was requested. This remains a
+reachability failure before encryption or metadata negotiation on this Mac's
+current path; it does not establish the cause of the phone's failure.
+
+The bridge build now reuses its explicit host target for UniFFI generation,
+avoiding a duplicate native Rust library build. This was exposed by low disk space
+during multi-architecture validation. Only generated compiler outputs were cleaned;
+app containers and downloaded files were preserved.
+
+Final validation: macOS Debug, unsigned iOS device, and the designated iOS 26
+simulator build pass. The simulator app resolved and downloaded the encrypted
+Transmission fixture, displayed `tcp (MSE)` in Peers, matched the source bytes,
+and restored it at 100% after relaunch. The test download was removed afterward.
+The original completed download was preserved. Device packaging remains
+static Rust linkage, iPhone-only / iOS 26, with no internal embedded frameworks
+or CommonCrypto symbol references.
+
+Remaining compatibility work includes BEP 55 hole punching and evaluating an
+explicit encryption preference. MSE does not repair unreachable sockets or a DHT
+path that receives no UDP replies. Phone-specific reachability still needs actual
+phone observations; simulator results describe the Mac's network path.
+
 ## Magnet Connectivity Investigation, October 15, 2026
 
 Investigated the phone report for v1 info hash
