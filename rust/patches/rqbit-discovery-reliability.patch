@@ -1,0 +1,612 @@
+--- a/crates/dht/src/dht.rs
++++ b/crates/dht/src/dht.rs
+@@ -54,6 +54,30 @@
+     pub outstanding_requests: usize,
+     pub routing_table_size: usize,
+     pub routing_table_size_v6: usize,
++    pub queries: u64,
++    pub responses: u64,
++    pub timeouts: u64,
++    pub last_response_age_seconds: Option<u64>,
++    pub bootstrap: Vec<DhtBootstrapStats>,
++    pub persistence_error: Option<String>,
++}
++
++#[derive(Clone, Debug, Default, Serialize)]
++pub struct DhtBootstrapStats {
++    pub address: String,
++    pub resolved_addresses: usize,
++    pub attempts: u64,
++    pub last_error: Option<String>,
++}
++
++#[derive(Default)]
++struct DhtDiagnostics {
++    queries: u64,
++    responses: u64,
++    timeouts: u64,
++    last_response: Option<Instant>,
++    bootstrap: std::collections::BTreeMap<String, DhtBootstrapStats>,
++    persistence_error: Option<String>,
+ }
+ 
+ struct OutstandingRequest {
+@@ -437,7 +461,7 @@
+             self.callbacks.on_request_end(self, id, addr, &response);
+         }
+ 
+-        let response = match self.dht.request(self.request.clone(), addr).await {
++        let response = match response {
+             Ok(ResponseOrError::Response(r)) => r,
+             Ok(ResponseOrError::Error(e)) => {
+                 debug!("error response: {e:?}");
+@@ -571,6 +595,7 @@
+ }
+ 
+ pub struct DhtState {
++    diagnostics: RwLock<DhtDiagnostics>,
+     id: Id20,
+     next_transaction_id: AtomicU16,
+ 
+@@ -607,6 +632,7 @@
+         Self {
+             id,
+             next_transaction_id: AtomicU16::new(0),
++            diagnostics: Default::default(),
+             inflight_by_transaction_id: Default::default(),
+             routing_table_v4: RwLock::new(routing_table_v4),
+             routing_table_v6: RwLock::new(routing_table_v6),
+@@ -620,6 +646,7 @@
+ 
+     async fn request(&self, request: Request, addr: SocketAddr) -> crate::Result<ResponseOrError> {
+         self.rate_limiter.acquire_one().await;
++        self.diagnostics.write().queries += 1;
+         let (tid, message) = self.create_request(request, addr);
+         let key = (tid, addr);
+         let (tx, rx) = tokio::sync::oneshot::channel();
+@@ -639,6 +666,9 @@
+         };
+         match tokio::time::timeout(RESPONSE_TIMEOUT, rx).await {
+             Ok(Ok(r)) => r.map(|r| {
++                let mut diagnostics = self.diagnostics.write();
++                diagnostics.responses += 1;
++                diagnostics.last_response = Some(now());
+                 trace!("received {r:?}");
+                 r
+             }),
+@@ -648,6 +678,7 @@
+             }
+             Err(_) => {
+                 self.inflight_by_transaction_id.remove(&key);
++                self.diagnostics.write().timeouts += 1;
+                 Err(Error::ResponseTimeout(RESPONSE_TIMEOUT))
+             }
+         }
+@@ -928,8 +959,19 @@
+         }
+     }
+ 
++    pub(crate) fn set_persistence_error(&self, error: Option<String>) {
++        self.diagnostics.write().persistence_error = error;
++    }
++
+     pub fn get_stats(&self) -> DhtStats {
++        let diagnostics = self.diagnostics.read();
+         DhtStats {
++            queries: diagnostics.queries,
++            responses: diagnostics.responses,
++            timeouts: diagnostics.timeouts,
++            last_response_age_seconds: diagnostics.last_response.map(|at| at.elapsed().as_secs()),
++            bootstrap: diagnostics.bootstrap.values().cloned().collect(),
++            persistence_error: diagnostics.persistence_error.clone(),
+             id: self.id,
+             outstanding_requests: self.inflight_by_transaction_id.len(),
+             routing_table_size: self.routing_table_v4.read().len(),
+@@ -983,6 +1025,7 @@
+             .await
+             .map_err(|err| Error::lookup(hostname, err))?
+             .collect::<Vec<_>>();
++        self.dht.diagnostics.write().bootstrap.get_mut(hostname).unwrap().resolved_addresses = addrs.len();
+         let v4 = RecursiveRequest::find_node_for_routing_table(
+             self.dht.clone(),
+             self.dht.id,
+@@ -998,7 +1041,11 @@
+         .instrument(debug_span!("v6"));
+ 
+         let (v4, v6) = tokio::join!(v4, v6);
+-        v4.or(v6)
++        // An unavailable address family must not hide the error from the one queried.
++        match (v4, v6) {
++            (Ok(()), _) | (_, Ok(())) => Ok(()),
++            (Err(v4), Err(v6)) => Err(if addrs.iter().any(SocketAddr::is_ipv4) { v4 } else { v6 }),
++        }
+     }
+ 
+     async fn bootstrap_hostname_with_backoff(&self, addr: &str) -> crate::Result<()> {
+@@ -1008,7 +1055,19 @@
+             .with_total_delay(Some(Duration::from_secs(86400)))
+             .without_max_times();
+ 
+-        (|| self.bootstrap_hostname(addr))
++        (|| async {
++            {
++                let mut diagnostics = self.dht.diagnostics.write();
++                let entry = diagnostics.bootstrap.entry(addr.to_owned()).or_default();
++                entry.address = addr.to_owned();
++                entry.attempts += 1;
++                entry.resolved_addresses = 0;
++            }
++            let result = self.bootstrap_hostname(addr).await;
++            self.dht.diagnostics.write().bootstrap.get_mut(addr).unwrap().last_error =
++                result.as_ref().err().map(|error| format!("{error:#}"));
++            result
++        })
+             .retry(backoff)
+             .notify(|error, retry_in| {
+                 warn!(?retry_in, ?addr, "error in bootstrap: {error:#}");
+@@ -1396,3 +1455,35 @@
+         }
+     }
+ }
++
++#[cfg(test)]
++mod sweep_discovery_tests {
++    use super::*;
++
++    #[tokio::test]
++    async fn successful_lookup_consumes_the_first_reply_without_querying_twice() {
++        let (tx, mut rx) = unbounded_channel();
++        let id = Id20::new([1; 20]);
++        let state = Arc::new(DhtState::new_internal(id, tx, None, None,
++            "127.0.0.1:0".parse().unwrap(), PeerStore::new(id), CancellationToken::new()));
++        let worker_state = state.clone();
++        let worker = tokio::spawn(async move {
++            let request = rx.recv().await.unwrap();
++            let (_, pending) = worker_state.inflight_by_transaction_id
++                .remove(&(request.our_tid.unwrap(), request.addr)).unwrap();
++            pending.done.send(Ok(ResponseOrError::Response(Response {
++                id: Id20::new([2; 20]), ..Default::default()
++            }))).unwrap();
++            // Keep the channel open, but never answer an erroneous second query.
++            tokio::time::sleep(Duration::from_secs(2)).await;
++        });
++        tokio::time::timeout(Duration::from_millis(500),
++            RecursiveRequest::find_node_for_routing_table(state.clone(), id,
++                ["127.0.0.1:12345".parse().unwrap()].into_iter()))
++            .await.expect("the successful first reply must finish the lookup").unwrap();
++        assert_eq!(state.get_stats().queries, 1);
++        assert_eq!(state.get_stats().responses, 1);
++        assert_eq!(state.get_stats().last_response_age_seconds, Some(0));
++        worker.abort();
++    }
++}
+--- a/crates/dht/src/persistence.rs
++++ b/crates/dht/src/persistence.rs
+@@ -8,7 +8,7 @@
+ use librqbit_dualstack_sockets::BindDevice;
+ use serde::{Deserialize, Serialize};
+ use std::fs::OpenOptions;
+-use std::io::{BufReader, BufWriter};
++use std::io::{BufReader, BufWriter, Write};
+ use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr};
+ use std::path::{Path, PathBuf};
+ use std::time::Duration;
+@@ -26,6 +26,7 @@
+     pub config_filename: Option<PathBuf>,
+     pub port: Option<u16>,
+     pub ipv4_only: bool,
++    pub bootstrap_addrs: Option<Vec<String>>,
+ }
+ 
+ #[derive(Serialize, Deserialize)]
+@@ -72,6 +73,8 @@
+         }
+     }
+ 
++    file.flush().context("error flushing DHT routing table")?;
++    file.get_ref().sync_all().context("error syncing DHT routing table")?;
+     std::fs::rename(tempfile_name, filename)
+         .with_context(|| format!("error renaming {tempfile_name:?} to {filename:?}"))
+ }
+@@ -146,9 +149,9 @@
+                     }
+                 },
+             };
+-            let (mut listen_addr, routing_table, peer_store) = de
+-                .map(|de| (Some(de.addr), Some(de.table), de.peer_store))
+-                .unwrap_or((None, None, None));
++            let (mut listen_addr, routing_table, routing_table_v6, peer_store) = de
++                .map(|de| (Some(de.addr), Some(de.table), de.table_v6, de.peer_store))
++                .unwrap_or((None, None, None, None));
+ 
+             if let Some(port) = config.port {
+                 if let Some(ref mut addr) = listen_addr {
+@@ -162,6 +165,8 @@
+             let dht_config = DhtConfig {
+                 peer_id,
+                 routing_table,
++                routing_table_v6,
++                bootstrap_addrs: config.bootstrap_addrs,
+                 listen_addr,
+                 peer_store,
+                 cancellation_token,
+@@ -191,8 +196,12 @@
+                             tokio::time::sleep(dump_interval).await;
+ 
+                             match dump_dht(&dht, &config_filename, &tempfile_name) {
+-                                Ok(_) => trace!(filename=?config_filename, "dumped DHT"),
++                                Ok(_) => {
++                                    dht.set_persistence_error(None);
++                                    trace!(filename=?config_filename, "dumped DHT");
++                                },
+                                 Err(e) => {
++                                    dht.set_persistence_error(Some(format!("{e:#}")));
+                                     error!(filename=?config_filename, "error dumping DHT: {:#}", e)
+                                 }
+                             }
+@@ -206,3 +215,37 @@
+         .boxed()
+     }
+ }
++
++#[cfg(test)]
++mod sweep_persistence_tests {
++    use super::*;
++    use crate::Id20;
++
++    #[tokio::test]
++    async fn persists_both_families_and_rebinds_an_available_port() {
++        let dir = std::env::temp_dir().join(format!("sweep-dht-{}", std::process::id()));
++        std::fs::create_dir_all(&dir).unwrap();
++        let path = dir.join("dht.json");
++        let id = Id20::new([1; 20]);
++        let mut v4 = RoutingTable::new(id, None);
++        v4.add_node(Id20::new([2; 20]), "127.0.0.1:1".parse().unwrap());
++        let mut v6 = RoutingTable::new(id, None);
++        v6.add_node(Id20::new([3; 20]), "[::1]:1".parse().unwrap());
++        let original = DhtState::with_config(DhtConfig {
++            peer_id: Some(id), routing_table: Some(v4), routing_table_v6: Some(v6),
++            bootstrap_addrs: Some(vec![]), ..Default::default()
++        }).await.unwrap();
++        dump_dht(&original, &path, &dir.join("dht.tmp")).unwrap();
++        let restored = PersistentDht::create(Some(PersistentDhtConfig {
++            config_filename: Some(path), port: Some(0), bootstrap_addrs: Some(vec![]),
++            ..Default::default()
++        }), None, None).await.unwrap();
++        assert_eq!(restored.stats().routing_table_size, 1);
++        assert_eq!(restored.stats().routing_table_size_v6, 1);
++        assert_eq!(restored.stats().responses, 0, "cached contacts are not fresh replies");
++        assert_ne!(original.listen_addr().port(), restored.listen_addr().port());
++        original.cancellation_token().cancel();
++        restored.cancellation_token().cancel();
++        std::fs::remove_dir_all(dir).unwrap();
++    }
++}
+--- a/crates/librqbit/src/session.rs
++++ b/crates/librqbit/src/session.rs
+@@ -564,7 +564,10 @@
+                     .await
+                     .context("error initializing DHT")?
+                 } else {
+-                    let pdht_config = opts.dht_config.take().unwrap_or_default();
++                    let mut pdht_config = opts.dht_config.take().unwrap_or_default();
++                    if opts.dht_bootstrap_addrs.is_some() {
++                        pdht_config.bootstrap_addrs = opts.dht_bootstrap_addrs.clone();
++                    }
+                     PersistentDht::create(
+                         Some(pdht_config),
+                         Some(token.clone()),
+@@ -1162,6 +1165,7 @@
+                 opts.initial_peers.clone().unwrap_or_default(),
+                 private,
+                 tracker_stats.clone(),
++                opts.metadata_progress.clone(),
+             )
+         };
+ 
+@@ -1448,6 +1452,7 @@
+             t.shared().options.initial_peers.clone(),
+             is_private,
+             t.shared().tracker_stats.clone(),
++            None,
+         )
+     }
+ 
+@@ -1461,6 +1466,7 @@
+         initial_peers: Vec<SocketAddr>,
+         is_private: bool,
+         tracker_stats: TrackerCommsState,
++        metadata_progress: Option<crate::MetadataProgress>,
+     ) -> Option<PeerStream> {
+         let dht_rx = if is_private {
+             None
+@@ -1513,12 +1519,22 @@
+         } else {
+             Some(futures::stream::iter(initial_peers))
+         };
++        fn observed<S: futures::Stream<Item = SocketAddr> + Send + 'static>(
++            stream: Option<S>, source: &'static str, progress: &Option<crate::MetadataProgress>,
++        ) -> Option<PeerStream> {
++            let progress = progress.clone();
++            stream.map(|stream| stream.inspect(move |addr| {
++                if let Some(progress) = &progress { progress.candidate(source, *addr); }
++            }).boxed())
++        }
+         merge_two_optional_streams(
+             merge_two_optional_streams(
+-                merge_two_optional_streams(dht_rx, tracker_rx),
+-                initial_peers_rx,
++                merge_two_optional_streams(
++                    observed(dht_rx, "dht", &metadata_progress),
++                    observed(tracker_rx, "tracker", &metadata_progress)),
++                observed(initial_peers_rx, "initial", &metadata_progress),
+             ),
+-            lsd_rx,
++            observed(lsd_rx, "local", &metadata_progress),
+         )
+     }
+ 
+--- a/crates/librqbit/src/dht_utils.rs
++++ b/crates/librqbit/src/dht_utils.rs
+@@ -1,4 +1,4 @@
+-use std::{collections::HashSet, net::SocketAddr, sync::Arc};
++use std::{collections::HashSet, net::SocketAddr, sync::{Arc, atomic::{AtomicU8, Ordering}}};
+ 
+ use anyhow::Context;
+ use buffers::ByteBufOwned;
+@@ -37,6 +37,7 @@
+     progress: Option<crate::MetadataProgress>,
+ ) -> ReadMetainfoResult<A> {
+     let mut seen = HashSet::<SocketAddr>::new();
++    let (pex_tx, mut pex_rx) = tokio::sync::mpsc::channel(128);
+     let mut addrs = addrs_stream;
+ 
+     let semaphore = tokio::sync::Semaphore::new(128);
+@@ -45,9 +46,18 @@
+         let semaphore = &semaphore;
+         let connector = connector.clone();
+         let progress = progress.clone();
++        let pex_tx = pex_tx.clone();
+         async move {
+             let token = semaphore.acquire().await?;
+             if let Some(progress) = &progress { progress.started(); }
++            struct AttemptGuard(Option<crate::MetadataProgress>, bool);
++            impl Drop for AttemptGuard {
++                fn drop(&mut self) {
++                    if !self.1 { if let Some(progress) = &self.0 { progress.cancelled(); } }
++                }
++            }
++            let mut guard = AttemptGuard(progress.clone(), false);
++            let stage = Arc::new(AtomicU8::new(0));
+             let ret = peer_info_reader::read_metainfo_from_peer(
+                 addr,
+                 peer_id,
+@@ -57,13 +67,17 @@
+                 // ok not to use a shared one.
+                 BlockingSpawner::new(1),
+                 connector,
++                progress.clone(),
++                stage.clone(),
++                pex_tx,
+             )
+             .instrument(debug_span!("read_metainfo_from_peer", ?addr))
+             .await
+             .with_context(|| format!("error reading metainfo from {addr}"));
+             if let Some(progress) = &progress {
+-                progress.finished(ret.as_ref().err().map(|error| format!("{error:#}")));
++                progress.finished(ret.as_ref().err().map(|error| format!("{error:#}")), stage.load(Ordering::Relaxed));
+             }
++            guard.1 = true;
+             drop(token);
+             ret
+         }
+@@ -72,7 +86,7 @@
+     let mut unordered = FuturesUnordered::new();
+ 
+     for a in initial_addrs {
+-        if seen.insert(a) {
++        if seen.len() < 4096 && seen.insert(a) {
+             if let Some(progress) = &progress { progress.discovered(); }
+             unordered.push(read_info_guarded(a));
+         }
+@@ -96,10 +110,18 @@
+                 }
+             }
+ 
++            Some(addr) = pex_rx.recv(), if !unordered.is_empty() => {
++                if let Some(progress) = &progress { progress.candidate("pex", addr); }
++                if seen.len() < 4096 && seen.insert(addr) {
++                    if let Some(progress) = &progress { progress.discovered(); }
++                    unordered.push(read_info_guarded(addr));
++                }
++            }
++
+             next_addr = addrs.next(), if !addrs_completed => {
+                 match next_addr {
+                     Some(addr) => {
+-                        if seen.insert(addr) {
++                        if seen.len() < 4096 && seen.insert(addr) {
+                             if let Some(progress) = &progress { progress.discovered(); }
+                             unordered.push(read_info_guarded(addr));
+                         }
+--- a/crates/librqbit/src/metadata_progress.rs
++++ b/crates/librqbit/src/metadata_progress.rs
+@@ -1,4 +1,4 @@
+-use std::sync::Arc;
++use std::{sync::Arc, net::SocketAddr, collections::{HashMap, HashSet}};
+ use parking_lot::Mutex;
+ use tracker_comms::TrackerCommsState;
+ 
+@@ -7,6 +7,7 @@
+ pub struct MetadataProgress {
+     inner: Arc<Mutex<MetadataProgressSnapshot>>,
+     pub trackers: TrackerCommsState,
++    sources: Arc<Mutex<HashMap<&'static str, HashSet<SocketAddr>>>>,
+ }
+ 
+ #[derive(Clone, Debug, Default)]
+@@ -16,21 +17,59 @@
+     pub active: u64,
+     pub failed: u64,
+     pub last_error: Option<String>,
++    pub sockets_connected: u64,
++    pub handshakes_completed: u64,
++    pub metadata_peers: u64,
++    pub metadata_blocks: u64,
++    pub connect_failures: u64,
++    pub handshake_failures: u64,
++    pub metadata_failures: u64,
++    pub cancelled: u64,
++    pub tracker_candidates: u64,
++    pub dht_candidates: u64,
++    pub pex_candidates: u64,
++    pub other_candidates: u64,
+ }
+ 
+ impl MetadataProgress {
+     pub fn snapshot(&self) -> MetadataProgressSnapshot { self.inner.lock().clone() }
++    pub(crate) fn candidate(&self, source: &'static str, addr: SocketAddr) {
++        let mut sources = self.sources.lock();
++        let addresses = sources.entry(source).or_default();
++        if addresses.len() >= 4096 || !addresses.insert(addr) { return; }
++        let mut state = self.inner.lock();
++        match source {
++            "tracker" => state.tracker_candidates += 1,
++            "dht" => state.dht_candidates += 1,
++            "pex" => state.pex_candidates += 1,
++            _ => state.other_candidates += 1,
++        }
++    }
++    pub(crate) fn connected(&self) { self.inner.lock().sockets_connected += 1; }
++    pub(crate) fn handshaken(&self) { self.inner.lock().handshakes_completed += 1; }
++    pub(crate) fn metadata_ready(&self) { self.inner.lock().metadata_peers += 1; }
++    pub(crate) fn metadata_block(&self) { self.inner.lock().metadata_blocks += 1; }
++    pub(crate) fn cancelled(&self) {
++        let mut state = self.inner.lock();
++        state.active = state.active.saturating_sub(1);
++        state.cancelled += 1;
++    }
+     pub(crate) fn discovered(&self) { self.inner.lock().discovered += 1; }
+     pub(crate) fn started(&self) {
+         let mut state = self.inner.lock();
+         state.attempted += 1;
+         state.active += 1;
+     }
+-    pub(crate) fn finished(&self, error: Option<String>) {
++    pub(crate) fn finished(&self, error: Option<String>, stage: u8) {
+         let mut state = self.inner.lock();
+         state.active = state.active.saturating_sub(1);
+         if let Some(error) = error {
+             state.failed += 1;
++            match stage {
++                0 => state.connect_failures += 1,
++                1 => state.handshake_failures += 1,
++                _ => state.metadata_failures += 1,
++            }
+             state.last_error = Some(error);
+         }
+     }
+--- a/crates/librqbit/src/peer_info_reader/mod.rs
++++ b/crates/librqbit/src/peer_info_reader/mod.rs
+@@ -1,4 +1,4 @@
+-use std::{net::SocketAddr, sync::Arc};
++use std::{net::SocketAddr, sync::{Arc, atomic::{AtomicU8, Ordering}}};
+ 
+ use bencode::from_bytes;
+ use buffers::{ByteBuf, ByteBufOwned};
+@@ -37,6 +37,9 @@
+     peer_connection_options: Option<PeerConnectionOptions>,
+     spawner: BlockingSpawner,
+     connector: Arc<StreamConnector>,
++    progress: Option<crate::MetadataProgress>,
++    stage: Arc<AtomicU8>,
++    pex_tx: tokio::sync::mpsc::Sender<SocketAddr>,
+ ) -> anyhow::Result<TorrentAndInfoBytes> {
+     let (result_tx, result_rx) = tokio::sync::oneshot::channel::<
+         Result<(TorrentMetaV1Info<ByteBufOwned>, ByteBufOwned), bencode::DeserializeError>,
+@@ -45,6 +48,9 @@
+     let handler = Handler {
+         addr,
+         info_hash,
++        progress,
++        stage,
++        pex_tx,
+         writer_tx,
+         result_tx: Mutex::new(Some(result_tx)),
+         locked: RwLock::new(None),
+@@ -148,6 +154,9 @@
+ pub type TorrentAndInfoBytes = (TorrentMetaV1Info<ByteBufOwned>, ByteBufOwned);
+ 
+ struct Handler {
++    progress: Option<crate::MetadataProgress>,
++    stage: Arc<AtomicU8>,
++    pex_tx: tokio::sync::mpsc::Sender<SocketAddr>,
+     addr: SocketAddr,
+     info_hash: Id20,
+     writer_tx: UnboundedSender<WriterRequest>,
+@@ -160,6 +169,11 @@
+ }
+ 
+ impl PeerConnectionHandler for Handler {
++    fn on_connected(&self, _elapsed: std::time::Duration) {
++        self.stage.store(1, Ordering::Relaxed);
++        if let Some(progress) = &self.progress { progress.connected(); }
++    }
++
+     fn should_send_bitfield(&self) -> bool {
+         false
+     }
+@@ -169,6 +183,7 @@
+     }
+ 
+     fn on_handshake(&self, handshake: Handshake, _kind: ConnectionKind) -> anyhow::Result<()> {
++        if let Some(progress) = &self.progress { progress.handshaken(); }
+         if !handshake.supports_extended() {
+             anyhow::bail!(
+                 "this peer does not support extended handshaking, which is a prerequisite to download metadata"
+@@ -180,13 +195,22 @@
+     async fn on_received_message(&self, msg: Message<'_>) -> anyhow::Result<()> {
+         trace!("{}: received message: {:?}", self.addr, msg);
+ 
++        if let Message::Extended(ExtendedMessage::UtPex(pex)) = &msg {
++            // Bound untrusted introductions; metadata discovery deduplicates globally.
++            for peer in pex.added_peers().take(50) {
++                if peer.addr.port() != 0 && !peer.addr.ip().is_unspecified() && !peer.addr.ip().is_multicast() {
++                    let _ = self.pex_tx.try_send(peer.addr);
++                }
++            }
++        }
+         if let Message::Extended(ExtendedMessage::UtMetadata(UtMetadata::Data(utdata))) = msg {
+             let piece_ready = self
+                 .locked
+                 .write()
+                 .as_mut()
+-                .unwrap()
++                .ok_or_else(|| anyhow::anyhow!("metadata data before extended handshake"))?
+                 .record_piece(&utdata, &self.info_hash)?;
++            if let Some(progress) = &self.progress { progress.metadata_block(); }
+             if piece_ready {
+                 let buf = Bytes::from(self.locked.write().take().unwrap().buffer);
+                 let info = from_bytes::<TorrentMetaV1Info<ByteBuf>>(&buf)
+@@ -223,6 +247,12 @@
+         &self,
+         extended_handshake: &ExtendedHandshake<ByteBuf>,
+     ) -> anyhow::Result<()> {
++        if (extended_handshake.metadata_size.is_none() || extended_handshake.m.ut_metadata.is_none())
++            && extended_handshake.m.ut_pex.is_some() {
++            // A peer still resolving metadata can introduce a usable metadata source.
++            return Ok(());
++        }
++        if self.locked.read().is_some() { return Ok(()); }
+         let metadata_size = match extended_handshake.metadata_size {
+             Some(metadata_size) => metadata_size,
+             None => anyhow::bail!("peer does not have metadata_size"),
+@@ -241,6 +271,8 @@
+         let total_pieces = inner.total_pieces;
+ 
+         self.locked.write().replace(inner);
++        self.stage.store(2, Ordering::Relaxed);
++        if let Some(progress) = &self.progress { progress.metadata_ready(); }
+ 
+         for i in 0..total_pieces {
+             self.writer_tx

@@ -5,6 +5,21 @@ import Testing
 @Suite
 struct TorrentDisplayFormatTests {
     @Test
+    func cachedDHTContactsDoNotImplyNetworkHealth() {
+        let cold = TorrentNetworkStats(dhtNodesV4: 100, dhtNodesV6: 20, dhtOutstanding: 3,
+            transports: [], liveTCP: 0, liveUTP: 0, dhtQueries: 3)
+        #expect(cold.dhtStatus == "No replies yet")
+        let warm = TorrentNetworkStats(dhtNodesV4: 100, dhtNodesV6: 20, dhtOutstanding: 3,
+            transports: [], liveTCP: 0, liveUTP: 0, dhtQueries: 3, dhtResponses: 1,
+            dhtLastResponseAgeSeconds: 2)
+        #expect(warm.dhtStatus == "Responding")
+        let stale = TorrentNetworkStats(dhtNodesV4: 100, dhtNodesV6: 20, dhtOutstanding: 0,
+            transports: [], liveTCP: 0, liveUTP: 0, dhtQueries: 10, dhtResponses: 1,
+            dhtLastResponseAgeSeconds: 600)
+        #expect(stale.dhtStatus == "No recent replies")
+    }
+
+    @Test
     func formatsCommonTorrentValues() {
         let torrent = Torrent(
             name: "Ubuntu Desktop ISO",

@@ -619,11 +619,12 @@ open class SweepEngine: SweepEngineProtocol, @unchecked Sendable {
     public func uniffiCloneHandle() -> UInt64 {
         return try! rustCall { uniffi_sweep_rqbit_fn_clone_sweepengine(self.handle, $0) }
     }
-public convenience init(downloadDir: String)throws  {
+public convenience init(downloadDir: String, stateDir: String)throws  {
     let handle =
         try rustCallWithError(FfiConverterTypeSweepError_lift) {
     uniffi_sweep_rqbit_fn_constructor_sweepengine_new(
-        FfiConverterString.lower(downloadDir),$0
+        FfiConverterString.lower(downloadDir),
+        FfiConverterString.lower(stateDir),$0
     )
 }
     self.init(unsafeFromHandle: handle)
@@ -850,6 +851,68 @@ public func FfiConverterTypeSweepEngine_lower(_ value: SweepEngine) -> UInt64 {
 
 
 
+public struct DhtBootstrapSnapshot: Equatable, Hashable {
+    public var address: String
+    public var resolvedAddresses: UInt64
+    public var attempts: UInt64
+    public var lastError: String?
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(address: String, resolvedAddresses: UInt64, attempts: UInt64, lastError: String?) {
+        self.address = address
+        self.resolvedAddresses = resolvedAddresses
+        self.attempts = attempts
+        self.lastError = lastError
+    }
+
+
+
+
+}
+
+#if compiler(>=6)
+extension DhtBootstrapSnapshot: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeDhtBootstrapSnapshot: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> DhtBootstrapSnapshot {
+        return
+            try DhtBootstrapSnapshot(
+                address: FfiConverterString.read(from: &buf),
+                resolvedAddresses: FfiConverterUInt64.read(from: &buf),
+                attempts: FfiConverterUInt64.read(from: &buf),
+                lastError: FfiConverterOptionString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: DhtBootstrapSnapshot, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.address, into: &buf)
+        FfiConverterUInt64.write(value.resolvedAddresses, into: &buf)
+        FfiConverterUInt64.write(value.attempts, into: &buf)
+        FfiConverterOptionString.write(value.lastError, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeDhtBootstrapSnapshot_lift(_ buf: RustBuffer) throws -> DhtBootstrapSnapshot {
+    return try FfiConverterTypeDhtBootstrapSnapshot.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeDhtBootstrapSnapshot_lower(_ value: DhtBootstrapSnapshot) -> RustBuffer {
+    return FfiConverterTypeDhtBootstrapSnapshot.lower(value)
+}
+
+
 public struct DiscoverySnapshot: Equatable, Hashable {
     public var infoHash: String
     public var isActive: Bool
@@ -859,11 +922,24 @@ public struct DiscoverySnapshot: Equatable, Hashable {
     public var peersActive: UInt64
     public var peersFailed: UInt64
     public var lastPeerError: String?
+    public var attempt: UInt64
+    public var retryInSeconds: UInt64?
+    public var socketsConnected: UInt64
+    public var handshakesCompleted: UInt64
+    public var metadataPeers: UInt64
+    public var metadataBlocks: UInt64
+    public var connectFailures: UInt64
+    public var handshakeFailures: UInt64
+    public var metadataFailures: UInt64
+    public var trackerCandidates: UInt64
+    public var dhtCandidates: UInt64
+    public var pexCandidates: UInt64
+    public var otherCandidates: UInt64
     public var trackers: [TorrentTrackerSnapshot]
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(infoHash: String, isActive: Bool, elapsedSeconds: UInt64, peersFound: UInt64, peersTried: UInt64, peersActive: UInt64, peersFailed: UInt64, lastPeerError: String?, trackers: [TorrentTrackerSnapshot]) {
+    public init(infoHash: String, isActive: Bool, elapsedSeconds: UInt64, peersFound: UInt64, peersTried: UInt64, peersActive: UInt64, peersFailed: UInt64, lastPeerError: String?, attempt: UInt64, retryInSeconds: UInt64?, socketsConnected: UInt64, handshakesCompleted: UInt64, metadataPeers: UInt64, metadataBlocks: UInt64, connectFailures: UInt64, handshakeFailures: UInt64, metadataFailures: UInt64, trackerCandidates: UInt64, dhtCandidates: UInt64, pexCandidates: UInt64, otherCandidates: UInt64, trackers: [TorrentTrackerSnapshot]) {
         self.infoHash = infoHash
         self.isActive = isActive
         self.elapsedSeconds = elapsedSeconds
@@ -872,6 +948,19 @@ public struct DiscoverySnapshot: Equatable, Hashable {
         self.peersActive = peersActive
         self.peersFailed = peersFailed
         self.lastPeerError = lastPeerError
+        self.attempt = attempt
+        self.retryInSeconds = retryInSeconds
+        self.socketsConnected = socketsConnected
+        self.handshakesCompleted = handshakesCompleted
+        self.metadataPeers = metadataPeers
+        self.metadataBlocks = metadataBlocks
+        self.connectFailures = connectFailures
+        self.handshakeFailures = handshakeFailures
+        self.metadataFailures = metadataFailures
+        self.trackerCandidates = trackerCandidates
+        self.dhtCandidates = dhtCandidates
+        self.pexCandidates = pexCandidates
+        self.otherCandidates = otherCandidates
         self.trackers = trackers
     }
 
@@ -899,6 +988,19 @@ public struct FfiConverterTypeDiscoverySnapshot: FfiConverterRustBuffer {
                 peersActive: FfiConverterUInt64.read(from: &buf),
                 peersFailed: FfiConverterUInt64.read(from: &buf),
                 lastPeerError: FfiConverterOptionString.read(from: &buf),
+                attempt: FfiConverterUInt64.read(from: &buf),
+                retryInSeconds: FfiConverterOptionUInt64.read(from: &buf),
+                socketsConnected: FfiConverterUInt64.read(from: &buf),
+                handshakesCompleted: FfiConverterUInt64.read(from: &buf),
+                metadataPeers: FfiConverterUInt64.read(from: &buf),
+                metadataBlocks: FfiConverterUInt64.read(from: &buf),
+                connectFailures: FfiConverterUInt64.read(from: &buf),
+                handshakeFailures: FfiConverterUInt64.read(from: &buf),
+                metadataFailures: FfiConverterUInt64.read(from: &buf),
+                trackerCandidates: FfiConverterUInt64.read(from: &buf),
+                dhtCandidates: FfiConverterUInt64.read(from: &buf),
+                pexCandidates: FfiConverterUInt64.read(from: &buf),
+                otherCandidates: FfiConverterUInt64.read(from: &buf),
                 trackers: FfiConverterSequenceTypeTorrentTrackerSnapshot.read(from: &buf)
         )
     }
@@ -912,6 +1014,19 @@ public struct FfiConverterTypeDiscoverySnapshot: FfiConverterRustBuffer {
         FfiConverterUInt64.write(value.peersActive, into: &buf)
         FfiConverterUInt64.write(value.peersFailed, into: &buf)
         FfiConverterOptionString.write(value.lastPeerError, into: &buf)
+        FfiConverterUInt64.write(value.attempt, into: &buf)
+        FfiConverterOptionUInt64.write(value.retryInSeconds, into: &buf)
+        FfiConverterUInt64.write(value.socketsConnected, into: &buf)
+        FfiConverterUInt64.write(value.handshakesCompleted, into: &buf)
+        FfiConverterUInt64.write(value.metadataPeers, into: &buf)
+        FfiConverterUInt64.write(value.metadataBlocks, into: &buf)
+        FfiConverterUInt64.write(value.connectFailures, into: &buf)
+        FfiConverterUInt64.write(value.handshakeFailures, into: &buf)
+        FfiConverterUInt64.write(value.metadataFailures, into: &buf)
+        FfiConverterUInt64.write(value.trackerCandidates, into: &buf)
+        FfiConverterUInt64.write(value.dhtCandidates, into: &buf)
+        FfiConverterUInt64.write(value.pexCandidates, into: &buf)
+        FfiConverterUInt64.write(value.otherCandidates, into: &buf)
         FfiConverterSequenceTypeTorrentTrackerSnapshot.write(value.trackers, into: &buf)
     }
 }
@@ -936,16 +1051,28 @@ public struct NetworkSnapshot: Equatable, Hashable {
     public var dhtNodesV4: UInt64?
     public var dhtNodesV6: UInt64?
     public var dhtOutstanding: UInt64?
+    public var dhtQueries: UInt64
+    public var dhtResponses: UInt64
+    public var dhtTimeouts: UInt64
+    public var dhtLastResponseAgeSeconds: UInt64?
+    public var dhtBootstrap: [DhtBootstrapSnapshot]
+    public var dhtPersistenceError: String?
     public var transports: [TransportSnapshot]
     public var liveTcp: UInt32
     public var liveUtp: UInt32
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(dhtNodesV4: UInt64?, dhtNodesV6: UInt64?, dhtOutstanding: UInt64?, transports: [TransportSnapshot], liveTcp: UInt32, liveUtp: UInt32) {
+    public init(dhtNodesV4: UInt64?, dhtNodesV6: UInt64?, dhtOutstanding: UInt64?, dhtQueries: UInt64, dhtResponses: UInt64, dhtTimeouts: UInt64, dhtLastResponseAgeSeconds: UInt64?, dhtBootstrap: [DhtBootstrapSnapshot], dhtPersistenceError: String?, transports: [TransportSnapshot], liveTcp: UInt32, liveUtp: UInt32) {
         self.dhtNodesV4 = dhtNodesV4
         self.dhtNodesV6 = dhtNodesV6
         self.dhtOutstanding = dhtOutstanding
+        self.dhtQueries = dhtQueries
+        self.dhtResponses = dhtResponses
+        self.dhtTimeouts = dhtTimeouts
+        self.dhtLastResponseAgeSeconds = dhtLastResponseAgeSeconds
+        self.dhtBootstrap = dhtBootstrap
+        self.dhtPersistenceError = dhtPersistenceError
         self.transports = transports
         self.liveTcp = liveTcp
         self.liveUtp = liveUtp
@@ -970,6 +1097,12 @@ public struct FfiConverterTypeNetworkSnapshot: FfiConverterRustBuffer {
                 dhtNodesV4: FfiConverterOptionUInt64.read(from: &buf),
                 dhtNodesV6: FfiConverterOptionUInt64.read(from: &buf),
                 dhtOutstanding: FfiConverterOptionUInt64.read(from: &buf),
+                dhtQueries: FfiConverterUInt64.read(from: &buf),
+                dhtResponses: FfiConverterUInt64.read(from: &buf),
+                dhtTimeouts: FfiConverterUInt64.read(from: &buf),
+                dhtLastResponseAgeSeconds: FfiConverterOptionUInt64.read(from: &buf),
+                dhtBootstrap: FfiConverterSequenceTypeDhtBootstrapSnapshot.read(from: &buf),
+                dhtPersistenceError: FfiConverterOptionString.read(from: &buf),
                 transports: FfiConverterSequenceTypeTransportSnapshot.read(from: &buf),
                 liveTcp: FfiConverterUInt32.read(from: &buf),
                 liveUtp: FfiConverterUInt32.read(from: &buf)
@@ -980,6 +1113,12 @@ public struct FfiConverterTypeNetworkSnapshot: FfiConverterRustBuffer {
         FfiConverterOptionUInt64.write(value.dhtNodesV4, into: &buf)
         FfiConverterOptionUInt64.write(value.dhtNodesV6, into: &buf)
         FfiConverterOptionUInt64.write(value.dhtOutstanding, into: &buf)
+        FfiConverterUInt64.write(value.dhtQueries, into: &buf)
+        FfiConverterUInt64.write(value.dhtResponses, into: &buf)
+        FfiConverterUInt64.write(value.dhtTimeouts, into: &buf)
+        FfiConverterOptionUInt64.write(value.dhtLastResponseAgeSeconds, into: &buf)
+        FfiConverterSequenceTypeDhtBootstrapSnapshot.write(value.dhtBootstrap, into: &buf)
+        FfiConverterOptionString.write(value.dhtPersistenceError, into: &buf)
         FfiConverterSequenceTypeTransportSnapshot.write(value.transports, into: &buf)
         FfiConverterUInt32.write(value.liveTcp, into: &buf)
         FfiConverterUInt32.write(value.liveUtp, into: &buf)
@@ -1830,6 +1969,31 @@ fileprivate struct FfiConverterSequenceString: FfiConverterRustBuffer {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterSequenceTypeDhtBootstrapSnapshot: FfiConverterRustBuffer {
+    typealias SwiftType = [DhtBootstrapSnapshot]
+
+    public static func write(_ value: [DhtBootstrapSnapshot], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeDhtBootstrapSnapshot.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [DhtBootstrapSnapshot] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [DhtBootstrapSnapshot]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeDhtBootstrapSnapshot.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterSequenceTypeDiscoverySnapshot: FfiConverterRustBuffer {
     typealias SwiftType = [DiscoverySnapshot]
 
@@ -2098,7 +2262,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_sweep_rqbit_checksum_method_sweepengine_update_only_files() != 11478) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_sweep_rqbit_checksum_constructor_sweepengine_new() != 26636) {
+    if (uniffi_sweep_rqbit_checksum_constructor_sweepengine_new() != 60817) {
         return InitializationResult.apiChecksumMismatch
     }
 

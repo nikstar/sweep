@@ -255,7 +255,7 @@ void uniffi_sweep_rqbit_fn_free_sweepengine(uint64_t handle, RustCallStatus *_No
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_SWEEP_RQBIT_FN_CONSTRUCTOR_SWEEPENGINE_NEW
 #define UNIFFI_FFIDEF_UNIFFI_SWEEP_RQBIT_FN_CONSTRUCTOR_SWEEPENGINE_NEW
-uint64_t uniffi_sweep_rqbit_fn_constructor_sweepengine_new(RustBuffer download_dir, RustCallStatus *_Nonnull out_status
+uint64_t uniffi_sweep_rqbit_fn_constructor_sweepengine_new(RustBuffer download_dir, RustBuffer state_dir, RustCallStatus *_Nonnull out_status
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_SWEEP_RQBIT_FN_METHOD_SWEEPENGINE_ADD_MAGNET

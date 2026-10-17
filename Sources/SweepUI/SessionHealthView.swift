@@ -32,8 +32,31 @@ public struct SessionHealthView: View {
                 Divider()
                 Text("Network · This Session").font(.headline)
                 if let nodes = network.dhtNodesV4 {
+                    LabeledContent("DHT", value: network.dhtStatus)
                     LabeledContent("DHT nodes", value: "\(nodes) IPv4 · \(network.dhtNodesV6 ?? 0) IPv6")
+                    LabeledContent("DHT queries / replies", value: "\(network.dhtQueries) / \(network.dhtResponses)")
+                    LabeledContent("DHT timeouts", value: "\(network.dhtTimeouts)")
                     LabeledContent("DHT requests in flight", value: "\(network.dhtOutstanding ?? 0)")
+                    if let seconds = network.dhtLastResponseAgeSeconds {
+                        LabeledContent("Last DHT reply", value: "\(seconds)s ago")
+                    }
+                    DisclosureGroup("DHT bootstrap") {
+                        ForEach(network.dhtBootstrap, id: \.address) { bootstrap in
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(bootstrap.address).textSelection(.enabled)
+                                Text("Addresses: \(bootstrap.resolvedAddresses) · Attempts: \(bootstrap.attempts)")
+                                    .foregroundStyle(.secondary)
+                                if let error = bootstrap.lastError {
+                                    Text("Last error: \(error)").foregroundStyle(.orange).textSelection(.enabled)
+                                }
+                            }.font(.caption).frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        Text("Bootstrap servers introduce other DHT nodes. Saved contacts are reused after relaunch and checked again.")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                    if let error = network.dhtPersistenceError {
+                        Text("Could not save DHT contacts: \(error)").foregroundStyle(.orange).textSelection(.enabled)
+                    }
                 } else {
                     LabeledContent("DHT", value: "Disabled")
                 }

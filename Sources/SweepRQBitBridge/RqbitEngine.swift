@@ -14,9 +14,12 @@ public final class RqbitEngine: TorrentEngine, @unchecked Sendable {
         }
     }
 
-    public init(downloadDirectory: String) throws {
+    public init(downloadDirectory: String, stateDirectory: String? = nil) throws {
         do {
-            self.engine = try SweepEngine(downloadDir: downloadDirectory)
+            let stateDirectory = try stateDirectory ?? FileManager.default.url(
+                for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true
+            ).appending(path: "Sweep/Network", directoryHint: .isDirectory).path
+            self.engine = try SweepEngine(downloadDir: downloadDirectory, stateDir: stateDirectory)
         } catch SweepError.Message(message: let message) {
             throw RqbitEngineError(message: message)
         }
@@ -121,7 +124,20 @@ public final class RqbitEngine: TorrentEngine, @unchecked Sendable {
                 id: $0.infoHash, isActive: $0.isActive, elapsedSeconds: $0.elapsedSeconds,
                 peersFound: $0.peersFound, peersTried: $0.peersTried,
                 peersActive: $0.peersActive, peersFailed: $0.peersFailed,
-                lastPeerError: $0.lastPeerError, trackers: $0.trackers.map(TorrentTracker.init(snapshot:))
+                lastPeerError: $0.lastPeerError, trackers: $0.trackers.map(TorrentTracker.init(snapshot:)),
+                retryInSeconds: $0.retryInSeconds,
+                attempt: $0.attempt,
+                socketsConnected: $0.socketsConnected,
+                handshakesCompleted: $0.handshakesCompleted,
+                metadataPeers: $0.metadataPeers,
+                metadataBlocks: $0.metadataBlocks,
+                connectFailures: $0.connectFailures,
+                handshakeFailures: $0.handshakeFailures,
+                metadataFailures: $0.metadataFailures,
+                trackerCandidates: $0.trackerCandidates,
+                dhtCandidates: $0.dhtCandidates,
+                pexCandidates: $0.pexCandidates,
+                otherCandidates: $0.otherCandidates
             )
         }
     }
@@ -263,7 +279,16 @@ private extension TorrentSessionStats {
                     TorrentTransportStats(name: $0.name, attempts: $0.attempts, connected: $0.connected, failed: $0.failed)
                 },
                 liveTCP: snapshot.network.liveTcp,
-                liveUTP: snapshot.network.liveUtp
+                liveUTP: snapshot.network.liveUtp,
+                dhtQueries: snapshot.network.dhtQueries,
+                dhtResponses: snapshot.network.dhtResponses,
+                dhtTimeouts: snapshot.network.dhtTimeouts,
+                dhtLastResponseAgeSeconds: snapshot.network.dhtLastResponseAgeSeconds,
+                dhtBootstrap: snapshot.network.dhtBootstrap.map {
+                    DHTBootstrapStats(address: $0.address, resolvedAddresses: $0.resolvedAddresses,
+                                      attempts: $0.attempts, lastError: $0.lastError)
+                },
+                dhtPersistenceError: snapshot.network.dhtPersistenceError
             )
         )
     }

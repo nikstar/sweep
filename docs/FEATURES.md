@@ -90,6 +90,33 @@ Earlier details improvements:
   it. The Mac Release and unsigned iOS device builds pass. Installation and
   relaunch of the signed local Mac app were verified.
 
+## Discovery Reliability, October 17, 2026
+
+- Metadata discovery now retries after a 90-second attempt, with 15/30/60/120-second
+  backoff. Pausing or removing a pending magnet cancels both the active attempt
+  and any scheduled retry. The inspector shows the attempt and countdown rather
+  than treating a temporary lack of reachable peers as a permanent torrent error.
+- The shared inspector separates tracker/DHT/PEX candidates, connected sockets,
+  BitTorrent handshakes, metadata-capable peers, metadata blocks, and failures at
+  each stage. Candidate sources can overlap; counts reset for each attempt.
+- PEX introductions are consumed while resolving metadata, including from peers
+  that support PEX but do not have metadata themselves. Candidate queues and
+  per-source sets are bounded, and duplicate endpoints are suppressed per attempt.
+- DHT routing tables are saved under Application Support/Sweep/Network and reused
+  on launch. Both address families are restored, writes flush before replacement,
+  and the UDP socket binds an available port. Fixed a duplicate-query bug that
+  discarded a successful DHT reply and queried the same node again.
+- Session Health distinguishes cached contacts from current reachability, with
+  query/reply/timeout counts, last reply age, bootstrap DNS address counts and
+  failures, and persistence errors. Two DNS bootstrap names resolving to three
+  addresses are a starting set, not a cap on the routing table.
+- Local regressions verify cancellation during backoff, PEX-assisted metadata
+  resolution, a single DHT response being sufficient, and IPv4/IPv6 cache reload.
+  Shared Swift tests cover retry presentation and cached nodes without replies.
+- On the existing Mac VPN path, the iOS 26 simulator still receives no DHT replies.
+  This establishes an observed network symptom, not which layer is filtering it
+  or whether the phone's path behaves identically. The VPN was unchanged.
+
 ## Magnet Connectivity Investigation, October 15, 2026
 
 Investigated the phone report for v1 info hash

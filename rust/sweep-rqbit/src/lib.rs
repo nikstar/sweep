@@ -111,10 +111,24 @@ pub struct TransportSnapshot {
 }
 
 #[derive(Debug, Clone, uniffi::Record)]
+pub struct DhtBootstrapSnapshot {
+    pub address: String,
+    pub resolved_addresses: u64,
+    pub attempts: u64,
+    pub last_error: Option<String>,
+}
+
+#[derive(Debug, Clone, uniffi::Record)]
 pub struct NetworkSnapshot {
     pub dht_nodes_v4: Option<u64>,
     pub dht_nodes_v6: Option<u64>,
     pub dht_outstanding: Option<u64>,
+    pub dht_queries: u64,
+    pub dht_responses: u64,
+    pub dht_timeouts: u64,
+    pub dht_last_response_age_seconds: Option<u64>,
+    pub dht_bootstrap: Vec<DhtBootstrapSnapshot>,
+    pub dht_persistence_error: Option<String>,
     pub transports: Vec<TransportSnapshot>,
     pub live_tcp: u32,
     pub live_utp: u32,
@@ -164,11 +178,46 @@ pub struct DiscoverySnapshot {
     pub peers_active: u64,
     pub peers_failed: u64,
     pub last_peer_error: Option<String>,
+    pub attempt: u64,
+    pub retry_in_seconds: Option<u64>,
+    pub sockets_connected: u64,
+    pub handshakes_completed: u64,
+    pub metadata_peers: u64,
+    pub metadata_blocks: u64,
+    pub connect_failures: u64,
+    pub handshake_failures: u64,
+    pub metadata_failures: u64,
+    pub tracker_candidates: u64,
+    pub dht_candidates: u64,
+    pub pex_candidates: u64,
+    pub other_candidates: u64,
     pub trackers: Vec<TorrentTrackerSnapshot>,
 }
 
+#[derive(Clone, Copy)]
+struct MetadataRetryPolicy {
+    attempt_timeout: Duration,
+    initial_backoff: Duration,
+    max_backoff: Duration,
+}
+impl Default for MetadataRetryPolicy {
+    fn default() -> Self {
+        Self {
+            attempt_timeout: Duration::from_secs(90),
+            initial_backoff: Duration::from_secs(15),
+            max_backoff: Duration::from_secs(120),
+        }
+    }
+}
+
+struct DiscoveryRetry {
+    attempt: u64,
+    retry_at: Option<Instant>,
+}
+
 struct Discovery {
-    progress: MetadataProgress,
+    progress: Mutex<MetadataProgress>,
+    retry: Mutex<DiscoveryRetry>,
     tracker_urls: BTreeSet<String>,
     started: Instant,
     finished: Mutex<Option<Instant>>,
@@ -180,6 +229,7 @@ pub struct SweepEngine {
     session: Arc<Session>,
     peer_id: Id20,
     pending_adds: Mutex<HashMap<String, tokio::task::AbortHandle>>,
+    retry_policy: MetadataRetryPolicy,
     discoveries: Mutex<HashMap<String, Arc<Discovery>>>,
 }
 
@@ -206,6 +256,7 @@ impl SweepEngine {
             session,
             peer_id,
             pending_adds: Mutex::new(HashMap::new()),
+            retry_policy: MetadataRetryPolicy::default(),
             discoveries: Mutex::new(HashMap::new()),
         }))
     }
@@ -214,11 +265,18 @@ impl SweepEngine {
 #[uniffi::export]
 impl SweepEngine {
     #[uniffi::constructor]
-    pub fn new(download_dir: String) -> Result<Arc<Self>, SweepError> {
+    pub fn new(download_dir: String, state_dir: String) -> Result<Arc<Self>, SweepError> {
         Self::with_session_options(
             download_dir,
             SessionOptions {
-                disable_dht_persistence: true,
+                dht_config: Some(librqbit::dht::PersistentDhtConfig {
+                    config_filename: Some(PathBuf::from(state_dir).join("dht.json")),
+                    // Frequent small atomic snapshots survive iOS suspension/termination.
+                    dump_interval: Some(Duration::from_secs(15)),
+                    // Rebinding the old ephemeral port can fail after a relaunch.
+                    port: Some(0),
+                    ..Default::default()
+                }),
                 listen: Some(ListenerOptions {
                     mode: ListenerMode::TcpAndUtp,
                     ..Default::default()
@@ -245,7 +303,11 @@ impl SweepEngine {
         let runtime = self.runtime.handle().clone();
         let (tx, rx) = oneshot::channel();
         let discovery = Arc::new(Discovery {
-            progress: MetadataProgress::default(),
+            progress: Mutex::new(MetadataProgress::default()),
+            retry: Mutex::new(DiscoveryRetry {
+                attempt: 1,
+                retry_at: None,
+            }),
             tracker_urls: parsed
                 .trackers
                 .into_iter()
@@ -264,23 +326,41 @@ impl SweepEngine {
             .insert(info_hash.clone(), discovery.clone());
         let task_discovery = discovery.clone();
 
+        let retry_policy = self.retry_policy;
         let task = runtime.spawn(async move {
-            let result = tokio::time::timeout(
-                Duration::from_secs(90),
-                add_torrent_with_progress(
-                    session,
-                    AddTorrent::from_url(magnet),
-                    download_dir,
-                    start_paused,
-                    create_subfolder,
-                    Vec::new(),
-                    Some(task_discovery.progress.clone()),
-                ),
-            )
-            .await
-            .unwrap_or_else(|_| Err(SweepError::Message(
-                "No torrent metadata received after 90 seconds. Peers may be unreachable or incompatible.".to_owned(),
-            )));
+            let mut backoff = retry_policy.initial_backoff;
+            let result = loop {
+                let progress = task_discovery.progress.lock().unwrap().clone();
+                match tokio::time::timeout(
+                    retry_policy.attempt_timeout,
+                    add_torrent_with_progress(
+                        session.clone(),
+                        AddTorrent::from_url(magnet.clone()),
+                        download_dir.clone(),
+                        start_paused,
+                        create_subfolder,
+                        Vec::new(),
+                        Some(progress),
+                    ),
+                )
+                .await
+                {
+                    Ok(result) => break result,
+                    Err(_) => {
+                        // Network discovery is recoverable. Keep the intent and the
+                        // last attempt's diagnostics while backing off; abort cancels sleep too.
+                        task_discovery.retry.lock().unwrap().retry_at =
+                            Some(Instant::now() + backoff);
+                        tokio::time::sleep(backoff).await;
+                        let mut progress = task_discovery.progress.lock().unwrap();
+                        *progress = MetadataProgress::default();
+                        let mut retry = task_discovery.retry.lock().unwrap();
+                        retry.attempt += 1;
+                        retry.retry_at = None;
+                        backoff = backoff.saturating_mul(2).min(retry_policy.max_backoff);
+                    }
+                }
+            };
             *task_discovery.finished.lock().unwrap() = Some(Instant::now());
             let _ = tx.send(result);
         });
@@ -328,10 +408,11 @@ impl SweepEngine {
             .unwrap()
             .iter()
             .map(|(id, discovery)| {
-                let stats = discovery.progress.snapshot();
+                let progress = discovery.progress.lock().unwrap();
+                let stats = progress.snapshot();
+                let retry = discovery.retry.lock().unwrap();
                 let finished = *discovery.finished.lock().unwrap();
-                let tracker_stats = discovery
-                    .progress
+                let tracker_stats = progress
                     .trackers
                     .snapshot()
                     .into_iter()
@@ -359,6 +440,23 @@ impl SweepEngine {
                     peers_active: if finished.is_none() { stats.active } else { 0 },
                     peers_failed: stats.failed,
                     last_peer_error: stats.last_error,
+                    attempt: retry.attempt,
+                    retry_in_seconds: retry.retry_at.map(|at| {
+                        at.saturating_duration_since(Instant::now())
+                            .as_secs()
+                            .saturating_add(1)
+                    }),
+                    sockets_connected: stats.sockets_connected,
+                    handshakes_completed: stats.handshakes_completed,
+                    metadata_peers: stats.metadata_peers,
+                    metadata_blocks: stats.metadata_blocks,
+                    connect_failures: stats.connect_failures,
+                    handshake_failures: stats.handshake_failures,
+                    metadata_failures: stats.metadata_failures,
+                    tracker_candidates: stats.tracker_candidates,
+                    dht_candidates: stats.dht_candidates,
+                    pex_candidates: stats.pex_candidates,
+                    other_candidates: stats.other_candidates,
                     trackers,
                 }
             })
@@ -1086,6 +1184,25 @@ fn snapshot_session(session: &Arc<Session>) -> TorrentSessionSnapshot {
             dht_nodes_v4: dht.as_ref().map(|s| s.routing_table_size as u64),
             dht_nodes_v6: dht.as_ref().map(|s| s.routing_table_size_v6 as u64),
             dht_outstanding: dht.as_ref().map(|s| s.outstanding_requests as u64),
+            dht_queries: dht.as_ref().map_or(0, |s| s.queries),
+            dht_responses: dht.as_ref().map_or(0, |s| s.responses),
+            dht_timeouts: dht.as_ref().map_or(0, |s| s.timeouts),
+            dht_last_response_age_seconds: dht.as_ref().and_then(|s| s.last_response_age_seconds),
+            dht_bootstrap: dht
+                .as_ref()
+                .map(|s| {
+                    s.bootstrap
+                        .iter()
+                        .map(|b| DhtBootstrapSnapshot {
+                            address: b.address.clone(),
+                            resolved_addresses: b.resolved_addresses as u64,
+                            attempts: b.attempts,
+                            last_error: b.last_error.clone(),
+                        })
+                        .collect()
+                })
+                .unwrap_or_default(),
+            dht_persistence_error: dht.as_ref().and_then(|s| s.persistence_error.clone()),
             transports: [
                 ("TCP IPv4", &stats.connections.tcp.v4),
                 ("TCP IPv6", &stats.connections.tcp.v6),

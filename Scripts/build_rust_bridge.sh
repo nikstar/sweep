@@ -316,6 +316,11 @@ apply_rqbit_patches() {
     "resolved output folder" \
     "crates/librqbit/src/torrent_state/mod.rs" \
     "pub fn output_folder"
+  apply_rqbit_patch_if_missing \
+    "$ROOT_DIR/rust/patches/rqbit-discovery-reliability.patch" \
+    "DHT persistence and metadata discovery diagnostics" \
+    "crates/librqbit/src/metadata_progress.rs" \
+    "pub metadata_peers:"
 }
 
 ensure_rqbit_checkout() {

@@ -14,21 +14,58 @@ public struct TorrentTransportStats: Hashable, Codable, Sendable {
     }
 }
 
+public struct DHTBootstrapStats: Hashable, Codable, Sendable {
+    public let address: String
+    public let resolvedAddresses: UInt64
+    public let attempts: UInt64
+    public let lastError: String?
+
+    public init(address: String, resolvedAddresses: UInt64, attempts: UInt64, lastError: String?) {
+        self.address = address
+        self.resolvedAddresses = resolvedAddresses
+        self.attempts = attempts
+        self.lastError = lastError
+    }
+}
+
 /// Cumulative transport counters for this engine session. A connected socket
 /// does not imply a successful BitTorrent handshake or payload transfer.
 public struct TorrentNetworkStats: Hashable, Codable, Sendable {
     public let dhtNodesV4: UInt64?
     public let dhtNodesV6: UInt64?
     public let dhtOutstanding: UInt64?
+    public let dhtQueries: UInt64
+    public let dhtResponses: UInt64
+    public let dhtTimeouts: UInt64
+    public let dhtLastResponseAgeSeconds: UInt64?
+    public let dhtBootstrap: [DHTBootstrapStats]
+    public let dhtPersistenceError: String?
+
+    public var dhtStatus: String {
+        guard dhtNodesV4 != nil else { return "Disabled" }
+        guard let age = dhtLastResponseAgeSeconds else {
+            return dhtQueries == 0 ? "Starting" : "No replies yet"
+        }
+        return age < 300 ? "Responding" : "No recent replies"
+    }
     public let transports: [TorrentTransportStats]
     public let liveTCP: UInt32
     public let liveUTP: UInt32
 
     public init(dhtNodesV4: UInt64?, dhtNodesV6: UInt64?, dhtOutstanding: UInt64?,
-                transports: [TorrentTransportStats], liveTCP: UInt32, liveUTP: UInt32) {
+                transports: [TorrentTransportStats], liveTCP: UInt32, liveUTP: UInt32,
+                dhtQueries: UInt64 = 0, dhtResponses: UInt64 = 0, dhtTimeouts: UInt64 = 0,
+                dhtLastResponseAgeSeconds: UInt64? = nil, dhtBootstrap: [DHTBootstrapStats] = [],
+                dhtPersistenceError: String? = nil) {
         self.dhtNodesV4 = dhtNodesV4
         self.dhtNodesV6 = dhtNodesV6
         self.dhtOutstanding = dhtOutstanding
+        self.dhtQueries = dhtQueries
+        self.dhtResponses = dhtResponses
+        self.dhtTimeouts = dhtTimeouts
+        self.dhtLastResponseAgeSeconds = dhtLastResponseAgeSeconds
+        self.dhtBootstrap = dhtBootstrap
+        self.dhtPersistenceError = dhtPersistenceError
         self.transports = transports
         self.liveTCP = liveTCP
         self.liveUTP = liveUTP
@@ -45,11 +82,36 @@ public struct TorrentDiscovery: Sendable, Equatable {
     public var peersActive: UInt64
     public let peersFailed: UInt64
     public let lastPeerError: String?
+    public let retryInSeconds: UInt64?
+    public let attempt: UInt64
+    public let socketsConnected: UInt64
+    public let handshakesCompleted: UInt64
+    public let metadataPeers: UInt64
+    public let metadataBlocks: UInt64
+    public let connectFailures: UInt64
+    public let handshakeFailures: UInt64
+    public let metadataFailures: UInt64
+    public let trackerCandidates: UInt64
+    public let dhtCandidates: UInt64
+    public let pexCandidates: UInt64
+    public let otherCandidates: UInt64
     public let trackers: [TorrentTracker]
 
     public init(id: Torrent.ID, isActive: Bool, elapsedSeconds: UInt64, peersFound: UInt64,
                 peersTried: UInt64, peersActive: UInt64, peersFailed: UInt64,
-                lastPeerError: String?, trackers: [TorrentTracker]) {
+                lastPeerError: String?, trackers: [TorrentTracker], retryInSeconds: UInt64? = nil,
+                attempt: UInt64 = 1,
+                socketsConnected: UInt64 = 0,
+                handshakesCompleted: UInt64 = 0,
+                metadataPeers: UInt64 = 0,
+                metadataBlocks: UInt64 = 0,
+                connectFailures: UInt64 = 0,
+                handshakeFailures: UInt64 = 0,
+                metadataFailures: UInt64 = 0,
+                trackerCandidates: UInt64 = 0,
+                dhtCandidates: UInt64 = 0,
+                pexCandidates: UInt64 = 0,
+                otherCandidates: UInt64 = 0) {
         self.id = id
         self.isActive = isActive
         self.elapsedSeconds = elapsedSeconds
@@ -58,6 +120,20 @@ public struct TorrentDiscovery: Sendable, Equatable {
         self.peersActive = peersActive
         self.peersFailed = peersFailed
         self.lastPeerError = lastPeerError
+        self.retryInSeconds = retryInSeconds
+        self.attempt = attempt
+        self.socketsConnected = socketsConnected
+        self.handshakesCompleted = handshakesCompleted
+        self.metadataPeers = metadataPeers
+        self.metadataBlocks = metadataBlocks
+        self.connectFailures = connectFailures
+        self.handshakeFailures = handshakeFailures
+        self.metadataFailures = metadataFailures
+        self.trackerCandidates = trackerCandidates
+        self.dhtCandidates = dhtCandidates
+        self.pexCandidates = pexCandidates
+        self.otherCandidates = otherCandidates
+
         self.trackers = trackers
     }
 }

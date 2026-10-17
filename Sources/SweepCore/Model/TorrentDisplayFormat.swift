@@ -7,6 +7,9 @@ public enum TorrentDisplayFormat {
         }
 
         var parts = [torrent.statusLabel]
+        if let discovery, discovery.isActive, let seconds = discovery.retryInSeconds {
+            parts = ["Waiting for peers", "Retry in \(seconds)s"]
+        }
         if let checking = torrent.checkingProgress {
             parts.append("\(TorrentDisplayFormat.percent(checking)) checked")
         }

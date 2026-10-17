@@ -57,6 +57,7 @@ fn local_engine(path: PathBuf) -> Arc<SweepEngine> {
         session,
         peer_id: tracker_compatible_peer_id(),
         pending_adds: Mutex::new(HashMap::new()),
+        retry_policy: MetadataRetryPolicy::default(),
         discoveries: Mutex::new(HashMap::new()),
     })
 }
@@ -456,6 +457,11 @@ fn reports_tracker_and_peer_failures_before_metadata() {
         assert_eq!(snapshot.peers_active, 0);
         assert_eq!(snapshot.peers_failed, 1);
         assert!(snapshot.is_active);
+        assert_eq!(snapshot.tracker_candidates, 1);
+        assert_eq!(snapshot.sockets_connected, 1);
+        assert_eq!(snapshot.handshake_failures, 1);
+        assert_eq!(snapshot.connect_failures, 0);
+        assert_eq!(snapshot.metadata_peers, 0);
         assert!(snapshot.last_peer_error.unwrap().contains("handshake"));
         assert_eq!(snapshot.trackers[0].status, "Working");
         assert_eq!(snapshot.trackers[0].last_peer_count, Some(1));
@@ -469,5 +475,121 @@ fn reports_tracker_and_peer_failures_before_metadata() {
                 .unwrap()
                 .is_err()
         );
+    });
+}
+
+#[test]
+fn metadata_timeout_retries_and_cancellation_stops_the_backoff() {
+    let fixture = Fixture::new();
+    let mut engine = local_engine(fixture.folder("download"));
+    Arc::get_mut(&mut engine).unwrap().retry_policy = MetadataRetryPolicy {
+        attempt_timeout: Duration::from_millis(80),
+        initial_backoff: Duration::from_millis(100),
+        max_backoff: Duration::from_millis(200),
+    };
+    engine.runtime.block_on(async {
+        let tracker = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let id = "0123456789abcdef0123456789abcdef01234567";
+        let magnet = format!(
+            "magnet:?xt=urn:btih:{id}&tr=http://{}/announce",
+            tracker.local_addr().unwrap()
+        );
+        let task_engine = engine.clone();
+        let task = tokio::spawn(async move {
+            task_engine
+                .add_magnet(magnet, "/unused".to_owned(), true, true)
+                .await
+        });
+        tokio::time::timeout(Duration::from_secs(2), async {
+            loop {
+                if let Some(snapshot) = engine.discovery_snapshots().first() {
+                    if snapshot.attempt >= 2 && snapshot.retry_in_seconds.is_some() {
+                        assert!(snapshot.is_active);
+                        assert_eq!(snapshot.peers_active, 0);
+                        break;
+                    }
+                }
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+        })
+        .await
+        .expect("discovery did not retry");
+        engine.cancel_pending_add(id.to_owned());
+        assert!(
+            tokio::time::timeout(Duration::from_secs(1), task)
+                .await
+                .unwrap()
+                .unwrap()
+                .is_err()
+        );
+        tokio::time::sleep(Duration::from_millis(250)).await;
+        assert!(engine.discovery_snapshots().is_empty());
+        assert!(engine.pending_adds.lock().unwrap().is_empty());
+    });
+}
+
+#[test]
+fn metadata_can_be_found_through_pex_from_a_peer_without_metadata() {
+    let fixture = Fixture::new();
+    let seed_dir = fixture.folder("seed");
+    let download_dir = fixture.folder("download");
+    let payload_path = seed_dir.join("payload.bin");
+    fs::write(&payload_path, b"PEX metadata fixture").unwrap();
+    let seed = local_engine(seed_dir);
+    let download = local_engine(download_dir.clone());
+    seed.runtime.block_on(async {
+        let (_, handle) = seed
+            .session
+            .create_and_serve_torrent(&payload_path, librqbit::CreateTorrentOptions::default())
+            .await
+            .unwrap();
+        while !handle.stats().finished {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        let intermediary = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let (tracker, _) = serve_tracker(intermediary.local_addr().unwrap()).await;
+        let seed_addr = seed.session.listen_addr().unwrap();
+        let introduce = tokio::spawn(async move {
+            let (mut socket, _) = intermediary.accept().await.unwrap();
+            let mut handshake = [0u8; 68];
+            socket.read_exact(&mut handshake).await.unwrap();
+            handshake[48..].fill(42);
+            socket.write_all(&handshake).await.unwrap();
+            // This peer has no metadata itself, but can introduce the real seed.
+            let mut extended = vec![20, 0];
+            extended.extend_from_slice(b"d1:md6:ut_pexi1eee");
+            socket.write_u32(extended.len() as u32).await.unwrap();
+            socket.write_all(&extended).await.unwrap();
+            let SocketAddr::V4(addr) = seed_addr else {
+                panic!("IPv4 fixture")
+            };
+            let mut pex = vec![20, 1];
+            pex.extend_from_slice(b"d5:added6:");
+            pex.extend_from_slice(&addr.ip().octets());
+            pex.extend_from_slice(&addr.port().to_be_bytes());
+            pex.push(b'e');
+            socket.write_u32(pex.len() as u32).await.unwrap();
+            socket.write_all(&pex).await.unwrap();
+            tokio::time::sleep(Duration::from_secs(3)).await;
+        });
+        let added = tokio::time::timeout(
+            Duration::from_secs(2),
+            download.add_magnet(
+                format!(
+                    "magnet:?xt=urn:btih:{}&tr={tracker}",
+                    handle.info_hash().as_string()
+                ),
+                download_dir.to_str().unwrap().to_owned(),
+                true,
+                true,
+            ),
+        )
+        .await
+        .expect("PEX introduction should resolve metadata")
+        .unwrap();
+        assert_eq!(added.info_hash, handle.info_hash().as_string());
+        assert_eq!(added.total_bytes, 20);
+        assert_eq!(added.progress_bytes, 0);
+        introduce.abort();
     });
 }

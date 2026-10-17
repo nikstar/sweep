@@ -200,7 +200,7 @@ struct TorrentLifecycleTests {
         let engine = LifecycleEngine(holdMetadata: true)
         let store = fixture.store(engine: engine, initialState: PersistedAppState(torrents: [first, second], selectedTorrentID: first.id, downloadDirectory: fixture.directory.path))
         #expect(await eventually { await engine.addCount() == 2 })
-        #expect(!store.isRestoringSession)
+        #expect(await eventually { !store.isRestoringSession })
         #expect(store.pendingTorrentCount == 2)
         await engine.failMetadata()
         #expect(await eventually { store.pendingTorrentCount == 0 })
@@ -244,11 +244,15 @@ struct TorrentLifecycleTests {
         let tracker = TorrentTracker(id: 0, url: "http://localhost/announce", kind: "HTTP", status: "Working", lastPeerCount: 4)
         await engine.setDiscovery(TorrentDiscovery(id: Self.hash, isActive: true, elapsedSeconds: 12,
             peersFound: 4, peersTried: 3, peersActive: 1, peersFailed: 2,
-            lastPeerError: "Peer disconnected during handshake", trackers: [tracker]))
+            lastPeerError: "Peer disconnected during handshake", trackers: [tracker],
+            retryInSeconds: 15, attempt: 2, socketsConnected: 2, handshakeFailures: 2))
         await store.refreshNow()
         #expect(store.discoveries[Self.hash]?.peersFound == 4)
         #expect(store.selectedTorrent?.state == "resolving")
         #expect(store.selectedTorrent?.desiredState == .running)
+        #expect(store.selectedTorrent?.error == nil)
+        #expect(store.discoveries[Self.hash]?.retryInSeconds == 15)
+        #expect(TorrentDisplayFormat.statusSummary(store.selectedTorrent!, discovery: store.discoveries[Self.hash]).contains("Retry in 15s"))
         #expect(store.selectedTorrent?.trackers.first?.status == "Working")
         store.pauseSelectedTorrent()
         #expect(await eventually { await engine.cancelCount() == 1 })
@@ -256,6 +260,7 @@ struct TorrentLifecycleTests {
         #expect(store.discoveries[Self.hash]?.isActive == false)
         #expect(store.discoveries[Self.hash]?.peersActive == 0)
         #expect(store.selectedTorrent?.desiredState == .paused)
+        #expect(!TorrentDisplayFormat.statusSummary(store.selectedTorrent!, discovery: store.discoveries[Self.hash]).contains("Retry in"))
     }
 
     @Test @MainActor
