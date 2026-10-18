@@ -65,10 +65,11 @@ assign the build to the owner-only group if automatic distribution is not set.
 
 The iOS app and Live Activity extension declare
 `ITSAppUsesNonExemptEncryption = NO` for the current private TestFlight path.
-The app uses standard TLS through bundled `rustls`/`reqwest`; peer traffic is
-unencrypted, and the engine does not implement proprietary encryption. The
-extension does not include the torrent engine. This flag declares that no
-encryption documentation is required for this distribution, not that TLS is absent.
+The app uses standard TLS through bundled `rustls`/`reqwest` and BitTorrent
+MSE/PE through `urtorrent-mse` (Diffie–Hellman negotiation and optional RC4 peer
+traffic encryption). Plaintext peer connections remain supported. The extension
+does not include the torrent engine. This flag declares that no encryption
+documentation is required for this distribution, not that encryption is absent.
 
 For an older build that still shows the questionnaire, choose **standard
 encryption algorithms instead of, or in addition to, Apple's operating system**.
