@@ -6,6 +6,26 @@ and eMule. The goal is to recover useful craft that many mainstream clients
 lost: readable state, rich progress information, and direct controls without
 turning the app into a dashboard.
 
+## macOS Parity, October 26, 2026
+
+- macOS uses the same metadata retries, DHT persistence/health, metadata PEX,
+  MSE/PE and TCP/uTP fallback, and download-folder handling as iOS. Discovery
+  diagnostics and peer transport labels are shared too.
+- The Mac inspector remembers its section across relaunches and provides compact
+  Play/episode navigation and Pause/Resume/Retry controls above the tabs.
+- Files expose Play/Open using the original payload in its default Mac app,
+  including existing partial files. Playback still depends on the reader and
+  available bytes. Movie identification and naturally sorted episodes reuse
+  `TorrentMedia`; path validation and openability reuse `TorrentFileLocation`.
+- Download All, Videos Only, Only This File, and checkboxes use the shared queued
+  selection/persistence logic. Pending changes disable selection controls; the
+  last real file cannot be deselected. Padding is hidden from selection counts.
+- All 43 shared tests and macOS/iOS Debug builds pass. A personal-team signed
+  universal Release build was installed in `/Applications/Sweep.app`; its
+  signatures and static linkage pass verification. The installed app restored
+  all three existing torrents, displayed the movie/file/selection controls,
+  and retained the Files tab after another quit and relaunch.
+
 ## iOS Details and Media Actions, October 4, 2026
 
 Follow-up: Live Activity recovery and partial files

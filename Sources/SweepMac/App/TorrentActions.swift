@@ -37,6 +37,18 @@ enum TorrentActions {
         )
     }
 
+    static func open(_ file: TorrentFile, in torrent: Torrent, store: TorrentStore) {
+        guard let url = TorrentFileLocation.openableFileURL(
+            for: file, in: torrent, defaultDirectory: store.downloadDirectory
+        ) else {
+            store.lastError = "The file \(file.name) is not available on disk yet."
+            return
+        }
+        // Pass the original payload to the default app, including growing files.
+        store.lastError = NSWorkspace.shared.open(url)
+            ? nil : "Could not open \(file.name). Choose a compatible app in Finder."
+    }
+
     static func togglePause(_ torrent: Torrent, in store: TorrentStore) {
         store.togglePause(torrent)
     }

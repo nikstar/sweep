@@ -3,11 +3,17 @@ import SweepCore
 
 struct TorrentInspectorWindowView: View {
     @Environment(TorrentStore.self) private var store
-    @State private var selectedTab: InspectorTab = .info
+    @AppStorage("MacInspectorSelectedTab") private var selectedTab: InspectorTab = .info
     @State private var confirmingRemoveData = false
 
     var body: some View {
         VStack(spacing: 0) {
+            if let torrent = store.selectedTorrent {
+                TorrentInspectorPrimaryActions(torrent: torrent, showFiles: { selectedTab = .files })
+                    .padding(.horizontal, 12)
+                    .padding(.top, 10)
+            }
+
             Picker("Inspector Section", selection: $selectedTab) {
                 ForEach(InspectorTab.allCases) { tab in
                     Label(tab.title, systemImage: tab.systemImage)
@@ -62,6 +68,47 @@ struct TorrentInspectorWindowView: View {
                 torrent: torrent,
                 confirmRemoveData: { confirmingRemoveData = true }
             )
+        }
+    }
+}
+
+private struct TorrentInspectorPrimaryActions: View {
+    @Environment(TorrentStore.self) private var store
+    let torrent: Torrent
+    let showFiles: () -> Void
+
+    var body: some View {
+        let media = TorrentMedia(files: torrent.files)
+        VStack(alignment: .leading, spacing: 6) {
+            Text(torrent.name)
+                .font(.callout.weight(.semibold))
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .help(torrent.name)
+
+            HStack(spacing: 8) {
+                if let file = media.primaryVideo {
+                    Button("Play", systemImage: "play.fill") {
+                        TorrentActions.open(file, in: torrent, store: store)
+                    }
+                    .disabled(TorrentFileLocation.openableFileURL(
+                        for: file, in: torrent, defaultDirectory: store.downloadDirectory
+                    ) == nil)
+                    .help("Open \(file.name) in your default player. Incomplete videos may need more data before they can play.")
+                    .accessibilityIdentifier("torrent.play")
+                } else if !media.videos.isEmpty {
+                    Button(media.isSeries ? "Episodes (\(media.videos.count))" : "Videos (\(media.videos.count))",
+                           systemImage: "play.rectangle.on.rectangle", action: showFiles)
+                }
+
+                Button(torrent.transferActionTitle, systemImage: torrent.transferActionSymbol) {
+                    store.togglePause(torrent)
+                }
+                .disabled(store.engineError != nil)
+                .accessibilityIdentifier("torrent.transfer")
+                Spacer(minLength: 0)
+            }
+            .controlSize(.small)
         }
     }
 }
