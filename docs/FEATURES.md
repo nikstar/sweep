@@ -6,6 +6,54 @@ and eMule. The goal is to recover useful craft that many mainstream clients
 lost: readable state, rich progress information, and direct controls without
 turning the app into a dashboard.
 
+## Lost Highway Discovery Investigation, October 26, 2026
+
+Investigated the installed Mac build (`00359dd`) and magnet
+`0a4e63611eb6192a1bbb2e9b64b10a49a0740a20`. The user reported 26 seeders and
+5 leechers on the index page. Browser site-safety policy prevented reading that
+page, so its count, timestamp, and data source were not independently verified.
+The VPN, routes, and user torrent settings were left unchanged.
+
+| Check | Result |
+| --- | --- |
+| Original seven trackers, Sweep, 125 seconds | Zero peer addresses, sockets, handshakes, or metadata; automatic retry ran. Two tracker hostnames failed DNS; UDP trackers timed out. |
+| Same magnet, clean Transmission 4.1.3 session, 180 seconds | Zero connected peers or metadata; all seven trackers failed. No payload downloaded. |
+| Four additional HTTPS trackers, Sweep | Three responded; six unique peers initially, eight on a later check. All connection attempts timed out before a BitTorrent handshake. |
+| Same HTTPS trackers, clean Transmission, 180 seconds | Three successful tracker responses, zero seeders reported, zero connected peers or metadata. Reported peer counts overlap and include our temporary announcements. |
+| Independent TCP connections to all eight returned peer endpoints | All timed out, outside rqbit and Transmission. |
+| Independent DHT pings | No response from five resolved addresses across Transmission, libtorrent, BitTorrent, and uTorrent bootstrap services; two probes per address. |
+| Independent UDP tracker connect requests | No response from OpenTrackr, open.stealth.si, or tracker.torrent.eu.org. |
+| UDP controls on the unchanged route | Public DNS and Google/Cloudflare STUN replied. This is not a blanket UDP failure. |
+| Official Ubuntu magnet control | Sweep resolved complete metadata in about 13 seconds, including TCP peer connections and PEX. Repeated successfully with TCP only; successful peer routes use `utun6`. No ISO payload requested. |
+| Five HTTP tracker alternatives | No usable announce response within the 125-second probe. Independent TCP connected to OpenTrackr and open.tracker.cl, but their HTTP requests timed out; the other endpoints timed out during TCP connection setup. |
+
+The immediate problem is discovery reachability followed by unreachable peers
+from the limited reachable trackers, before encryption or metadata negotiation.
+The control swarm proves that peer connections and metadata exchange can work
+through the current VPN route. Matching Transmission failures and independent
+socket probes provide no evidence that replacing rqbit would fix this swarm.
+Selective filtering or endpoint unavailability remains possible; these tests
+cannot identify the exact VPN, upstream, firewall, or remote component responsible.
+The index count is not a list of reachable peers and does not establish current
+availability through these trackers. DHT could discover additional peers, but its
+UDP bootstrap traffic currently receives no replies.
+
+Useful follow-ups: editable tracker lists with explicit additions, a clear
+"no reachable discovery sources" explanation, bounded HTTP announce deadlines
+(the upstream client has no request deadline, so a silent server can remain
+"Announcing" until the outer metadata attempt is cancelled), and transport
+statistics that distinguish cancellation from in-flight attempts. Do not infer
+successful connectivity from cached DHT nodes or site seed counts, or append a
+large unverified tracker list as a presumed fix. A second network/VPN route would
+be needed to isolate the remaining network hypothesis; none was changed here.
+
+Raw logs, isolated Transmission configurations/observations, original and test
+magnets, and independent UDP/TCP probe results are retained locally under
+`BuildArtifacts/LostHighwayDiagnostics/`. Diagnostic processes are stopped.
+Protocol references: [DHT/BEP 5](https://www.bittorrent.org/beps/bep_0005.html),
+[Transmission bootstrap implementation](https://github.com/transmission/transmission/blob/4.1.3/libtransmission/tr-dht.cc),
+and the [maintained tracker list](https://github.com/ngosang/trackerslist).
+
 ## macOS Parity, October 26, 2026
 
 - macOS uses the same metadata retries, DHT persistence/health, metadata PEX,
