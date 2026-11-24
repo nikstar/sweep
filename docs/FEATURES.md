@@ -6,6 +6,23 @@ and eMule. The goal is to recover useful craft that many mainstream clients
 lost: readable state, rich progress information, and direct controls without
 turning the app into a dashboard.
 
+## Direct Wi-Fi routing on macOS, November 25, 2026
+
+With Red Shield connected, we added a 12-second IPv4 host route to Cloudflare's
+`1.0.0.1` through the Wi-Fi gateway, scoped to `en0`. We opened fresh sockets
+to that address and compared a TLS-verified HTTPS trace and a UDP DNS query.
+
+| Socket | Before the route | During the route | After removal |
+| --- | --- | --- | --- |
+| Automatic | VPN exit in Latvia, DNS replied | Same VPN exit, DNS replied | Same VPN exit, DNS replied |
+| Bound to Wi-Fi with `IP_BOUND_IF` | Network unreachable | Different public IP in Russia, DNS replied | Network unreachable |
+
+The ordinary route stayed on `utun4` throughout. The temporary route could
+serve any program explicitly bound to `en0` for that address. This verifies a
+direct path for a single IPv4 destination. Tracker announces, connections to
+swarm peers, and IPv6 bypass remain untested on this path. Local results are
+in `BuildArtifacts/VPNRouting-2026-11-25/scoped-ipv4.log`.
+
 ## Red Shield VPN routing on macOS, November 24, 2026
 
 Red Shield installed two half-default routes for each address family on
