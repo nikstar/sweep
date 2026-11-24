@@ -23,6 +23,21 @@ class ReleaseSafetyTests(unittest.TestCase):
     def test_macos_uses_developer_id(self):
         self.assertEqual(release.export_options("macos")["method"], "developer-id")
 
+    def test_existing_tag_must_resolve_to_release_commit(self):
+        ref = "refs/tags/v1.0"
+        for response in [f"commit\t{ref}", f"tagobject\t{ref}\ncommit\t{ref}^{{}}"]:
+            with patch("release.run", side_effect=["", response]):
+                release.ensure_release_tag("v1.0", "commit")
+            with patch("release.run", side_effect=["", response]):
+                with self.assertRaisesRegex(RuntimeError, "different commit"):
+                    release.ensure_release_tag("v1.0", "other")
+
+    def test_missing_tag_is_created_at_exact_commit(self):
+        with patch("release.run", return_value="") as run:
+            release.ensure_release_tag("v1.0", "commit")
+            run.assert_called_with("gh", "api", "--method", "POST", f"repos/{release.REPO}/git/refs",
+                                   "-f", "ref=refs/tags/v1.0", "-f", "sha=commit")
+
     def test_nested_version_mismatch_fails(self):
         info = {"CFBundleIdentifier": "me.nikstar.sweep.ios.liveactivity",
                 "CFBundleShortVersionString": "1.0", "CFBundleVersion": "1"}

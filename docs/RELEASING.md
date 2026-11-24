@@ -19,11 +19,11 @@ the shared Rust build regenerates the same Swift bindings and XCFramework.
 
 ```sh
 # Build, sign with Developer ID, notarize using the Xcode account, and export.
-Scripts/release_macos.sh --version 1.0 --build 2
+Scripts/release_macos.sh --version 1.0 --build 5
 
 # After pushing the source commit, publish that exact build and source revision.
-Scripts/release_macos.sh --version 1.0 --build 2 --resume --publish \
-  --tag v1.0-beta.2 --prerelease --notes docs/releases/1.0-beta.2.md
+Scripts/release_macos.sh --version 1.0 --build 5 --resume --publish \
+  --tag v1.0 --notes docs/releases/1.0.md
 ```
 
 The universal app contains Apple Silicon and Intel slices, enables Hardened
@@ -33,9 +33,17 @@ notarization; `-exportNotarizedApp` retrieves the stapled app. No separate
 notarytool password is needed with this workflow. If Apple is still processing,
 retry with `--resume`; do not submit a second build blindly.
 
-GitHub receives a ZIP, SHA-256 checksums, and a manifest with the exact source
-commit, personal team, Xcode version and artifact hash. Existing releases are
-never overwritten, and the script never force-pushes tags or branches.
+For each release, choose its version and build, commit its notes, and push the
+source revision before publishing. For a beta, pass `--prerelease` and a beta
+tag such as `v1.0-beta.2`.
+
+The script extracts the ZIP, compares the app with the notarized export, and
+checks its signature, architectures, stapled ticket, and Gatekeeper assessment.
+It creates the GitHub tag at the build's source commit or verifies an existing
+tag resolves to that commit. GitHub receives the ZIP, `SHA256SUMS`, and
+`release.json` with the source revision, team, Xcode version, and artifact hash.
+To verify a download, place the ZIP and `SHA256SUMS` in the same directory and
+run `shasum -a 256 -c SHA256SUMS`.
 
 ## iOS → private TestFlight
 

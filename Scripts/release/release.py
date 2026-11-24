@@ -10,6 +10,7 @@ import plistlib
 import re
 import subprocess
 import sys
+from tempfile import TemporaryDirectory
 
 ROOT = Path(__file__).resolve().parents[2]
 TEAM = "6RX8GEVB43"  # Nikita Starshinov, Individual (not the organization team).
@@ -194,6 +195,20 @@ def export(archive, out, platform, auth, upload=False, name="export"):
         "-exportPath", out / name, "-exportOptionsPlist", options, *auth, log=out / f"{name}.log")
 
 
+def ensure_release_tag(tag, commit):
+    # ls-remote also returns the peeled commit for an annotated tag.
+    ref = "refs/tags/" + tag
+    run("git", "check-ref-format", ref)
+    refs = run("git", "ls-remote", f"https://github.com/{REPO}.git", ref, ref + "^{}")
+    if refs:
+        targets = {name: sha for sha, name in (line.split() for line in refs.splitlines())}
+        if targets.get(ref + "^{}", targets[ref]) != commit:
+            fail(f"Tag {tag} already points to a different commit.")
+    else:
+        run("gh", "api", "--method", "POST", f"repos/{REPO}/git/refs",
+            "-f", f"ref={ref}", "-f", f"sha={commit}")
+
+
 def macos(args, out, archive, auth, config):
     # Xcode uses its signed-in personal account (including cloud-managed Developer ID)
     # for signing and notarization, avoiding a second stored password for notarytool.
@@ -205,18 +220,29 @@ def macos(args, out, archive, auth, config):
         run("xcodebuild", "-exportNotarizedApp", "-archivePath", archive,
             "-exportPath", out / "export", log=out / "export-notarized.log")
     verify_app(app, "macos", args.version, args.build, distribution=True)
-    run("xcrun", "stapler", "validate", app, log=out / "stapler.log")
-    run("spctl", "--assess", "--type", "execute", "--verbose=2", app, log=out / "gatekeeper.log")
     archive_zip = out / f"Sweep-{args.version}-{args.build}-macOS-universal.zip"
-    if not archive_zip.exists():
-        run("ditto", "-c", "-k", "--sequesterRsrc", "--keepParent", app, archive_zip)
+    with TemporaryDirectory(dir=out) as work:
+        candidate = archive_zip
+        if not candidate.exists():
+            candidate = Path(work) / archive_zip.name
+            run("ditto", "-c", "-k", "--sequesterRsrc", "--keepParent", app, candidate)
+        unpacked = Path(work) / "unpacked"
+        run("ditto", "-x", "-k", candidate, unpacked)
+        download = unpacked / "Sweep.app"
+        if list(unpacked.iterdir()) != [download]:
+            fail("Expected only Sweep.app at the root of the release ZIP.")
+        run("diff", "-qr", app, download)
+        verify_app(download, "macos", args.version, args.build, distribution=True)
+        run("xcrun", "stapler", "validate", download, log=out / "stapler.log")
+        run("spctl", "--assess", "--type", "execute", "--verbose=2", download, log=out / "gatekeeper.log")
+        if candidate != archive_zip:
+            candidate.replace(archive_zip)
     write_manifest(out, config, [archive_zip])
     if not args.publish:
         print(f"Signed and notarized release ready: {archive_zip}")
         return
-    if not args.notes or not args.tag:
+    if not args.tag or not args.notes or not Path(args.notes).is_file() or not Path(args.notes).stat().st_size:
         fail("GitHub publication requires --tag and --notes (a Markdown file).")
-    run("git", "check-ref-format", "refs/tags/" + args.tag)
     if check_source() != config["commit"]:
         fail("Source changed before publication.")
     # Publish only a commit already on GitHub. Never move or force-push an existing tag.
@@ -226,9 +252,10 @@ def macos(args, out, archive, auth, config):
     existing = subprocess.run(["gh", "release", "view", args.tag, "--repo", REPO], capture_output=True)
     if existing.returncode == 0:
         fail(f"Release {args.tag} already exists; refusing to replace public artifacts.")
+    ensure_release_tag(args.tag, config["commit"])
     assets = [archive_zip, out / "SHA256SUMS", out / "release.json"]
     command = ["gh", "release", "create", args.tag, *assets, "--repo", REPO,
-               "--target", config["commit"], "--title", f"Sweep {args.version} (build {args.build})",
+               "--verify-tag", "--title", f"Sweep {args.version} (build {args.build})",
                "--notes-file", Path(args.notes).resolve()]
     if args.prerelease:
         command.append("--prerelease")
