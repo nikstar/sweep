@@ -4,6 +4,7 @@ import SweepRQBitBridge
 
 @main
 struct SweepApp: App {
+    @State private var updates = AppUpdates()
     @State private var store = AppEnvironment.makeTorrentStore()
     @State private var inspectorPanelPresenter = TorrentInspectorPanelPresenter()
     @State private var confirmingRemoveData = false
@@ -19,9 +20,15 @@ struct SweepApp: App {
                 }
         }
         .windowStyle(.hiddenTitleBar)
+        .commands {
+            CommandGroup(after: .appInfo) {
+                Button("Check for Updates…", action: updates.checkForUpdates)
+                    .disabled(!updates.canCheckForUpdates)
+            }
+        }
 
         Settings {
-            SettingsView()
+            SettingsView(updates: updates)
                 .environment(store)
         }
         .commands {

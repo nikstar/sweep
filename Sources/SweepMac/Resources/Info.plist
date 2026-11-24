@@ -60,5 +60,15 @@
 	<string>Copyright (c) 2026</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
+	<key>SUEnableAutomaticChecks</key>
+	<false/>
+	<key>SUFeedURL</key>
+	<string>https://github.com/nikstar/sweep/releases/latest/download/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>PyNF5/mH6Gb0aZ7EDz18O4ov6SqferikU4TU/U4BQF4=</string>
+	<key>SURequireSignedFeed</key>
+	<true/>
+	<key>SUVerifyUpdateBeforeExtraction</key>
+	<true/>
 </dict>
 </plist>
