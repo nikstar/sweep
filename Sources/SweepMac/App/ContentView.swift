@@ -12,76 +12,51 @@ struct ContentView: View {
 
         TorrentListView()
         .toolbar {
-            ToolbarItem(placement: .navigation) {
-                ControlGroup {
-                    Button {
-                        TorrentActions.openTorrent(in: store)
-                    } label: {
-                        Label("Add File", systemImage: "doc.badge.plus")
-                            .labelStyle(.iconOnly)
-                    }
-                    .help("Add Torrent File")
-
-                    Button {
-                        TorrentActions.addLocationFromPasteboard(in: store)
-                    } label: {
-                        Label("Add URL", systemImage: "link.badge.plus")
-                            .labelStyle(.iconOnly)
-                    }
-                    .help("Add Magnet Link")
+            ToolbarItemGroup {
+                Button("Add Torrent File", systemImage: "doc.badge.plus") {
+                    TorrentActions.openTorrent(in: store)
                 }
+                .help("Add Torrent File")
+
+                Button("Add Magnet Link", systemImage: "link.badge.plus") {
+                    TorrentActions.addLocationFromPasteboard(in: store)
+                }
+                .help("Add Magnet Link")
+
+                Button("Remove from Library", systemImage: "minus") {
+                    TorrentActions.remove(store.selectedTorrent, in: store)
+                }
+                .disabled(store.selectedTorrent == nil)
+                .help("Remove from Library")
             }
 
-            ToolbarItem(placement: .navigation) {
-                ControlGroup {
-                    Button {
-                        store.resumeSelectedTorrent()
-                    } label: {
-                        Label("Resume", systemImage: "play.fill")
-                            .labelStyle(.iconOnly)
-                    }
-                    .disabled(!store.canResumeSelectedTorrent)
-                    .help("Resume")
-
-                    Button {
-                        store.pauseSelectedTorrent()
-                    } label: {
-                        Label("Pause", systemImage: "pause.fill")
-                            .labelStyle(.iconOnly)
-                    }
-                    .disabled(!store.canPauseSelectedTorrent)
-                    .help("Pause")
-                }
+            if #available(macOS 26, *) {
+                ToolbarSpacer(.flexible)
+            } else {
+                ToolbarItem { Spacer() }
             }
 
-            ToolbarItem(placement: .navigation) {
-                ControlGroup {
-                    Button {
-                        TorrentActions.remove(store.selectedTorrent, in: store)
-                    } label: {
-                        Label("Remove", systemImage: "xmark")
-                            .labelStyle(.iconOnly)
-                    }
-                    .disabled(store.selectedTorrent == nil)
-                    .help("Remove")
-
-                    Button(role: .destructive) {
-                        TorrentActions.remove(store.selectedTorrent, in: store, deleteData: true)
-                    } label: {
-                        Label("Remove Data", systemImage: "trash")
-                            .labelStyle(.iconOnly)
-                    }
-                    .disabled(store.selectedTorrent == nil)
-                    .help("Remove and Delete Files")
+            ToolbarItemGroup {
+                Button("Resume", systemImage: "play.fill") {
+                    store.resumeSelectedTorrent()
                 }
+                .disabled(!store.canResumeSelectedTorrent)
+                .help("Resume Selected Torrent")
+
+                Button("Pause", systemImage: "pause.fill") {
+                    store.pauseSelectedTorrent()
+                }
+                .disabled(!store.canPauseSelectedTorrent)
+                .help("Pause Selected Torrent")
             }
 
-            ToolbarItem(placement: .primaryAction) {
-                Button {
+            if #available(macOS 26, *) {
+                ToolbarSpacer(.fixed)
+            }
+
+            ToolbarItem {
+                Button("Show Inspector", systemImage: "info") {
                     inspectorPanelPresenter.show(store: store)
-                } label: {
-                    Label("Inspector", systemImage: "info")
-                        .labelStyle(.iconOnly)
                 }
                 .disabled(store.selectedTorrent == nil && !inspectorPanelPresenter.isPresented)
                 .help("Show Inspector")

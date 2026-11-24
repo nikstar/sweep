@@ -24,6 +24,7 @@ struct SweepApp: App {
         }
         .handlesExternalEvents(matching: ["*"])
         .windowStyle(.hiddenTitleBar)
+        .windowToolbarStyle(.unifiedCompact)
         .commands {
             CommandGroup(after: .appInfo) {
                 Button("Check for Updates…", action: updates.checkForUpdates)
@@ -102,7 +103,6 @@ struct SweepApp: App {
                 .disabled(store.selectedTorrent == nil)
             }
         }
-        .windowToolbarStyle(.unifiedCompact)
     }
 }
 
