@@ -103,8 +103,8 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: me.nikstar.sweep
         SWIFT_OBJC_BRIDGING_HEADER: Sources/SweepWiFiHelper/WiFiService.h
-        MARKETING_VERSION: "1.1.0"
-        CURRENT_PROJECT_VERSION: "6"
+        MARKETING_VERSION: "1.2.0"
+        CURRENT_PROJECT_VERSION: "7"
         PRODUCT_NAME: Sweep
         GENERATE_INFOPLIST_FILE: NO
         INFOPLIST_FILE: Sources/SweepMac/Resources/Info.plist
