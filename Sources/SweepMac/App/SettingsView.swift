@@ -3,6 +3,7 @@ import SweepCore
 
 struct SettingsView: View {
     @Environment(TorrentStore.self) private var store
+    let updates: AppUpdates
 
     var body: some View {
         Form {
@@ -21,6 +22,12 @@ struct SettingsView: View {
                         }
                     }
                 }
+            }
+            Section("Updates") {
+                Toggle("Automatically check for updates", isOn: Binding(
+                    get: { updates.automaticallyChecksForUpdates },
+                    set: updates.setAutomaticChecks
+                ))
             }
         }
         .formStyle(.grouped)

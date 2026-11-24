@@ -19,11 +19,10 @@ the shared Rust build regenerates the same Swift bindings and XCFramework.
 
 ```sh
 # Build, sign with Developer ID, notarize using the Xcode account, and export.
-Scripts/release_macos.sh --version 1.0 --build 5
+Scripts/release_macos.sh --version 1.1.0 --build 6
 
 # After pushing the source commit, publish that exact build and source revision.
-Scripts/release_macos.sh --version 1.0 --build 5 --resume --publish \
-  --tag v1.0 --notes docs/releases/1.0.md
+Scripts/release_macos.sh --version 1.1.0 --build 6 --resume --publish
 ```
 
 The universal app contains Apple Silicon and Intel slices, enables Hardened
@@ -33,17 +32,30 @@ notarization; `-exportNotarizedApp` retrieves the stapled app. No separate
 notarytool password is needed with this workflow. If Apple is still processing,
 retry with `--resume`; do not submit a second build blindly.
 
-For each release, choose its version and build, commit its notes, and push the
-source revision before publishing. For a beta, pass `--prerelease` and a beta
-tag such as `v1.0-beta.2`.
+For each macOS release, increment its semantic version (`major.minor.patch`)
+and its internal build number in the Sweep target in `project.yml`. Regenerate
+the project with `xcodegen generate`, commit `docs/releases/<version>.md`, and
+push the source revision before publishing. The release title and ZIP use the
+semantic version. Sparkle compares the build number to detect newer releases.
+For a beta, pass `--prerelease --tag v1.2.0-beta.1` and use
+`docs/releases/1.2.0-beta.1.md` for its notes.
 
 The script extracts the ZIP, compares the app with the notarized export, and
 checks its signature, architectures, stapled ticket, and Gatekeeper assessment.
 It creates the GitHub tag at the build's source commit or verifies an existing
-tag resolves to that commit. GitHub receives the ZIP, `SHA256SUMS`, and
-`release.json` with the source revision, team, Xcode version, and artifact hash.
-To verify a download, place the ZIP and `SHA256SUMS` in the same directory and
+tag resolves to that commit. GitHub receives the ZIP, the signed Sparkle feed
+`appcast.xml`, `SHA256SUMS`, and `release.json` with the source revision, team,
+Xcode version, and artifact hashes. To verify a download, put the ZIP,
+`appcast.xml`, and `SHA256SUMS` in the same directory and
 run `shasum -a 256 -c SHA256SUMS`.
+
+The pinned Sparkle package supplies the signing tools. The Ed25519 private key
+for `me.nikstar.sweep` lives in the maintainer’s login Keychain. Back it up
+securely when moving Macs and preserve its public key in the macOS Info.plist.
+The release script checks the key against the exported app, signs the feed
+with embedded release notes, and verifies both the feed and the ZIP. Stable
+releases serve the feed at `releases/latest/download/appcast.xml`. Each feed
+links to the ZIP under its own tag. GitHub prereleases stay outside that feed.
 
 ## iOS → private TestFlight
 

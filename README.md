@@ -11,6 +11,10 @@ The project is intentionally small and native. The macOS app follows the compact
 Download the universal ZIP, unzip it, and drag **Sweep.app** to **Applications**.
 Sweep runs on Apple silicon and Intel Macs with macOS 15 or later. [Download the latest release](https://github.com/nikstar/sweep/releases/latest)
 
+From version 1.1.0, choose **Sweep → Check for Updates…** to install a newer
+release. To check periodically, enable **Automatically check for updates** in
+Settings. If you have 1.0, download and install 1.1.0 or later once to get the updater.
+
 ## Targets
 
 - `Sweep`: macOS app.

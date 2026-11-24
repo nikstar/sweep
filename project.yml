@@ -9,6 +9,9 @@ options:
   generateEmptyDirectories: true
 
 packages:
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    exactVersion: 2.10.1
   SweepPackage:
     path: .
 
@@ -48,6 +51,7 @@ targets:
       - Sources/SweepMac
     dependencies:
       - target: SweepRustArtifacts
+      - package: Sparkle
       - package: SweepPackage
         product: SweepCore
         embed: false
@@ -62,6 +66,8 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: me.nikstar.sweep
+        MARKETING_VERSION: "1.1.0"
+        CURRENT_PROJECT_VERSION: "6"
         PRODUCT_NAME: Sweep
         GENERATE_INFOPLIST_FILE: NO
         INFOPLIST_FILE: Sources/SweepMac/Resources/Info.plist

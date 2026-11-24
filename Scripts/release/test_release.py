@@ -23,6 +23,25 @@ class ReleaseSafetyTests(unittest.TestCase):
     def test_macos_uses_developer_id(self):
         self.assertEqual(release.export_options("macos")["method"], "developer-id")
 
+    def test_macos_release_names_use_semver(self):
+        self.assertEqual(release.macos_release_tag("1.1.0", None, False), "v1.1.0")
+        beta = "v1.2.0-beta.1"
+        self.assertEqual(release.macos_release_tag("1.2.0", beta, True), beta)
+        for version, tag, prerelease in [
+            ("1.01.0", None, False), ("1.0", None, False), ("1.2.0", beta, False),
+            ("1.2.0", "v1.2.0-beta.01", True), ("1.2.0", "v1.2.0+123", False),
+            ("1.2.0", "v1.3.0", False),
+        ]:
+            with self.subTest(tag=tag, version=version), self.assertRaises(RuntimeError):
+                release.macos_release_tag(version, tag, prerelease)
+
+    def test_stable_feed_only_advances(self):
+        previous = {"version": "1.0", "build": "5"}
+        release.validate_stable_update(previous, "1.1.0", "6")
+        for version, build in [("1.0.0", "6"), ("0.9.9", "6"), ("1.1.0", "5.0"), ("1.1.0", "4")]:
+            with self.subTest(version=version, build=build), self.assertRaises(RuntimeError):
+                release.validate_stable_update(previous, version, build)
+
     def test_existing_tag_must_resolve_to_release_commit(self):
         ref = "refs/tags/v1.0"
         for response in [f"commit\t{ref}", f"tagobject\t{ref}\ncommit\t{ref}^{{}}"]:

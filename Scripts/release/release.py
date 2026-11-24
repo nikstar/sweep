@@ -8,13 +8,18 @@ import os
 from pathlib import Path
 import plistlib
 import re
+import shutil
 import subprocess
 import sys
 from tempfile import TemporaryDirectory
+import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parents[2]
 TEAM = "6RX8GEVB43"  # Nikita Starshinov, Individual (not the organization team).
 REPO = "nikstar/sweep"
+RELEASES_URL = f"https://github.com/{REPO}/releases"
+SPARKLE_ACCOUNT = "me.nikstar.sweep"
+SPARKLE_NS = "{http://www.andymatuschak.org/xml-namespaces/sparkle}"
 
 
 def fail(message):
@@ -62,6 +67,27 @@ def validate_version(version, build):
         fail("Version must be numeric, for example 1.0 or 1.0.1.")
     if not re.fullmatch(r"[1-9]\d{0,3}(?:\.\d{1,2}){0,2}", build):
         fail("Build must be an increasing CFBundleVersion, for example 2 or 2026.10.4.")
+
+
+def macos_release_tag(version, tag, prerelease):
+    if not re.fullmatch(r"(?:0|[1-9][0-9]*)(?:\.(?:0|[1-9][0-9]*)){2}", version):
+        fail("Use a major.minor.patch version for macOS, for example 1.1.0.")
+    stable = f"v{version}"
+    if not prerelease and tag in (None, stable):
+        return stable
+    if prerelease and tag and tag.startswith(stable + "-"):
+        identifiers = tag[len(stable) + 1:].split(".")
+        if all(re.fullmatch(r"[0-9A-Za-z-]+", s) and not re.fullmatch(r"0[0-9]+", s)
+               for s in identifiers):
+            return tag
+    fail(f"Use {stable} for a stable release or {stable}-beta.1 with --prerelease.")
+
+
+def validate_stable_update(previous, version, build):
+    def components(value):
+        return tuple(int(n) for n in (value.split(".") + ["0", "0"])[:3])
+    if components(version) <= components(previous["version"]) or components(build) <= components(previous["build"]):
+        fail("The stable macOS version and Sparkle build number must both increase.")
 
 
 def validate_metadata(info, bundle_id, version, build):
@@ -142,6 +168,11 @@ def write_manifest(out, config, files):
 
 def release(args):
     validate_version(args.version, args.build)
+    if args.platform == "macos":
+        args.tag = macos_release_tag(args.version, args.tag, args.prerelease)
+        args.notes = Path(args.notes or ROOT / "docs/releases" / f"{args.tag[1:]}.md").resolve()
+        if not args.archive_only and (not args.notes.is_file() or not args.notes.read_text().strip()):
+            fail(f"Missing macOS release notes: {args.notes}")
     commit = check_source()
     out = ROOT / "BuildArtifacts/Releases" / f"{args.platform}-{args.version}-{args.build}"
     out.mkdir(parents=True, exist_ok=True)
@@ -209,6 +240,39 @@ def ensure_release_tag(tag, commit):
             "-f", f"ref={ref}", "-f", f"sha={commit}")
 
 
+def signed_appcast(out, app, archive_zip, tag, notes):
+    tools = ROOT / ".build/artifacts/sparkle/Sparkle/bin"
+    info = plist(app / "Contents/Info.plist")
+    if info.get("SUFeedURL") != f"{RELEASES_URL}/latest/download/appcast.xml":
+        fail("The app's Sparkle feed URL must point to the latest GitHub release.")
+    public_key = run(tools / "generate_keys", "--account", SPARKLE_ACCOUNT, "-p")
+    if public_key != info["SUPublicEDKey"]:
+        fail("The Sparkle signing account does not match the public key in Sweep.")
+
+    download_url = f"{RELEASES_URL}/download/{tag}/"
+    with TemporaryDirectory(dir=out) as work:
+        feed = Path(work)
+        os.link(archive_zip, feed / archive_zip.name)
+        shutil.copyfile(notes, feed / f"{archive_zip.stem}.md")
+        run(tools / "generate_appcast", "--account", SPARKLE_ACCOUNT, "--maximum-deltas", "0",
+            "--embed-release-notes", "--link", f"{RELEASES_URL}/tag/{tag}",
+            "--download-url-prefix", download_url, feed)
+        appcast = feed / "appcast.xml"
+        verify = [tools / "sign_update", "--account", SPARKLE_ACCOUNT, "--verify"]
+        run(*verify, appcast)
+        items = ET.parse(appcast).findall("./channel/item")
+        if len(items) != 1:
+            fail("Expected exactly one release in the generated appcast.")
+        item = items[0]
+        enclosure = item.find("enclosure")
+        if (item.findtext(SPARKLE_NS + "version") != info["CFBundleVersion"]
+                or item.findtext(SPARKLE_NS + "shortVersionString") != info["CFBundleShortVersionString"]
+                or enclosure is None or enclosure.get("url") != download_url + archive_zip.name):
+            fail("Generated appcast does not identify the verified release.")
+        run(*verify, archive_zip, enclosure.attrib[SPARKLE_NS + "edSignature"])
+        return appcast.replace(out / "appcast.xml")
+
+
 def macos(args, out, archive, auth, config):
     # Xcode uses its signed-in personal account (including cloud-managed Developer ID)
     # for signing and notarization, avoiding a second stored password for notarytool.
@@ -220,7 +284,8 @@ def macos(args, out, archive, auth, config):
         run("xcodebuild", "-exportNotarizedApp", "-archivePath", archive,
             "-exportPath", out / "export", log=out / "export-notarized.log")
     verify_app(app, "macos", args.version, args.build, distribution=True)
-    archive_zip = out / f"Sweep-{args.version}-{args.build}-macOS-universal.zip"
+    name = f"Sweep {args.tag[1:]}"
+    archive_zip = out / f"Sweep-{args.tag[1:]}-macOS-universal.zip"
     with TemporaryDirectory(dir=out) as work:
         candidate = archive_zip
         if not candidate.exists():
@@ -237,12 +302,11 @@ def macos(args, out, archive, auth, config):
         run("spctl", "--assess", "--type", "execute", "--verbose=2", download, log=out / "gatekeeper.log")
         if candidate != archive_zip:
             candidate.replace(archive_zip)
-    write_manifest(out, config, [archive_zip])
+    appcast = signed_appcast(out, app, archive_zip, args.tag, args.notes)
+    write_manifest(out, config, [archive_zip, appcast])
     if not args.publish:
         print(f"Signed and notarized release ready: {archive_zip}")
         return
-    if not args.tag or not args.notes or not Path(args.notes).is_file() or not Path(args.notes).stat().st_size:
-        fail("GitHub publication requires --tag and --notes (a Markdown file).")
     if check_source() != config["commit"]:
         fail("Source changed before publication.")
     # Publish only a commit already on GitHub. Never move or force-push an existing tag.
@@ -252,13 +316,16 @@ def macos(args, out, archive, auth, config):
     existing = subprocess.run(["gh", "release", "view", args.tag, "--repo", REPO], capture_output=True)
     if existing.returncode == 0:
         fail(f"Release {args.tag} already exists; refusing to replace public artifacts.")
+    if not args.prerelease:
+        with TemporaryDirectory(dir=out) as work:
+            run("gh", "release", "download", "--repo", REPO, "--pattern", "release.json", "--dir", work)
+            previous = json.loads((Path(work) / "release.json").read_text())
+            validate_stable_update(previous, args.version, args.build)
     ensure_release_tag(args.tag, config["commit"])
-    assets = [archive_zip, out / "SHA256SUMS", out / "release.json"]
+    assets = [archive_zip, appcast, out / "SHA256SUMS", out / "release.json"]
     command = ["gh", "release", "create", args.tag, *assets, "--repo", REPO,
-               "--verify-tag", "--title", f"Sweep {args.version} (build {args.build})",
-               "--notes-file", Path(args.notes).resolve()]
-    if args.prerelease:
-        command.append("--prerelease")
+               "--verify-tag", "--title", name, "--notes-file", args.notes,
+               "--prerelease" if args.prerelease else "--latest"]
     print(run(*command))
 
 
