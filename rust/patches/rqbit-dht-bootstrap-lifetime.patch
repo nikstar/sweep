@@ -1,0 +1,10 @@
+--- a/crates/dht/src/dht.rs
++++ b/crates/dht/src/dht.rs
+@@ -1051,6 +1051,6 @@
+     async fn bootstrap_hostname_with_backoff(&self, addr: &str) -> crate::Result<()> {
++        // Keep bootstrap alive until session cancellation across prolonged outages.
+         let backoff = ExponentialBuilder::new()
+             .with_max_delay(Duration::from_secs(60))
+             .with_jitter()
+-            .with_total_delay(Some(Duration::from_secs(86400)))
+             .without_max_times();

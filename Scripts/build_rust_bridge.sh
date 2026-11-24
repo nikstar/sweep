@@ -326,6 +326,11 @@ apply_rqbit_patches() {
     "crates/librqbit/src/metadata_progress.rs" \
     "pub metadata_peers:"
   apply_rqbit_patch_if_missing \
+    "$ROOT_DIR/rust/patches/rqbit-dht-bootstrap-lifetime.patch" \
+    "DHT bootstrap recovery after prolonged outages" \
+    "crates/dht/src/dht.rs" \
+    "Keep bootstrap alive until session cancellation"
+  apply_rqbit_patch_if_missing \
     "$ROOT_DIR/rust/patches/rqbit-peer-encryption.patch" \
     "MSE peer compatibility" \
     "crates/librqbit/src/lib.rs" \
