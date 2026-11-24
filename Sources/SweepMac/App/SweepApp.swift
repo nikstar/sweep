@@ -3,13 +3,14 @@ import SweepCore
 
 @main
 struct SweepApp: App {
+    @NSApplicationDelegateAdaptor private var appDelegate: SweepAppDelegate
     @State private var updates = AppUpdates()
     @State private var network = MacNetworkSession()
     @State private var inspectorPanelPresenter = TorrentInspectorPanelPresenter()
     @State private var confirmingRemoveData = false
 
     var body: some Scene {
-        WindowGroup {
+        Window("Sweep", id: "transfers") {
             let store = network.store
             ContentView(confirmingRemoveData: $confirmingRemoveData)
                 .environment(store)
@@ -20,8 +21,9 @@ struct SweepApp: App {
                 .onChange(of: network.mustRelaunch) { _, lost in
                     if lost { inspectorPanelPresenter.close() }
                 }
-                .onOpenURL { store.beginAdding(url: $0) }
+                .handlesExternalEvents(preferring: ["*"], allowing: ["*"])
         }
+        .handlesExternalEvents(matching: ["*"])
         .windowStyle(.hiddenTitleBar)
         .commands {
             CommandGroup(after: .appInfo) {
@@ -103,4 +105,9 @@ struct SweepApp: App {
         }
         .windowToolbarStyle(.unifiedCompact)
     }
+}
+
+private final class SweepAppDelegate: NSObject, NSApplicationDelegate {
+    // Transfers continue after the library window is closed.
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
 }

@@ -4,6 +4,8 @@ import SweepCore
 struct ContentView: View {
     @Environment(TorrentStore.self) private var store
     @Environment(TorrentInspectorPanelPresenter.self) private var inspectorPanelPresenter
+    @State private var presentedURL: URL?
+    @State private var queuedURLs: [URL] = []
     @Binding var confirmingRemoveData: Bool
 
     init(confirmingRemoveData: Binding<Bool> = .constant(false)) {
@@ -91,7 +93,15 @@ struct ContentView: View {
             }
         }
         .removeTorrentDataConfirmation(isPresented: $confirmingRemoveData, store: store)
-        .sheet(isPresented: $store.showingAddSheet) {
+        .onOpenURL { url in
+            guard url != presentedURL, !queuedURLs.contains(url) else { return }
+            queuedURLs.append(url)
+            presentNextURL()
+        }
+        .sheet(isPresented: $store.showingAddSheet, onDismiss: {
+            presentedURL = nil
+            presentNextURL()
+        }) {
             AddTorrentView(
                 source: store.pendingAddSource,
                 downloadDirectory: store.downloadDirectory
@@ -112,6 +122,18 @@ struct ContentView: View {
         }
         .task(id: store.isWaitingForEngine) {
             if !store.isWaitingForEngine { store.startPolling() }
+        }
+    }
+
+    private func presentNextURL() {
+        guard presentedURL == nil, !store.showingAddSheet else { return }
+        while !queuedURLs.isEmpty {
+            let url = queuedURLs.removeFirst()
+            store.beginAdding(url: url)
+            if store.showingAddSheet {
+                presentedURL = url
+                return
+            }
         }
     }
 }
