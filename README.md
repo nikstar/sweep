@@ -6,6 +6,11 @@ Sweep is a native Apple-platform torrent client built with Swift, SwiftUI, AppKi
 
 The project is intentionally small and native. The macOS app follows the compact classic torrent-client shape: a dense torrent list, toolbar actions, progress detail, and a separate inspector panel. The iOS app shares the same core model and rqbit bridge so we can validate the Rust engine on device while building toward feature parity.
 
+## Install on macOS
+
+Download the universal ZIP, unzip it, and drag **Sweep.app** to **Applications**.
+Sweep runs on Apple silicon and Intel Macs with macOS 15 or later. [Download the latest release](https://github.com/nikstar/sweep/releases/latest)
+
 ## Targets
 
 - `Sweep`: macOS app.
