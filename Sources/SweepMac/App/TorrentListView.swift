@@ -331,6 +331,7 @@ private struct TransferRateLine: View {
 
 private struct TransferStatusBar: View {
     @Environment(TorrentStore.self) private var store
+    @Environment(MacNetworkSession.self) private var network
     @State private var showingHealth = false
     private var needsAttention: Bool {
         store.healthError != nil || store.torrents.contains { $0.error != nil }
@@ -341,7 +342,7 @@ private struct TransferStatusBar: View {
             Button {
                 showingHealth.toggle()
             } label: {
-                Label(store.engineName, systemImage: needsAttention ? "exclamationmark.triangle" : "checkmark.circle")
+                Label(store.engineName, systemImage: needsAttention ? "exclamationmark.triangle" : (store.isWaitingForEngine ? "clock" : "checkmark.circle"))
                     .foregroundStyle(needsAttention ? Color.orange : Color.secondary)
             }
             .buttonStyle(.borderless)
@@ -363,7 +364,9 @@ private struct TransferStatusBar: View {
 
             Spacer()
 
-            if let error = store.healthError {
+            if store.isWaitingForEngine {
+                DirectWiFiStatus(network: network)
+            } else if let error = store.healthError {
                 Text(error)
                     .foregroundStyle(.red)
                     .lineLimit(1)
@@ -385,5 +388,39 @@ private struct TransferStatusBar: View {
         .padding(.horizontal, 12)
         .frame(height: 34)
         .background(.bar)
+    }
+}
+
+private struct DirectWiFiStatus: View {
+    let network: MacNetworkSession
+
+    var body: some View {
+        HStack(spacing: 6) {
+            if network.mustRelaunch || !network.directRequested {
+                Text("Transfers are waiting.")
+                Button("Relaunch Sweep", action: network.relaunch)
+            } else if network.needsApproval {
+                Text("Direct Wi-Fi needs approval.")
+                Button("Open System Settings…", action: network.openApproval)
+            } else if !network.connecting, let reason = network.message {
+                Text("Direct Wi-Fi unavailable. Transfers are waiting.")
+                    .help(reason)
+                    .accessibilityHint(reason)
+                Button("Retry", action: network.start)
+            } else {
+                Text("Connecting to direct Wi-Fi…")
+            }
+        }
+        .foregroundStyle(.secondary)
+        .controlSize(.small)
+        .task(id: network.needsApproval) {
+            while network.needsApproval {
+                do { try await Task.sleep(for: .seconds(2)) } catch { return }
+                network.refreshApproval()
+            }
+        }
+        .onChange(of: network.needsApproval) { wasNeeded, isNeeded in
+            if wasNeeded && !isNeeded { network.start() }
+        }
     }
 }

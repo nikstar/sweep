@@ -22,7 +22,8 @@ public final class TorrentStore {
     public private(set) var discoveries: [Torrent.ID: TorrentDiscovery] = [:]
     public private(set) var changingFileSelection: Set<Torrent.ID> = []
     public let startupError: String?
-    public var engineError: String? { engine.unavailabilityReason }
+    public var engineError: String? { engine?.unavailabilityReason }
+    public var isWaitingForEngine: Bool { engine == nil }
     public var hasPersistence: Bool { persistence != nil }
     public var pendingTorrentCount: Int { pendingAdds.count }
 
@@ -30,7 +31,7 @@ public final class TorrentStore {
         engineError ?? startupError ?? persistenceError ?? refreshError ?? lastError
     }
 
-    private let engine: TorrentEngine
+    private var engine: (any TorrentEngine)?
     private let persistence: AppPersistence?
     @ObservationIgnored
     private var pollingTask: Task<Void, Never>?
@@ -48,7 +49,7 @@ public final class TorrentStore {
     @ObservationIgnored private var fileSelectionVersions: [Torrent.ID: UUID] = [:]
 
     public init(
-        engine: TorrentEngine,
+        engine: (any TorrentEngine)?,
         persistence: AppPersistence? = nil,
         downloadDirectory: String,
         initialState: PersistedAppState? = nil,
@@ -60,13 +61,14 @@ public final class TorrentStore {
         self.lastError = initialError
         self.startupError = initialError
         if let initialState {
-            self.torrents = normalized(torrents: initialState.torrents, downloadDirectory: self.downloadDirectory).map {
-                $0.updating(state: $0.desiredState == .paused ? "paused" : "restoring", peers: [], pieceRuns: [], downloadBps: 0, uploadBps: 0, clearError: true)
-            }
+            self.torrents = restoredRows(initialState.torrents)
             self.selection = initialState.selectedTorrentID
         }
         launchTask = Task { [weak self] in
-            await self?.prepareForLaunch(hasInitialState: initialState != nil)
+            guard let self else { return }
+            if initialState == nil { await loadPersistedState() }
+            if let engine { await reconcileWithEngine(engine) }
+            isRestoringSession = false
         }
     }
 
@@ -77,7 +79,21 @@ public final class TorrentStore {
     }
 
     public var engineName: String {
-        engine.name
+        engine?.name ?? "Waiting"
+    }
+
+    /// Attach the session only after its required network interface is ready.
+    public func startTransfers(with engine: any TorrentEngine) {
+        guard isWaitingForEngine else { return }
+        self.engine = engine
+        let libraryLoad = launchTask
+        launchTask = Task { [weak self] in
+            await libraryLoad?.value
+            guard let self else { return }
+            isRestoringSession = true
+            await reconcileWithEngine(engine)
+            isRestoringSession = false
+        }
     }
 
     public var selectedTorrent: Torrent? {
@@ -165,7 +181,7 @@ public final class TorrentStore {
                     name: magnet.name, infoHash: magnet.infoHash, magnet: magnet.value,
                     downloadDirectory: downloadDirectory,
                     desiredState: startPaused ? .paused : .running,
-                    state: startPaused ? "paused" : "resolving", trackers: magnet.trackers,
+                    state: startPaused ? "paused" : (isWaitingForEngine ? "waiting" : "resolving"), trackers: magnet.trackers,
                     progressBytes: 0, totalBytes: 0, uploadedBytes: 0,
                     downloadBps: 0, uploadBps: 0, error: nil
                 )
@@ -178,6 +194,10 @@ public final class TorrentStore {
                 if !startPaused { startAddingToEngine(torrent) }
                 lastError = nil
                 return torrent
+            }
+            guard let engine else {
+                lastError = "The torrent engine must be ready to read a torrent file."
+                return nil
             }
             mutationRevision += 1
             var torrent = try await engine
@@ -221,7 +241,7 @@ public final class TorrentStore {
 
     public func refreshNow() async {
         await launchTask?.value
-        guard !isRefreshing, engineError == nil else { return }
+        guard let engine, !isRefreshing, engineError == nil else { return }
         isRefreshing = true
         defer { isRefreshing = false }
         let revision = mutationRevision
@@ -240,7 +260,7 @@ public final class TorrentStore {
             sessionStats = stats.smoothed(from: sessionStats)
             lastRefreshAt = Date()
             refreshError = nil
-            try await enforceDesiredStates(for: Set(visibleLiveTorrents.map(\.id)))
+            try await enforceDesiredStates(for: Set(visibleLiveTorrents.map(\.id)), in: engine)
             discardLocallyRemovedTorrents()
             // A removed pending add may finish just as cancellation arrives. It was
             // added paused, so clean up the handle without touching payload files.
@@ -349,12 +369,12 @@ public final class TorrentStore {
         torrents.sort { $0.addedAt < $1.addedAt }
     }
 
-    private func prepareForLaunch(hasInitialState: Bool) async {
-        defer { isRestoringSession = false }
-        if !hasInitialState {
-            await loadPersistedState()
+    private func restoredRows(_ saved: [Torrent]) -> [Torrent] {
+        let runningState = isWaitingForEngine ? "waiting" : "restoring"
+        return normalized(torrents: saved, downloadDirectory: downloadDirectory).map {
+            $0.updating(state: $0.desiredState == .paused ? "paused" : runningState,
+                        peers: [], pieceRuns: [], downloadBps: 0, uploadBps: 0, clearError: true)
         }
-        await reconcileWithEngine()
     }
 
     private func loadPersistedState() async {
@@ -366,9 +386,7 @@ public final class TorrentStore {
                 try? await persistence?.saveSetting(.downloadDirectory, value: downloadDirectory)
             }
             if !state.torrents.isEmpty {
-                torrents = normalized(torrents: state.torrents, downloadDirectory: self.downloadDirectory).map {
-                    $0.updating(state: $0.desiredState == .paused ? "paused" : "restoring", peers: [], pieceRuns: [], downloadBps: 0, uploadBps: 0, clearError: true)
-                }
+                torrents = restoredRows(state.torrents)
             }
             selection = state.selectedTorrentID
         } catch {
@@ -376,7 +394,7 @@ public final class TorrentStore {
         }
     }
 
-    private func reconcileWithEngine() async {
+    private func reconcileWithEngine(_ engine: any TorrentEngine) async {
         guard engineError == nil else { return }
         do {
             let liveTorrents = try await engine.list()
@@ -396,7 +414,7 @@ public final class TorrentStore {
             sessionStats = try await engine.sessionStats()
             lastRefreshAt = Date()
             refreshError = nil
-            try await enforceDesiredStates(for: managedTorrentIDs)
+            try await enforceDesiredStates(for: managedTorrentIDs, in: engine)
             await saveCurrentTorrents()
         } catch {
             refreshError = error.localizedDescription
@@ -404,7 +422,8 @@ public final class TorrentStore {
     }
 
     private func startAddingToEngine(_ torrent: Torrent) {
-        guard pendingAdds[torrent.id] == nil, engineError == nil else { return }
+        guard let engine, pendingAdds[torrent.id] == nil, !managedTorrentIDs.contains(torrent.id),
+              engineError == nil else { return }
         let token = UUID()
         pendingAdds[torrent.id] = token
         discoveries.removeValue(forKey: torrent.id)
@@ -414,11 +433,11 @@ public final class TorrentStore {
             downloadBps: 0, uploadBps: 0, clearError: true
         ))
         addTasks[torrent.id] = Task { [weak self] in
-            await self?.addToEngine(id: torrent.id, token: token)
+            await self?.addToEngine(id: torrent.id, token: token, engine: engine)
         }
     }
 
-    private func addToEngine(id: Torrent.ID, token: UUID) async {
+    private func addToEngine(id: Torrent.ID, token: UUID, engine: any TorrentEngine) async {
         defer {
             if pendingAdds[id] == token {
                 pendingAdds.removeValue(forKey: id)
@@ -487,7 +506,7 @@ public final class TorrentStore {
         discoveries[id]?.peersActive = 0
         // UniFFI's generated Swift async wrapper does not propagate Task.cancel().
         // Explicitly abort the Tokio task, rather than just dismissing the UI.
-        await engine.cancelPendingAdd(id: id)
+        await engine?.cancelPendingAdd(id: id)
     }
 
     private func updateDiscoveries(_ snapshots: [TorrentDiscovery]) {
@@ -512,7 +531,7 @@ public final class TorrentStore {
         }
     }
 
-    private func enforceDesiredStates(for liveTorrentIDs: Set<Torrent.ID>) async throws {
+    private func enforceDesiredStates(for liveTorrentIDs: Set<Torrent.ID>, in engine: any TorrentEngine) async throws {
         let torrentsToCheck = torrents.filter { liveTorrentIDs.contains($0.id) && pendingAdds[$0.id] == nil && commandVersions[$0.id] == nil }
         for torrent in torrentsToCheck {
             let revision = mutationRevision
@@ -557,9 +576,10 @@ public final class TorrentStore {
             if commandVersions[id] == token { commandVersions.removeValue(forKey: id) }
             mutationRevision += 1
         }
+        let state = !managedTorrentIDs.contains(id) && desiredState == .paused ? "paused" : current.state
         let updated = current.updating(
             desiredState: desiredState,
-            state: !managedTorrentIDs.contains(id) && desiredState == .paused ? "paused" : current.state,
+            state: isWaitingForEngine && desiredState == .running ? "waiting" : state,
             downloadBps: 0, uploadBps: 0, clearError: true
         )
         upsert(updated)
@@ -575,6 +595,7 @@ public final class TorrentStore {
                 if desiredState == .running { startAddingToEngine(updated) }
                 return
             }
+            guard let engine else { return }
             let snapshot = desiredState == .paused
                 ? try await engine.pause(id: id)
                 : try await engine.resume(id: id)
@@ -618,7 +639,7 @@ public final class TorrentStore {
 
         do {
             if !wasPending || managedTorrentIDs.contains(torrent.id) {
-                try await engine.remove(id: torrent.id, deleteData: deleteData)
+                try await engine?.remove(id: torrent.id, deleteData: deleteData)
             }
             managedTorrentIDs.remove(torrent.id)
             try await persistence?.deleteTorrent(id: torrent.id)
@@ -688,6 +709,7 @@ public final class TorrentStore {
                 lastError = nil
                 return
             }
+            guard let engine else { return }
             let snapshot = try await engine
                 .setFileSelection(id: torrent.id, includedFileIDs: includedFileIDs.sorted())
             guard !locallyRemovedTorrentIDs.contains(torrent.id),

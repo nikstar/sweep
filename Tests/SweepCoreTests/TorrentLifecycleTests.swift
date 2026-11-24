@@ -26,6 +26,54 @@ struct TorrentLifecycleTests {
     private static let hash = "0123456789abcdef0123456789abcdef01234567"
     private static let magnet = "magnet:?xt=urn:btih:\(hash)&dn=Lifecycle%20test"
 
+    @Test @MainActor
+    func savedLibraryIsAvailableWhileTransfersWaitForAnEngine() async throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanUp() }
+        let saved = sampleTorrent()
+        try await fixture.persistence.save(torrent: saved)
+        try await fixture.persistence.saveSetting(.selectedTorrentID, value: saved.id)
+        let store = TorrentStoreFactory.make(defaultDownloadDirectory: fixture.directory.path,
+            openDatabase: { try SweepDatabase.open(at: fixture.directory.appending(path: "state.sqlite")) }, makeEngine: nil)
+
+        #expect(store.selectedTorrent?.progressBytes == saved.progressBytes)
+        #expect(store.selectedTorrent?.statusLabel == "Waiting")
+        #expect(store.selectedTorrent?.downloadBps == 0)
+        await store.refreshNow()
+        #expect(store.isWaitingForEngine)
+        #expect(store.lastRefreshAt == nil)
+        #expect(store.pendingTorrentCount == 0)
+        store.pauseSelectedTorrent()
+        #expect(await eventually { try? await fixture.persistence.loadState().torrents.first?.desiredState == .paused })
+
+        let queuedHash = String(repeating: "a", count: 40)
+        let queued = await store.addTorrent(.magnet("magnet:?xt=urn:btih:\(queuedHash)"),
+                                            downloadDirectory: fixture.directory.path, startPaused: false)
+        #expect(queued?.statusLabel == "Waiting")
+        #expect(store.pendingTorrentCount == 0)
+        let engine = LifecycleEngine()
+        store.startTransfers(with: engine)
+        store.startTransfers(with: engine)
+        await store.refreshNow()
+        #expect(await eventually { store.selectedTorrent?.state == "live" })
+        #expect(await engine.addCount() == 1)
+        #expect(try await engine.list().map(\.id) == [queuedHash])
+        #expect(store.torrents.first { $0.id == saved.id }?.statusLabel == "Paused")
+    }
+
+    @Test @MainActor
+    func immediateEngineAttachmentWaitsForLibraryLoad() async throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanUp() }
+        try await fixture.persistence.save(torrent: sampleTorrent())
+        let store = TorrentStore(engine: nil, persistence: fixture.persistence, downloadDirectory: fixture.directory.path)
+        let engine = LifecycleEngine()
+        store.startTransfers(with: engine)
+        await store.refreshNow()
+        #expect(await eventually { store.torrents.first?.state == "live" })
+        #expect(await engine.addCount() == 1)
+    }
+
     @Test
     func validatesMagnetIdentity() throws {
         #expect(try MagnetLink(Self.magnet).infoHash == Self.hash)

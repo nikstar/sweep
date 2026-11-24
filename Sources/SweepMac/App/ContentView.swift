@@ -110,8 +110,8 @@ struct ContentView: View {
             store.beginAddingMagnet(magnet)
             return true
         }
-        .task {
-            store.startPolling()
+        .task(id: store.isWaitingForEngine) {
+            if !store.isWaitingForEngine { store.startPolling() }
         }
     }
 }

@@ -6,21 +6,20 @@ struct SettingsView: View {
     let network: MacNetworkSession
 
     var body: some View {
+        let store = network.store
         Form {
-            if let store = network.store {
-                Section("Downloads") {
-                    LabeledContent("Engine", value: store.engineName)
+            Section("Downloads") {
+                LabeledContent("Engine", value: store.engineName)
 
-                    LabeledContent("Default Location") {
-                        HStack(spacing: 8) {
-                            Text(abbreviatedPath(store.downloadDirectory))
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                                .truncationMode(.middle)
+                LabeledContent("Default Location") {
+                    HStack(spacing: 8) {
+                        Text(abbreviatedPath(store.downloadDirectory))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
 
-                            Button("Choose...") {
-                                chooseDefaultLocation(store)
-                            }
+                        Button("Choose...") {
+                            chooseDefaultLocation(store)
                         }
                     }
                 }
@@ -60,35 +59,5 @@ struct SettingsView: View {
             return
         }
         store.setDownloadDirectory(directory)
-    }
-}
-
-struct DirectWiFiStartup: View {
-    let network: MacNetworkSession
-    @Environment(\.openSettings) private var openSettings
-
-    var body: some View {
-        VStack(spacing: 12) {
-            if network.connecting { ProgressView() }
-            Text(network.message ?? (network.needsApproval ? "Approve Sweep’s Wi-Fi helper to start transfers." : "Connecting to direct Wi-Fi…"))
-            if network.needsApproval {
-                Button("Open System Settings…", action: network.openApproval)
-            } else if network.mustRelaunch {
-                Button("Relaunch Sweep", action: network.relaunch)
-            } else if !network.connecting {
-                Button("Retry", action: network.start)
-            }
-            Button("Sweep Settings…") { openSettings() }
-        }
-        .task(id: network.needsApproval) {
-            while network.needsApproval {
-                do { try await Task.sleep(for: .seconds(2)) } catch { return }
-                network.refreshApproval()
-                if !network.needsApproval { network.start() }
-            }
-        }
-        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
-            if network.needsApproval { network.start() }
-        }
     }
 }

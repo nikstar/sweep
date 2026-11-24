@@ -13,7 +13,7 @@ final class MacNetworkSession {
     private let service = SMAppService.daemon(plistName: serviceName + ".plist")
 
     private(set) var directRequested = UserDefaults.standard.bool(forKey: preference)
-    private(set) var store: TorrentStore?
+    private(set) var store: TorrentStore
     private(set) var message: String?
     private(set) var needsApproval = false
     private(set) var connecting = false
@@ -23,19 +23,31 @@ final class MacNetworkSession {
 
     @ObservationIgnored private var connection: NSXPCConnection?
     @ObservationIgnored private var engine: RqbitEngine?
-    @ObservationIgnored private var pendingURLs: [URL] = []
 
     init() {
         directAtLaunch = UserDefaults.standard.bool(forKey: Self.preference)
-        if !directAtLaunch { store = makeStore(interface: nil) }
+        if directAtLaunch {
+            store = TorrentStoreFactory.make(defaultDownloadDirectory: Self.downloads, makeEngine: nil)
+        } else {
+            store = TorrentStoreFactory.make(defaultDownloadDirectory: Self.downloads) { directory in
+                try RqbitEngine(downloadDirectory: directory)
+            }
+        }
     }
 
     func selectDirect(_ enabled: Bool) {
         message = nil
         directRequested = enabled
         UserDefaults.standard.set(enabled, forKey: Self.preference)
-        if enabled { prepareHelper() }
-        else { needsApproval = false }
+        if enabled {
+            if directAtLaunch && store.isWaitingForEngine && !mustRelaunch {
+                start()
+            } else {
+                prepareHelper()
+            }
+        } else {
+            needsApproval = false
+        }
     }
 
     func prepareHelper() {
@@ -60,7 +72,7 @@ final class MacNetworkSession {
     }
 
     func start() {
-        guard directAtLaunch, directRequested, !mustRelaunch, !connecting, store == nil, connection == nil else { return }
+        guard directAtLaunch, directRequested, !mustRelaunch, !connecting, store.isWaitingForEngine, connection == nil else { return }
         prepareHelper()
         guard service.status == .enabled else {
             if !needsApproval && message == nil {
@@ -102,10 +114,16 @@ final class MacNetworkSession {
                     self.failed(client, reason: error ?? "The Wi-Fi interface is unavailable.")
                     return
                 }
-                self.connecting = false
-                self.store = self.makeStore(interface: name)
-                for url in self.pendingURLs { self.store?.beginAdding(url: url) }
-                self.pendingURLs.removeAll()
+                do {
+                    let directory = self.store.downloadDirectory
+                    try FileManager.default.createDirectory(atPath: directory, withIntermediateDirectories: true)
+                    let engine = try RqbitEngine(downloadDirectory: directory, bindInterface: name)
+                    self.engine = engine
+                    self.store.startTransfers(with: engine)
+                    self.connecting = false
+                } catch {
+                    self.failed(client, reason: error.localizedDescription)
+                }
             }
         }
     }
@@ -165,23 +183,18 @@ final class MacNetworkSession {
 
     private func linkClosed(_ client: NSXPCConnection?) {
         guard let client, connection === client else { return }
-        if store == nil {
+        guard let engine else {
             // An outstanding openLink request receives a more specific error, including
             // a code-signature mismatch after an update, on the proxy's error handler.
             return
         }
         connection = nil
         connecting = false
-        engine?.cancelNetwork()
+        engine.cancelNetwork()
         mustRelaunch = true
         message = "The direct Wi-Fi link closed. Relaunch Sweep to reconnect."
-        store = nil
-        engine = nil
-    }
-
-    func open(_ url: URL) {
-        if let store { store.beginAdding(url: url) }
-        else { pendingURLs.append(url) }
+        store = TorrentStoreFactory.make(defaultDownloadDirectory: Self.downloads, makeEngine: nil)
+        self.engine = nil
     }
 
     func relaunch() {
@@ -195,13 +208,8 @@ final class MacNetworkSession {
         } catch { message = error.localizedDescription }
     }
 
-    private func makeStore(interface: String?) -> TorrentStore {
-        let downloads = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask)[0]
+    private static var downloads: String {
+        FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask)[0]
             .appending(path: "Sweep", directoryHint: .isDirectory).path
-        return TorrentStoreFactory.make(defaultDownloadDirectory: downloads) { directory in
-            let engine = try RqbitEngine(downloadDirectory: directory, bindInterface: interface)
-            self.engine = engine
-            return engine
-        }
     }
 }

@@ -11,7 +11,7 @@ public enum TorrentStoreFactory {
         prepareDirectory: (String) throws -> Void = { path in
             try FileManager.default.createDirectory(atPath: path, withIntermediateDirectories: true)
         },
-        makeEngine: (String) throws -> any TorrentEngine
+        makeEngine: ((String) throws -> any TorrentEngine)?
     ) -> TorrentStore {
         var persistence: AppPersistence?
         var state: PersistedAppState?
@@ -25,12 +25,14 @@ public enum TorrentStoreFactory {
         }
 
         let directory = state?.downloadDirectory ?? defaultDownloadDirectory
-        let engine: any TorrentEngine
-        do {
-            try prepareDirectory(directory)
-            engine = try makeEngine(directory)
-        } catch {
-            engine = UnavailableTorrentEngine(reason: error.localizedDescription)
+        var engine: (any TorrentEngine)?
+        if let makeEngine {
+            do {
+                try prepareDirectory(directory)
+                engine = try makeEngine(directory)
+            } catch {
+                engine = UnavailableTorrentEngine(reason: error.localizedDescription)
+            }
         }
         return TorrentStore(
             engine: engine, persistence: persistence, downloadDirectory: directory,

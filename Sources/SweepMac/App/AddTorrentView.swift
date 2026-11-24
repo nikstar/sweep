@@ -46,7 +46,11 @@ struct AddTorrentView: View {
             }
             .formStyle(.grouped)
 
-            if let addError {
+            if waitingToReadFile {
+                Text("Waiting for direct Wi-Fi to read this torrent file.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            } else if let addError {
                 Text(addError)
                     .font(.callout)
                     .foregroundStyle(.red)
@@ -109,9 +113,13 @@ struct AddTorrentView: View {
     }
 
     private var canAdd: Bool {
-        resolvedSource != nil
+        !waitingToReadFile && resolvedSource != nil
             && !downloadDirectory.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && !isAdding
+    }
+
+    private var waitingToReadFile: Bool {
+        store.isWaitingForEngine && source.magnet == nil
     }
 
     private func chooseFile() {
