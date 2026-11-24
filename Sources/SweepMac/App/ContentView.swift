@@ -22,12 +22,26 @@ struct ContentView: View {
                     TorrentActions.addLocationFromPasteboard(in: store)
                 }
                 .help("Add Magnet Link")
+            }
 
-                Button("Remove from Library", systemImage: "minus") {
+            if #available(macOS 26, *) {
+                ToolbarSpacer(.fixed)
+            } else {
+                ToolbarItem { Divider() }
+            }
+
+            ToolbarItemGroup {
+                Button("Remove from Library", systemImage: "xmark") {
                     TorrentActions.remove(store.selectedTorrent, in: store)
                 }
                 .disabled(store.selectedTorrent == nil)
                 .help("Remove from Library")
+
+                Button("Remove and Delete Files", systemImage: "trash", role: .destructive) {
+                    TorrentActions.remove(store.selectedTorrent, in: store, deleteData: true)
+                }
+                .disabled(store.selectedTorrent == nil)
+                .help("Remove and Delete Files")
             }
 
             if #available(macOS 26, *) {

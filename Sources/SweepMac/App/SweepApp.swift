@@ -24,7 +24,7 @@ struct SweepApp: App {
         }
         .handlesExternalEvents(matching: ["*"])
         .windowStyle(.hiddenTitleBar)
-        .windowToolbarStyle(.unifiedCompact)
+        .windowToolbarStyle(.unified(showsTitle: false))
         .commands {
             CommandGroup(after: .appInfo) {
                 Button("Check for Updates…", action: updates.checkForUpdates)
