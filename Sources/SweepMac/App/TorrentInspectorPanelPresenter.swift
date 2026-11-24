@@ -33,6 +33,7 @@ final class TorrentInspectorPanelPresenter {
 private final class TorrentInspectorWindowController: NSWindowController, NSWindowDelegate {
     private static let frameAutosaveName = "TorrentInspectorWindow"
     private let onClose: () -> Void
+    private let libraryUndoManager = NSApp.mainWindow?.undoManager ?? UndoManager()
 
     init(store: TorrentStore, onClose: @escaping () -> Void) {
         self.onClose = onClose
@@ -79,5 +80,9 @@ private final class TorrentInspectorWindowController: NSWindowController, NSWind
 
     func windowWillClose(_ notification: Notification) {
         onClose()
+    }
+
+    func windowWillReturnUndoManager(_ window: NSWindow) -> UndoManager? {
+        libraryUndoManager
     }
 }

@@ -4,7 +4,6 @@ import SweepCore
 struct TorrentInspectorWindowView: View {
     @Environment(TorrentStore.self) private var store
     @AppStorage("MacInspectorSelectedTab") private var selectedTab: InspectorTab = .info
-    @State private var confirmingRemoveData = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -39,7 +38,6 @@ struct TorrentInspectorWindowView: View {
             }
         }
         .frame(minWidth: 430, idealWidth: 460, minHeight: 500, idealHeight: 560)
-        .removeTorrentDataConfirmation(isPresented: $confirmingRemoveData, store: store)
         .task {
             store.startPolling()
         }
@@ -64,10 +62,7 @@ struct TorrentInspectorWindowView: View {
             TorrentFilesInspector(torrent: torrent, defaultDownloadDirectory: store.downloadDirectory)
 
         case .options:
-            TorrentOptionsInspector(
-                torrent: torrent,
-                confirmRemoveData: { confirmingRemoveData = true }
-            )
+            TorrentOptionsInspector(torrent: torrent)
         }
     }
 }

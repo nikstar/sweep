@@ -502,6 +502,11 @@ public struct Torrent: Identifiable, Hashable, Codable, Sendable {
         return min(1, Double(progressBytes) / Double(totalBytes))
     }
 
+    public var isDownloadFinished: Bool {
+        totalBytes > 0 && progressBytes >= totalBytes && error == nil
+            && state != "initializing" && state != "restoring" && state != "resolving"
+    }
+
     public var checkingProgress: Double? {
         guard state == "initializing", let checkedBytes, totalBytes > 0 else { return nil }
         return min(1, Double(checkedBytes) / Double(totalBytes))

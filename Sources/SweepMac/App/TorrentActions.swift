@@ -53,44 +53,38 @@ enum TorrentActions {
         store.togglePause(torrent)
     }
 
-    static func remove(_ torrent: Torrent, in store: TorrentStore) {
-        store.selection = torrent.id
-        store.removeSelectedTorrent()
-    }
+    static func remove(_ torrent: Torrent?, in store: TorrentStore, deleteData: Bool = false) {
+        guard let torrent, let window = NSApp.keyWindow ?? NSApp.mainWindow,
+              window.sheetParent == nil, window.attachedSheet == nil else { return }
+        let undoManager = window.undoManager
 
-    static func requestRemoveData(_ torrent: Torrent, in store: TorrentStore, confirm: () -> Void) {
-        store.selection = torrent.id
-        confirm()
-    }
-
-    static func confirmRemoveSelectedTorrentData(in store: TorrentStore) {
-        store.removeSelectedTorrent(deleteData: true)
-    }
-
-    static func removeDataConfirmationTitle(for torrent: Torrent?) -> String {
-        guard let name = torrent?.name else {
-            return "Delete the selected torrent and its downloaded files?"
-        }
-        return "Delete \"\(name)\" and its downloaded files?"
-    }
-}
-
-extension View {
-    func removeTorrentDataConfirmation(
-        isPresented: Binding<Bool>,
-        store: TorrentStore
-    ) -> some View {
-        confirmationDialog(
-            TorrentActions.removeDataConfirmationTitle(for: store.selectedTorrent),
-            isPresented: isPresented,
-            titleVisibility: .visible
-        ) {
-            Button("Delete Torrent and Files", role: .destructive) {
-                TorrentActions.confirmRemoveSelectedTorrentData(in: store)
+        func performRemoval() {
+            Task {
+                guard let removal = await store.removeTorrent(id: torrent.id, deleteData: deleteData) else { return }
+                undoManager?.registerUndo(withTarget: store) { target in
+                    Task { await target.restoreRemovedTorrent(removal) }
+                }
+                undoManager?.setActionName("Remove Torrent")
             }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("Downloaded files for this torrent will be deleted from disk.")
+        }
+
+        guard deleteData || !torrent.isDownloadFinished else {
+            performRemoval()
+            return
+        }
+
+        let alert = NSAlert()
+        alert.messageText = deleteData
+            ? "Delete “\(torrent.name)” and its downloaded files?"
+            : "Remove unfinished torrent “\(torrent.name)”?"
+        alert.informativeText = deleteData
+            ? "Downloaded files will be deleted from disk. This cannot be undone."
+            : "Removing this transfer keeps its downloaded files on disk."
+        alert.addButton(withTitle: "Cancel").keyEquivalent = "\u{1b}"
+        let remove = alert.addButton(withTitle: deleteData ? "Delete Torrent and Files" : "Remove Torrent")
+        remove.hasDestructiveAction = true
+        alert.beginSheetModal(for: window) { response in
+            if response == .alertSecondButtonReturn { performRemoval() }
         }
     }
 }

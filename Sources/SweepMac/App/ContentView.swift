@@ -6,16 +6,11 @@ struct ContentView: View {
     @Environment(TorrentInspectorPanelPresenter.self) private var inspectorPanelPresenter
     @State private var presentedURL: URL?
     @State private var queuedURLs: [URL] = []
-    @Binding var confirmingRemoveData: Bool
-
-    init(confirmingRemoveData: Binding<Bool> = .constant(false)) {
-        self._confirmingRemoveData = confirmingRemoveData
-    }
 
     var body: some View {
         @Bindable var store = store
 
-        TorrentListView(confirmingRemoveData: $confirmingRemoveData)
+        TorrentListView()
         .toolbar {
             ToolbarItem(placement: .navigation) {
                 ControlGroup {
@@ -62,7 +57,7 @@ struct ContentView: View {
             ToolbarItem(placement: .navigation) {
                 ControlGroup {
                     Button {
-                        store.removeSelectedTorrent()
+                        TorrentActions.remove(store.selectedTorrent, in: store)
                     } label: {
                         Label("Remove", systemImage: "xmark")
                             .labelStyle(.iconOnly)
@@ -71,7 +66,7 @@ struct ContentView: View {
                     .help("Remove")
 
                     Button(role: .destructive) {
-                        confirmingRemoveData = true
+                        TorrentActions.remove(store.selectedTorrent, in: store, deleteData: true)
                     } label: {
                         Label("Remove Data", systemImage: "trash")
                             .labelStyle(.iconOnly)
@@ -92,7 +87,6 @@ struct ContentView: View {
                 .help("Show Inspector")
             }
         }
-        .removeTorrentDataConfirmation(isPresented: $confirmingRemoveData, store: store)
         .onOpenURL { url in
             guard url != presentedURL, !queuedURLs.contains(url) else { return }
             queuedURLs.append(url)

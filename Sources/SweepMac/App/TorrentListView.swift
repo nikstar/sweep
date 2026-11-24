@@ -6,15 +6,10 @@ import SweepUI
 struct TorrentListView: View {
     @Environment(TorrentStore.self) private var store
     @Environment(TorrentInspectorPanelPresenter.self) private var inspectorPanelPresenter
-    @Binding var confirmingRemoveData: Bool
     @SceneStorage("Sweep.TorrentList.columnCustomization")
     private var columnCustomization = TableColumnCustomization<Torrent>()
     @SceneStorage("Sweep.TorrentList.progressColumnMode")
     private var progressColumnModeRaw = ProgressColumnMode.detailed.rawValue
-
-    init(confirmingRemoveData: Binding<Bool> = .constant(false)) {
-        self._confirmingRemoveData = confirmingRemoveData
-    }
 
     var body: some View {
         @Bindable var store = store
@@ -123,17 +118,17 @@ struct TorrentListView: View {
                 Divider()
 
                 Button("Remove") {
-                    store.removeSelectedTorrent()
+                    TorrentActions.remove(store.selectedTorrent, in: store)
                 }
                 .disabled(store.selectedTorrent == nil)
 
                 Button("Remove and Delete Data") {
-                    confirmingRemoveData = true
+                    TorrentActions.remove(store.selectedTorrent, in: store, deleteData: true)
                 }
                 .disabled(store.selectedTorrent == nil)
             }
             .onDeleteCommand {
-                store.removeSelectedTorrent()
+                TorrentActions.remove(store.selectedTorrent, in: store)
             }
 
             TransferStatusBar()

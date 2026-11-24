@@ -344,6 +344,106 @@ struct TorrentLifecycleTests {
     }
 
     @Test @MainActor
+    func undoRemovalRestoresPausedEntryAndLeavesPayloadAlone() async throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanUp() }
+        let file = TorrentFile(id: 0, path: "fixture.bin", length: 100, progressBytes: 20)
+        let source = TorrentFileSource(fileName: "fixture.torrent", bytes: [1, 2, 3])
+        let saved = sampleTorrent().updating(downloadDirectory: fixture.directory.path, desiredState: .paused, files: [file])
+            .withAddSource(.torrentFile(source))
+        let payload = fixture.directory.appending(path: file.path)
+        try Data(repeating: 9, count: 20).write(to: payload)
+        let store = fixture.store(engine: LifecycleEngine(), initialState: PersistedAppState(
+            torrents: [saved], selectedTorrentID: saved.id, downloadDirectory: fixture.directory.path))
+        let removed = try #require(await store.removeTorrent(id: saved.id))
+        #expect(store.torrents.isEmpty)
+        #expect(try await fixture.persistence.loadState().torrents.isEmpty)
+        await store.restoreRemovedTorrent(removed)
+        let row = try #require(store.selectedTorrent)
+        #expect(row.id == saved.id && row.addedAt == saved.addedAt)
+        #expect(row.files == [file] && row.addSource == .torrentFile(source))
+        #expect(row.downloadDirectory == saved.downloadDirectory && row.progressBytes == 20)
+        #expect(row.desiredState == .paused && row.state == "paused")
+        #expect(try await fixture.persistence.loadState().torrents.first?.files == [file])
+        #expect(try Data(contentsOf: payload) == Data(repeating: 9, count: 20))
+        #expect(await store.removeTorrent(id: saved.id, deleteData: true) == nil)
+        await store.restoreRemovedTorrent(removed)
+        #expect(store.torrents.isEmpty)
+        #expect(!FileManager.default.fileExists(atPath: payload.path))
+    }
+
+    @Test @MainActor
+    func undoRunningTransferWaitsForItsEngineAndRestoresOnlyOnce() async throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanUp() }
+        let saved = sampleTorrent()
+        let store = TorrentStore(engine: nil, persistence: fixture.persistence, downloadDirectory: fixture.directory.path,
+                                 initialState: .init(torrents: [saved], selectedTorrentID: saved.id, downloadDirectory: fixture.directory.path))
+        let removed = try #require(await store.removeTorrent(id: saved.id))
+        await store.restoreRemovedTorrent(removed)
+        await store.restoreRemovedTorrent(removed)
+        #expect(store.torrents.count == 1)
+        #expect(store.selectedTorrent?.state == "waiting")
+        #expect(store.selectedTorrent?.desiredState == .running)
+        let engine = LifecycleEngine()
+        store.startTransfers(with: engine)
+        #expect(await eventually { store.selectedTorrent?.state == "live" })
+        #expect(await engine.addCount() == 1)
+    }
+
+    @Test
+    func removalRequiresKnownFinishedBytes() {
+        let partial = sampleTorrent()
+        #expect(!partial.isDownloadFinished)
+        #expect(!partial.updating(progressBytes: 0, totalBytes: 0).isDownloadFinished)
+        let complete = partial.updating(progressBytes: partial.totalBytes)
+        #expect(complete.isDownloadFinished)
+        #expect(complete.updating(state: "paused").isDownloadFinished)
+        #expect(!complete.updating(state: "initializing").isDownloadFinished)
+    }
+
+    @Test @MainActor
+    func undoPendingMagnetRestartsDiscoveryAfterTheOldAddFinishes() async throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanUp() }
+        let engine = LifecycleEngine(holdMetadata: true, ignoresCancellation: true)
+        let store = fixture.store(engine: engine)
+        _ = await store.addTorrent(.magnet(Self.magnet), downloadDirectory: fixture.directory.path, startPaused: false)
+        #expect(await eventually { await engine.addCount() == 1 })
+        let removal = Task { await store.removeTorrent(id: Self.hash) }
+        #expect(await eventually { store.torrents.isEmpty })
+        await engine.completeMetadata()
+        let receipt = try #require(await removal.value)
+        #expect(try await engine.list().isEmpty)
+        await store.restoreRemovedTorrent(receipt)
+        #expect(await eventually { await engine.addCount() == 2 })
+        await engine.completeMetadata()
+        #expect(await eventually { store.selectedTorrent?.state == "live" })
+        #expect(try await engine.list().map(\.id) == [Self.hash])
+        #expect(try await fixture.persistence.loadState().torrents.map(\.id) == [Self.hash])
+    }
+
+    @Test @MainActor
+    func readdingDuringRemovalPreservesNewIntentAndInvalidatesOldUndo() async throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanUp() }
+        let engine = LifecycleEngine(holdMetadata: true, ignoresCancellation: true)
+        let store = fixture.store(engine: engine)
+        _ = await store.addTorrent(.magnet(Self.magnet), downloadDirectory: fixture.directory.path, startPaused: false)
+        #expect(await eventually { await engine.addCount() == 1 })
+        let remove = Task { await store.removeTorrent(id: Self.hash) }
+        #expect(await eventually { store.torrents.isEmpty })
+        let readd = Task { await store.addTorrent(.magnet(Self.magnet), downloadDirectory: fixture.directory.path, startPaused: true) }
+        await engine.completeMetadata()
+        let oldRemoval = try #require(await remove.value)
+        _ = await readd.value
+        await store.restoreRemovedTorrent(oldRemoval)
+        #expect(store.selectedTorrent?.desiredState == .paused)
+        #expect(try await fixture.persistence.loadState().torrents.first?.desiredState == .paused)
+        #expect(await engine.addCount() == 1)
+    }
+
+    @Test @MainActor
     func removedPendingAddCannotReturnAsAGhostTorrent() async throws {
         let fixture = try Fixture()
         defer { fixture.cleanUp() }

@@ -38,7 +38,17 @@ public final class TorrentStore {
     @ObservationIgnored
     private var launchTask: Task<Void, Never>?
     @ObservationIgnored
-    private var locallyRemovedTorrentIDs: Set<Torrent.ID> = []
+    private var removals: [Torrent.ID: RemovalState] = [:]
+
+    private enum RemovalState: Equatable {
+        case removing(Task<RemovedTorrent?, Never>)
+        case removed(UUID)
+
+        var pendingTask: Task<RemovedTorrent?, Never>? {
+            guard case .removing(let task) = self else { return nil }
+            return task
+        }
+    }
     @ObservationIgnored private var managedTorrentIDs: Set<Torrent.ID> = []
     private var pendingAdds: [Torrent.ID: UUID] = [:]
     @ObservationIgnored private var addTasks: [Torrent.ID: Task<Void, Never>] = [:]
@@ -173,6 +183,7 @@ public final class TorrentStore {
             try createDownloadDirectory(at: downloadDirectory)
             if case .magnet(let value) = source {
                 let magnet = try MagnetLink(value)
+                _ = await removals[magnet.infoHash]?.pendingTask?.value
                 if let existing = torrents.first(where: { $0.id == magnet.infoHash }) {
                     selection = existing.id
                     return existing
@@ -188,7 +199,7 @@ public final class TorrentStore {
                 // Save the user's intent before starting any network work.
                 try await persistence?.save(torrent: torrent)
                 mutationRevision += 1
-                locallyRemovedTorrentIDs.remove(torrent.id)
+                removals[torrent.id] = nil
                 upsert(torrent)
                 selection = torrent.id
                 if !startPaused { startAddingToEngine(torrent) }
@@ -199,13 +210,15 @@ public final class TorrentStore {
                 lastError = "The torrent engine must be ready to read a torrent file."
                 return nil
             }
+            // A file's info hash is known only after the engine opens it.
+            for removal in removals.values.compactMap(\.pendingTask) { _ = await removal.value }
             mutationRevision += 1
             var torrent = try await engine
                 .addTorrent(source, downloadDirectory: downloadDirectory, startPaused: startPaused, createSubfolder: true)
                 .withAddSource(source)
                 .updating(desiredState: startPaused ? .paused : .running)
             torrent = torrent.updating(downloadDirectory: torrent.downloadDirectory ?? downloadDirectory)
-            locallyRemovedTorrentIDs.remove(torrent.id)
+            removals[torrent.id] = nil
             managedTorrentIDs.insert(torrent.id)
             mutationRevision += 1
             upsert(torrent)
@@ -251,8 +264,9 @@ public final class TorrentStore {
             let discoverySnapshots = try await engine.discoverySnapshots()
             guard revision == mutationRevision else { return }
             updateDiscoveries(discoverySnapshots)
-            managedTorrentIDs = Set(liveTorrents.map(\.id))
             let visibleLiveTorrents = filterVisibleLiveTorrents(from: liveTorrents)
+            managedTorrentIDs = managedTorrentIDs.filter { removals[$0]?.pendingTask != nil }
+                .union(visibleLiveTorrents.map(\.id))
             for torrent in visibleLiveTorrents where commandVersions[torrent.id] == nil
                 && (pendingAdds[torrent.id] == nil || torrent.state == "initializing") {
                 upsert(liveTorrent: torrent)
@@ -264,7 +278,8 @@ public final class TorrentStore {
             discardLocallyRemovedTorrents()
             // A removed pending add may finish just as cancellation arrives. It was
             // added paused, so clean up the handle without touching payload files.
-            for torrent in liveTorrents where locallyRemovedTorrentIDs.contains(torrent.id) {
+            for torrent in liveTorrents {
+                guard case .removed = removals[torrent.id] else { continue }
                 try await engine.remove(id: torrent.id, deleteData: false)
             }
             await saveCurrentTorrents()
@@ -290,10 +305,8 @@ public final class TorrentStore {
     }
 
     public func removeSelectedTorrent(deleteData: Bool = false) {
-        guard let torrent = selectedTorrent else { return }
-        Task {
-            await remove(torrent, deleteData: deleteData)
-        }
+        guard let id = selection else { return }
+        Task { await removeTorrent(id: id, deleteData: deleteData) }
     }
 
     public func setFile(_ file: TorrentFile, included: Bool, in torrent: Torrent) {
@@ -324,7 +337,7 @@ public final class TorrentStore {
                     fileSelectionVersions.removeValue(forKey: id)
                 }
             }
-            guard let current = torrents.first(where: { $0.id == id }), !locallyRemovedTorrentIDs.contains(id) else { return }
+            guard let current = torrents.first(where: { $0.id == id }), removals[id] == nil else { return }
             await setFileSelection(includedFileIDs: selection(current), in: current)
         }
     }
@@ -344,7 +357,7 @@ public final class TorrentStore {
     }
 
     private func upsert(_ torrent: Torrent) {
-        guard !locallyRemovedTorrentIDs.contains(torrent.id) else { return }
+        guard removals[torrent.id] == nil else { return }
 
         if let index = torrents.firstIndex(where: { $0.id == torrent.id }) {
             torrents[index] = torrent
@@ -355,7 +368,7 @@ public final class TorrentStore {
     }
 
     private func upsert(liveTorrent torrent: Torrent) {
-        guard !locallyRemovedTorrentIDs.contains(torrent.id) else { return }
+        guard removals[torrent.id] == nil else { return }
 
         if let index = torrents.firstIndex(where: { $0.id == torrent.id }) {
             let cached = torrents[index]
@@ -370,11 +383,13 @@ public final class TorrentStore {
     }
 
     private func restoredRows(_ saved: [Torrent]) -> [Torrent] {
+        normalized(torrents: saved, downloadDirectory: downloadDirectory).map { libraryRow(from: $0) }
+    }
+
+    private func libraryRow(from torrent: Torrent) -> Torrent {
         let runningState = isWaitingForEngine ? "waiting" : "restoring"
-        return normalized(torrents: saved, downloadDirectory: downloadDirectory).map {
-            $0.updating(state: $0.desiredState == .paused ? "paused" : runningState,
-                        peers: [], pieceRuns: [], downloadBps: 0, uploadBps: 0, clearError: true)
-        }
+        return torrent.updating(state: torrent.desiredState == .paused ? "paused" : runningState,
+                                peers: [], pieceRuns: [], downloadBps: 0, uploadBps: 0, clearError: true)
     }
 
     private func loadPersistedState() async {
@@ -403,13 +418,7 @@ public final class TorrentStore {
                 upsert(liveTorrent: torrent)
             }
             for torrent in torrents where !managedTorrentIDs.contains(torrent.id) {
-                if torrent.addSource == nil {
-                    upsert(torrent.updating(state: "missing", error: "The saved torrent has no source. Add its magnet or torrent file again."))
-                } else if torrent.desiredState == .running {
-                    // Independent tasks prevent one unreachable magnet from blocking
-                    // restoration of every other torrent.
-                    startAddingToEngine(torrent)
-                }
+                restoreTransfer(torrent)
             }
             sessionStats = try await engine.sessionStats()
             lastRefreshAt = Date()
@@ -418,6 +427,14 @@ public final class TorrentStore {
             await saveCurrentTorrents()
         } catch {
             refreshError = error.localizedDescription
+        }
+    }
+
+    private func restoreTransfer(_ torrent: Torrent) {
+        if torrent.addSource == nil {
+            upsert(torrent.updating(state: "missing", error: "The saved torrent has no source. Add its magnet or torrent file again."))
+        } else if torrent.desiredState == .running {
+            startAddingToEngine(torrent)
         }
     }
 
@@ -458,7 +475,10 @@ public final class TorrentStore {
                 createSubfolder: cached.files.isEmpty
             )
             guard pendingAdds[id] == token, !Task.isCancelled else {
-                if locallyRemovedTorrentIDs.contains(id) {
+                if removals[id]?.pendingTask != nil {
+                    // Removal waits for this task and disposes of the handle it just created.
+                    managedTorrentIDs.insert(id)
+                } else if removals[id] != nil {
                     try? await engine.remove(id: id, deleteData: false)
                 }
                 return
@@ -615,30 +635,46 @@ public final class TorrentStore {
         }
     }
 
-    private func remove(_ torrent: Torrent, deleteData: Bool) async {
+    /// A snapshot for undoing one successful entry-only removal in this store.
+    public struct RemovedTorrent: Sendable {
+        fileprivate let torrent: Torrent
+        fileprivate let token: UUID
+    }
+
+    @discardableResult
+    public func removeTorrent(id: Torrent.ID, deleteData: Bool = false) async -> RemovedTorrent? {
         await launchTask?.value
+        guard removals[id] == nil, let torrent = torrents.first(where: { $0.id == id }) else { return nil }
+        let task = Task { await remove(torrent, deleteData: deleteData) }
+        removals[id] = .removing(task)
+        return await task.value
+    }
+
+    private func remove(_ torrent: Torrent, deleteData: Bool) async -> RemovedTorrent? {
+        let id = torrent.id
         mutationRevision += 1
-        commandVersions.removeValue(forKey: torrent.id)
-        let wasPending = pendingAdds[torrent.id] != nil || !managedTorrentIDs.contains(torrent.id)
-        await cancelPendingAdd(id: torrent.id)
-        locallyRemovedTorrentIDs.insert(torrent.id)
+        defer { mutationRevision += 1 }
+        commandVersions.removeValue(forKey: id)
+        let pendingAdd = addTasks[id]
         torrents.removeAll { $0.id == torrent.id }
         discoveries.removeValue(forKey: torrent.id)
         if selection == torrent.id {
             selection = torrents.first?.id
         }
+        await cancelPendingAdd(id: id)
+        await pendingAdd?.value
         do {
             try await persistence?.deleteTorrent(id: torrent.id)
         } catch {
-            locallyRemovedTorrentIDs.remove(torrent.id)
+            removals[torrent.id] = nil
             let message = "Could not save the removal: \(error.localizedDescription)"
             upsert(torrent.updating(state: "error", error: message))
             persistenceError = message
-            return
+            return nil
         }
 
         do {
-            if !wasPending || managedTorrentIDs.contains(torrent.id) {
+            if managedTorrentIDs.contains(id) {
                 try await engine?.remove(id: torrent.id, deleteData: deleteData)
             }
             managedTorrentIDs.remove(torrent.id)
@@ -646,19 +682,22 @@ public final class TorrentStore {
         } catch {
             if deleteData, isEngineDataCleanupFailureAfterTorrentRemoval(error) {
                 await handlePartialEngineDataDeletionFailure(error, for: torrent)
-                return
+                removals[id] = .removed(UUID())
+                return nil
             }
 
-            locallyRemovedTorrentIDs.remove(torrent.id)
+            removals[torrent.id] = nil
             upsert(torrent)
             try? await persistence?.save(torrent: torrent)
             lastError = error.localizedDescription
-            return
+            return nil
         }
 
+        let token = UUID()
+        removals[id] = .removed(token)
         guard deleteData else {
             lastError = nil
-            return
+            return RemovedTorrent(torrent: torrent, token: token)
         }
 
         do {
@@ -667,6 +706,27 @@ public final class TorrentStore {
         } catch {
             lastError = error.localizedDescription
         }
+        return nil
+    }
+
+    public func restoreRemovedTorrent(_ removal: RemovedTorrent) async {
+        let torrent = removal.torrent
+        let id = torrent.id
+        guard removals[id] == .removed(removal.token) else { return }
+        let restored = libraryRow(from: torrent)
+        do {
+            try await persistence?.save(torrent: restored)
+        } catch {
+            persistenceError = "Could not restore the transfer: \(error.localizedDescription)"
+            return
+        }
+        guard removals[id] == .removed(removal.token) else { return }
+        mutationRevision += 1
+        removals[id] = nil
+        upsert(restored)
+        selection = id
+        lastError = nil
+        restoreTransfer(restored)
     }
 
     private func handlePartialEngineDataDeletionFailure(_ engineError: Error, for torrent: Torrent) async {
@@ -712,7 +772,7 @@ public final class TorrentStore {
             guard let engine else { return }
             let snapshot = try await engine
                 .setFileSelection(id: torrent.id, includedFileIDs: includedFileIDs.sorted())
-            guard !locallyRemovedTorrentIDs.contains(torrent.id),
+            guard removals[torrent.id] == nil,
                   let latest = torrents.first(where: { $0.id == torrent.id }) else { return }
             let liveTorrent = snapshot.mergingCachedMetadata(from: latest)
             upsert(liveTorrent)
@@ -742,11 +802,11 @@ public final class TorrentStore {
     }
 
     private func filterVisibleLiveTorrents(from liveTorrents: [Torrent]) -> [Torrent] {
-        liveTorrents.filter { !locallyRemovedTorrentIDs.contains($0.id) }
+        liveTorrents.filter { removals[$0.id] == nil }
     }
 
     private func discardLocallyRemovedTorrents() {
-        torrents.removeAll { locallyRemovedTorrentIDs.contains($0.id) }
+        torrents.removeAll { removals[$0.id] != nil }
     }
 
     private func createDownloadDirectory(at path: String) throws {

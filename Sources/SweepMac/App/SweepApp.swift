@@ -7,12 +7,11 @@ struct SweepApp: App {
     @State private var updates = AppUpdates()
     @State private var network = MacNetworkSession()
     @State private var inspectorPanelPresenter = TorrentInspectorPanelPresenter()
-    @State private var confirmingRemoveData = false
 
     var body: some Scene {
         Window("Sweep", id: "transfers") {
             let store = network.store
-            ContentView(confirmingRemoveData: $confirmingRemoveData)
+            ContentView()
                 .environment(store)
                 .environment(network)
                 .environment(inspectorPanelPresenter)
@@ -91,13 +90,13 @@ struct SweepApp: App {
                 Divider()
 
                 Button("Remove") {
-                    store.removeSelectedTorrent()
+                    TorrentActions.remove(store.selectedTorrent, in: store)
                 }
                 .keyboardShortcut(.delete, modifiers: [])
                 .disabled(store.selectedTorrent == nil)
 
                 Button("Remove and Delete Data") {
-                    confirmingRemoveData = true
+                    TorrentActions.remove(store.selectedTorrent, in: store, deleteData: true)
                 }
                 .keyboardShortcut(.delete, modifiers: [.command])
                 .disabled(store.selectedTorrent == nil)

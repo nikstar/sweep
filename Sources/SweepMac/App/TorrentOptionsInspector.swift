@@ -5,7 +5,6 @@ struct TorrentOptionsInspector: View {
     @Environment(TorrentStore.self) private var store
 
     let torrent: Torrent
-    let confirmRemoveData: () -> Void
 
     var body: some View {
         InspectorPane {
@@ -60,7 +59,7 @@ struct TorrentOptionsInspector: View {
                     }
 
                     Button(role: .destructive) {
-                        TorrentActions.requestRemoveData(torrent, in: store, confirm: confirmRemoveData)
+                        TorrentActions.remove(torrent, in: store, deleteData: true)
                     } label: {
                         Label("Remove Data", systemImage: "trash")
                     }
