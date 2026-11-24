@@ -66,6 +66,43 @@ fn local_engine_with_mode(path: PathBuf, mode: ListenerMode) -> Arc<SweepEngine>
     })
 }
 
+#[tokio::test(start_paused = true)]
+async fn dht_recovers_after_two_days_without_a_bootstrap_reply() {
+    use librqbit::dht::{DhtBuilder, DhtConfig};
+
+    let silent = tokio::net::UdpSocket::bind("127.0.0.1:0").await.unwrap();
+    let bootstrap_addr = silent.local_addr().unwrap();
+    let node = DhtBuilder::with_config(DhtConfig {
+        listen_addr: Some("127.0.0.1:0".parse().unwrap()),
+        bootstrap_addrs: Some(vec![bootstrap_addr.to_string()]),
+        ..Default::default()
+    })
+    .await
+    .unwrap();
+
+    // Tokio runs the intervening timeouts and backoffs on its virtual clock.
+    tokio::time::sleep(Duration::from_secs(48 * 60 * 60)).await;
+    assert_eq!(node.stats().responses, 0);
+    assert!(node.stats().timeouts > 0);
+    drop(silent);
+    let seed = DhtBuilder::with_config(DhtConfig {
+        listen_addr: Some(bootstrap_addr),
+        bootstrap_addrs: Some(vec![node.listen_addr().to_string()]),
+        ..Default::default()
+    })
+    .await
+    .unwrap();
+
+    tokio::time::sleep(Duration::from_secs(5 * 60)).await;
+    assert!(node.stats().responses > 0, "bootstrap never recovered");
+    assert!(
+        seed.stats().responses > 0,
+        "the node stopped answering queries"
+    );
+    node.cancellation_token().cancel();
+    seed.cancellation_token().cancel();
+}
+
 #[test]
 fn chooses_one_safe_root_only_when_needed() {
     let root = |paths: &[&str], name| {

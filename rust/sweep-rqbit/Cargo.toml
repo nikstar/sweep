@@ -23,5 +23,8 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 uniffi = { version = "0.31.1", features = ["cli"] }
 urlencoding = "2"
 
+[dev-dependencies]
+tokio = { version = "1", features = ["test-util"] }
+
 [patch.crates-io]
 librqbit-dualstack-sockets = { path = "../patches/librqbit-dualstack-sockets" }
