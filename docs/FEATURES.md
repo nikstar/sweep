@@ -6,6 +6,64 @@ and eMule. The goal is to recover useful craft that many mainstream clients
 lost: readable state, rich progress information, and direct controls without
 turning the app into a dashboard.
 
+## Red Shield VPN routing on macOS, November 24, 2026
+
+Red Shield installed two half-default routes for each address family on
+`utun4` (`0/1` and `128.0/1` for IPv4, `::/1` and `8000::/1` for IPv6).
+These more specific routes won over the Wi-Fi default for the public endpoints
+tested. Red Shield's own transport process sent its outer UDP traffic on `en0`.
+Tailscale owned separate tailnet and DNS routes on `utun7`. Its earlier fix
+selected routes by destination and forced TCP relays because its direct UDP
+sockets were bound to Wi-Fi. Sweep leaves rqbit's interface selection to
+macOS. Outbound TCP peers get a socket for their address family. HTTP(S)
+trackers use reqwest, UDP trackers have a socket per endpoint, and DHT and
+uTP each reuse a UDP socket for multiple destinations. A wildcard listener
+accepts incoming peers. The installed app's public TCP connection and outgoing UDP sockets
+appeared on `utun4` in `nettop`. Its local peer discovery socket on UDP 6771
+uses multicast across interfaces and also appeared on `utun7`. System DNS
+listed both Tailscale's supplemental resolver and the VPN resolver. The
+resolver used for an individual lookup was not measured.
+
+The comparison used fresh diagnostic sessions with local discovery off. Each
+pair used the same input and kept the VPN connected.
+
+| Test | System-selected interface | Explicit bind to Red Shield |
+| --- | --- | --- |
+| Ubuntu magnet, only its two publisher HTTPS tracker URLs | Zero candidates in 45 s | Zero candidates in 45 s |
+| Same magnet with four additional HTTPS trackers from the October control, TCP peers | Metadata in 13 s, 8 IPv4 sockets connected | Metadata in 14 s, 8 IPv4 sockets connected |
+| Same additional trackers, uTP peers | 39 candidates, zero sockets connected in 48 s | 41 candidates, zero sockets connected in 48 s |
+| Fresh DHT bootstrap | 9 queries, zero replies in 25 s | 9 queries, zero replies in 25 s |
+| Independent IPv4 probes with a fresh socket per endpoint, two requests each | 0/3 DHT addresses and 0/3 UDP trackers replied | Same |
+| Independent UDP controls | Both IPv4 DNS and both STUN endpoints replied. The IPv6 DNS control timed out. | Same |
+
+On a shared IPv4 UDP socket, the DNS and STUN controls returned matching
+transactions from the expected endpoints in both orders. The October
+first-destination behavior did not recur with these controls. In a separate
+TCP download through the system-selected route, eight 256 KiB pieces matched
+the SHA-1 hashes in the publisher's torrent file (2 MiB total). At inspection
+time both incomplete, running torrents in the Mac app had only HTTP or UDP
+trackers configured and neither had a working tracker recorded.
+
+The working path was HTTPS peer discovery followed by TCP peer traffic.
+Binding the socket to the VPN did not restore the unanswered services.
+Selective filtering and unreachable remote endpoints remain possible. Red
+Shield also says torrent availability can vary by location. [Provider FAQ, question 26](https://redshieldvpn.com/en/faq)
+
+The installed app had also stopped listening on its persisted DHT port. A
+separate loopback regression reproduced one way this can happen. After 24
+hours of cumulative bootstrap retry delays, rqbit could terminate the entire
+DHT worker when all bootstrap hosts failed. The patch keeps the existing
+jittered retry interval for the session's lifetime. In a test with 48 hours of
+simulated silence, the original worker failed to recover. The patched node
+and a newly reachable bootstrap node exchanged DHT replies in both directions.
+With both peer transports and both discovery methods enabled, the patched
+engine also resolved the Ubuntu control with the additional trackers in 13 s.
+The installed process had no recorded worker exit reason, so the cause of that
+specific socket closure is uncertain.
+
+Local probe logs, per-process interface samples, UDP reply validation, and
+piece hash results are under `BuildArtifacts/VPNRouting-2026-11-24/`.
+
 ## Lost Highway Discovery Investigation, October 26, 2026
 
 Investigated the installed Mac build (`00359dd`) and magnet

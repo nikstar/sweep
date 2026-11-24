@@ -276,6 +276,14 @@ these probes. `SWEEP_PROBE_START_PAUSED=1` exercises the app's add-paused then
 immediate-Resume sequence. The normal app continues to use TCP, uTP, trackers,
 DHT, and local discovery.
 
+On macOS, leave `SWEEP_PROBE_BIND_DEVICE` unset to test the app's normal
+interface selection. To compare against a specific tunnel, check
+`route -n get <tracker-or-peer-IP>` and repeat the probe in a fresh directory
+with `SWEEP_PROBE_BIND_DEVICE=<interface>`. The probe passes that name to
+rqbit for peer, tracker, DHT, and listener sockets. Hostname resolution still
+uses the system resolver. Use `nettop -n -p live_probe` to observe the actual
+sockets. Tunnel interface numbers can change between connections.
+
 Read the stages separately:
 
 | Evidence | What it establishes | What it does not establish |

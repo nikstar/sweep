@@ -39,10 +39,19 @@ fn main() -> anyhow::Result<()> {
         "SWEEP_PROBE_DISCOVERY must be both, dht, or trackers"
     );
     let torrent_bytes = fs::read(PathBuf::from(torrent_path))?;
-    println!("probe transport={transport} discovery={discovery}");
+    let bind_device_name = match env::var("SWEEP_PROBE_BIND_DEVICE") {
+        Ok(name) => Some(name),
+        Err(env::VarError::NotPresent) => None,
+        Err(error) => return Err(error.into()),
+    };
+    println!(
+        "probe transport={transport} discovery={discovery} interface={}",
+        bind_device_name.as_deref().unwrap_or("system route")
+    );
     let engine = SweepEngine::with_session_options(
         output_dir.to_owned(),
         SessionOptions {
+            bind_device_name,
             disable_dht_persistence: true,
             disable_dht: discovery == "trackers",
             disable_trackers: discovery == "dht",
