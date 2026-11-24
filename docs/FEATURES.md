@@ -6,6 +6,38 @@ and eMule. The goal is to recover useful craft that many mainstream clients
 lost: readable state, rich progress information, and direct controls without
 turning the app into a dashboard.
 
+## Trackerless download over Wi-Fi with Red Shield connected, November 25, 2026
+
+We compared the same public, 2.98 GiB torrent on Red Shield (`utun4`) and
+direct Wi-Fi (`en0`). The direct test paired IPv4 sockets bound to Wi-Fi with
+temporary, interface-scoped host routes through the Wi-Fi gateway. Ordinary
+traffic to the same destinations continued to use Red Shield.
+
+| Test | Through Red Shield | Direct Wi-Fi |
+| --- | --- | --- |
+| HTTP announce to both IPv4 addresses of the torrent's tracker | Both timed out | Both replied, 30 distinct peer endpoints in total |
+| DHT `get_peers` for the same info hash at the same 31 nodes | 0 replies | 22 replies, 26 distinct peer endpoints |
+| rqbit magnet, trackers off, starting with eight DHT node contacts and zero supplied peers | 0 DHT replies or peer candidates in 34 s | 56 DHT candidates, two uTP handshakes, metadata verified in 0.42 s |
+| Sweep engine, original torrent file added paused and resumed, same DHT contacts, trackers off, uTP only | 0 peers or bytes in 45 s | Four pieces totaling 8,220,530 bytes by 14 s. All four SHA-1 hashes matched the original torrent in an independent check. |
+
+The eight starting contacts were DHT nodes that had answered the earlier
+lookup. With a fresh node table, direct Wi-Fi received bootstrap replies
+but found no peers within 34 seconds using the limited set of routed addresses.
+In a separate comparison we supplied the same 18 DHT-discovered peers to
+rqbit on both interfaces. Only direct uTP recovered the target metadata.
+TCP recovered Ubuntu control metadata on both interfaces. Reachability for
+the tested swarm depended on the route. The point of failure within the VPN
+path remains unknown.
+
+The running app still uses the system route. A direct mode using this method
+would need to handle new DHT and peer destinations as the swarm changes.
+The bridge's initial HTTP announces for freshly started torrent files also
+need to honor the selected interface. Today they use a separate HTTP client
+and run serially before the torrent enters rqbit. The test used the existing
+paused-add and resume path to exclude those announces. After cleanup, all 59
+tested public IPv4 addresses routed through `utun4` and had no Wi-Fi-scoped
+route. Raw results and piece hashes are in `BuildArtifacts/VPNRouting-2026-11-25/swarm/`.
+
 ## Direct Wi-Fi routing on macOS, November 25, 2026
 
 With Red Shield connected, we added a 12-second IPv4 host route to Cloudflare's
@@ -18,10 +50,10 @@ to that address and compared a TLS-verified HTTPS trace and a UDP DNS query.
 | Bound to Wi-Fi with `IP_BOUND_IF` | Network unreachable | Different public IP in Russia, DNS replied | Network unreachable |
 
 The ordinary route stayed on `utun4` throughout. The temporary route could
-serve any program explicitly bound to `en0` for that address. This verifies a
-direct path for a single IPv4 destination. Tracker announces, connections to
-swarm peers, and IPv6 bypass remain untested on this path. Local results are
-in `BuildArtifacts/VPNRouting-2026-11-25/scoped-ipv4.log`.
+serve any program explicitly bound to `en0` for that address. This test
+verified a direct path for a single IPv4 destination. The swarm comparison
+above exercised additional IPv4 destinations. IPv6 bypass remains untested.
+Local results are in `BuildArtifacts/VPNRouting-2026-11-25/scoped-ipv4.log`.
 
 ## Red Shield VPN routing on macOS, November 24, 2026
 
