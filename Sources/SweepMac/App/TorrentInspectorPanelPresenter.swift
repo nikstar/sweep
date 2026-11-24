@@ -11,6 +11,11 @@ final class TorrentInspectorPanelPresenter {
     @ObservationIgnored
     private var controller: TorrentInspectorWindowController?
 
+    func close() {
+        controller?.close()
+        controller = nil
+    }
+
     func show(store: TorrentStore) {
         let controller = controller ?? TorrentInspectorWindowController(
             store: store,

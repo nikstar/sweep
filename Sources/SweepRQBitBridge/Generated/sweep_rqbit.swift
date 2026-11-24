@@ -561,6 +561,11 @@ public protocol SweepEngineProtocol: AnyObject, Sendable {
 
     func addTorrentFile(torrentBytes: Data, downloadDir: String, startPaused: Bool, createSubfolder: Bool) async throws  -> TorrentSnapshot
 
+    /**
+     * Called when the system withdraws the interface from a direct-only session.
+     */
+    func cancelNetwork()
+
     func cancelPendingAdd(id: String)
 
     func discoverySnapshots()  -> [DiscoverySnapshot]
@@ -619,12 +624,13 @@ open class SweepEngine: SweepEngineProtocol, @unchecked Sendable {
     public func uniffiCloneHandle() -> UInt64 {
         return try! rustCall { uniffi_sweep_rqbit_fn_clone_sweepengine(self.handle, $0) }
     }
-public convenience init(downloadDir: String, stateDir: String)throws  {
+public convenience init(downloadDir: String, stateDir: String, bindInterface: String?)throws  {
     let handle =
         try rustCallWithError(FfiConverterTypeSweepError_lift) {
     uniffi_sweep_rqbit_fn_constructor_sweepengine_new(
         FfiConverterString.lower(downloadDir),
-        FfiConverterString.lower(stateDir),$0
+        FfiConverterString.lower(stateDir),
+        FfiConverterOptionString.lower(bindInterface),$0
     )
 }
     self.init(unsafeFromHandle: handle)
@@ -674,6 +680,16 @@ open func addTorrentFile(torrentBytes: Data, downloadDir: String, startPaused: B
             liftFunc: FfiConverterTypeTorrentSnapshot_lift,
             errorHandler: FfiConverterTypeSweepError_lift
         )
+}
+
+    /**
+     * Called when the system withdraws the interface from a direct-only session.
+     */
+open func cancelNetwork()  {try! rustCall() {
+    uniffi_sweep_rqbit_fn_method_sweepengine_cancel_network(
+            self.uniffiCloneHandle(),$0
+    )
+}
 }
 
 open func cancelPendingAdd(id: String)  {try! rustCall() {
@@ -2235,6 +2251,9 @@ private let initializationResult: InitializationResult = {
     if (uniffi_sweep_rqbit_checksum_method_sweepengine_add_torrent_file() != 22853) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_sweep_rqbit_checksum_method_sweepengine_cancel_network() != 18605) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_sweep_rqbit_checksum_method_sweepengine_cancel_pending_add() != 58728) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -2262,7 +2281,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_sweep_rqbit_checksum_method_sweepengine_update_only_files() != 11478) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_sweep_rqbit_checksum_constructor_sweepengine_new() != 60817) {
+    if (uniffi_sweep_rqbit_checksum_constructor_sweepengine_new() != 45047) {
         return InitializationResult.apiChecksumMismatch
     }
 

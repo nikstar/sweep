@@ -6,6 +6,34 @@ and eMule. The goal is to recover useful craft that many mainstream clients
 lost: readable state, rich progress information, and direct controls without
 turning the app into a dashboard.
 
+## Direct Wi-Fi in the macOS app, November 25, 2026
+
+The opt-in macOS setting uses a signed launch daemon registered with
+`SMAppService`. The helper opens a bridged `vmnet` interface on physical
+Wi-Fi, acquires a guest IPv4 lease, and attaches it to an ephemeral `utun`.
+Four interface-scoped IPv4 routes belong to that private interface. Only the
+authenticated Sweep client’s TCP and UDP sockets can use the guest link.
+Quitting Sweep closes the interface and its routes. The helper exits when
+idle, and macOS retains its approval. The app verifies the helper’s signature
+against the bundled executable and recreates the registration if an older
+helper answers after an update.
+
+rqbit binds peer sockets, DHT and tracker sockets to that interface. The
+bridge’s compatibility announce uses the session’s HTTP client and tracker
+policy. Direct mode uses IPv4, keeps system DNS, and disables local multicast
+peer discovery. App updates and other ordinary connections follow system
+routing.
+
+In two isolated launches of the installed, signed app, the original torrent’s
+HTTP tracker reached Working and the same swarm also transferred data from a
+trackerless magnet. The latter started with eight DHT node contacts and no
+supplied peer addresses. The original file produced 39 verified pieces (78 MiB),
+and the trackerless magnet produced two (4 MiB). An independent reader
+matched each piece against the original torrent’s SHA-1 hashes. A separate process bound to Sweep’s private interface
+could not complete a connection. Its ordinary connection to the same public
+server used Red Shield’s Latvian exit. The physical Wi-Fi scope had no route to
+that server, and the private routes disappeared after each quit.
+
 ## Trackerless download over Wi-Fi with Red Shield connected, November 25, 2026
 
 We compared the same public, 2.98 GiB torrent on Red Shield (`utun4`) and
@@ -29,12 +57,10 @@ TCP recovered Ubuntu control metadata on both interfaces. Reachability for
 the tested swarm depended on the route. The point of failure within the VPN
 path remains unknown.
 
-The running app still uses the system route. A direct mode using this method
-would need to handle new DHT and peer destinations as the swarm changes.
-The bridge's initial HTTP announces for freshly started torrent files also
-need to honor the selected interface. Today they use a separate HTTP client
-and run serially before the torrent enters rqbit. The test used the existing
-paused-add and resume path to exclude those announces. After cleanup, all 59
+This earlier test used a fixed list of destinations. The app at the time
+used the system route, and its initial HTTP announces for freshly started
+torrent files used a separate HTTP client. The test used the paused-add and
+resume path to exclude those announces. After cleanup, all 59
 tested public IPv4 addresses routed through `utun4` and had no Wi-Fi-scoped
 route. Raw results and piece hashes are in `BuildArtifacts/VPNRouting-2026-11-25/swarm/`.
 

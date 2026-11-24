@@ -35,18 +35,24 @@
 		145A209E413E63D6BF04372F /* SweepCore in Frameworks */ = {isa = PBXBuildFile; productRef = 4D0BE6C533E81778044F631F /* SweepCore */; };
 		145D58ADFB21EBF7261B3939 /* TorrentOptionsInspector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52378E5ED0495B1FB7D987F5 /* TorrentOptionsInspector.swift */; };
 		14A9038F650418D9D1BAF55F /* SweepDownloadLiveActivityWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7436925E4BEB0B1DC88185C4 /* SweepDownloadLiveActivityWidget.swift */; };
+		166E598646051FD85AE50797 /* SocketOwner.m in Sources */ = {isa = PBXBuildFile; fileRef = A9D834D7D64D4B07339B8E98 /* SocketOwner.m */; };
+		19500C937C7F06F7B4055994 /* me.nikstar.sweep.wifi.plist in CopyFiles */ = {isa = PBXBuildFile; fileRef = 0B0CB806977F10C67948CED3 /* me.nikstar.sweep.wifi.plist */; };
+		1990CD1B6084BB834378F2EC /* SocketOwnerTests.m in Sources */ = {isa = PBXBuildFile; fileRef = 294E10A553E0696CC4053966 /* SocketOwnerTests.m */; };
 		2005B0515F8EB70020CA3DF8 /* SweepUI in Frameworks */ = {isa = PBXBuildFile; productRef = BE5D7CB289BED7B8A913FC41 /* SweepUI */; };
 		2467A416B843F3624B1F34C7 /* SweepLiveActivityExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 975579290E7E7A3DC7DAAB3E /* SweepLiveActivityExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		263849784CD1A3749660733B /* SweepLiveActivityWidgetBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = D72C043C982698240189A5D7 /* SweepLiveActivityWidgetBundle.swift */; };
 		2F3FEB623D8C2DFCD0599454 /* IOSSessionStatusBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0435EF6FED41664B9C2798DA /* IOSSessionStatusBar.swift */; };
 		2FDB3131F4201B15947A5F36 /* TorrentActivityInspector.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3F17CB43E1A23510040DA0F /* TorrentActivityInspector.swift */; };
 		31F807EE66CEA8022DB12BB2 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83C54817B7513419209B220D /* ContentView.swift */; };
+		34E07CBC28993DBEA0EF0747 /* DirectWiFi.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2302D28761AFF773D482EDCB /* DirectWiFi.swift */; };
 		36935E41FE9192A19E405102 /* IOSTorrentPrimaryActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B408060D3E3CB5C56B3A617 /* IOSTorrentPrimaryActions.swift */; };
 		3795B496E3B8B7BCE4F856CB /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = A5E1498FACE23FDE2E8078D3 /* AppIcon.icon */; };
 		426BC46A2A662A466EFB1C44 /* IOSTorrentRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 131BD565C4409BDA8970A7F1 /* IOSTorrentRow.swift */; };
+		42C50A2B1874013293732A11 /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = FD148FCC41D8E9B5E672509E /* main.m */; };
 		49A01D17B1835427A0151790 /* CoreFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8B6E0A3B239F72062BF939B9 /* CoreFoundation.framework */; };
 		49E98FCB402D51DE809A6CF2 /* TorrentInputHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = E771A408C187B2E380576EE2 /* TorrentInputHelpers.swift */; };
 		4AD705AA9C1BA0DD05569D7A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 1C768342A0B00653E1909911 /* Assets.xcassets */; };
+		4D90FEE5CE38CC5477B23E92 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 9E10FE4DD67BAFDDC23DD1E8 /* Foundation.framework */; };
 		4DE789D0F7C4A0364E58BA8C /* AppUpdates.swift in Sources */ = {isa = PBXBuildFile; fileRef = 169D2F610D6EFE0EA9EA5C86 /* AppUpdates.swift */; };
 		4E54E8F937BFF4BDEFCC2F0E /* SweepCore in Frameworks */ = {isa = PBXBuildFile; productRef = 43019AB36769834D7901F7E0 /* SweepCore */; };
 		4F956ACE8EBCF67FB05EAF1D /* CoreFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8B6E0A3B239F72062BF939B9 /* CoreFoundation.framework */; };
@@ -63,8 +69,10 @@
 		7B97F6596103D43533AACDC2 /* TorrentFileLocation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FF8965A756198D6E04161E4 /* TorrentFileLocation.swift */; };
 		8010A5BD1E39900CAE8060EB /* IOSTorrentInspectorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E8D80BB3EAC6640C921EED9 /* IOSTorrentInspectorView.swift */; };
 		85BD37DA531EA0DE88015D90 /* IOSTorrentActivityInspector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 071F6DBE6CA57A53CD20707E /* IOSTorrentActivityInspector.swift */; };
+		860E7829C85254819FE1F8E4 /* vmnet.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6E1DF67702E5AD2DC0CF3FE0 /* vmnet.framework */; };
 		8D6F90DEE6DB75D0A509C5D4 /* SweepCore in Frameworks */ = {isa = PBXBuildFile; productRef = C81076FDF5CD37526C3D683D /* SweepCore */; };
 		94AC282B29D5E3D8CD005113 /* SweepUI in Frameworks */ = {isa = PBXBuildFile; productRef = 428B41529C3FB59231006F02 /* SweepUI */; };
+		98598DF19BF44864924E1C54 /* DirectLink.m in Sources */ = {isa = PBXBuildFile; fileRef = 20E5AC59762AF11784CF2AE1 /* DirectLink.m */; };
 		9F3F6579451EB58FB84BD5DE /* TorrentPeersInspector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8146B3AE5CD49758ACD3829B /* TorrentPeersInspector.swift */; };
 		A276C33781257E6D5C6E4DAF /* TorrentInspectorControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7771F16E8BA28B1EFC005001 /* TorrentInspectorControls.swift */; };
 		A2945BECDF9F8CDA5C305E10 /* TorrentActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5AC6DA4D0C94091DD2DDF683 /* TorrentActions.swift */; };
@@ -85,10 +93,12 @@
 		DD9A6D114CA5348F48AADB3B /* TorrentInfoInspector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8652865F18FF87F2FF368A7D /* TorrentInfoInspector.swift */; };
 		E23D8AD5B56DD6149517361E /* IOSLiveActivityService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2920AEAAEBEDE653480289FC /* IOSLiveActivityService.swift */; };
 		E7FAA83BB751263F4BAE4172 /* AppPersistenceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 034F76CBDB7DC7E5278B203E /* AppPersistenceTests.swift */; };
+		EE1747C6CD887C4911E31D93 /* SocketOwner.m in Sources */ = {isa = PBXBuildFile; fileRef = A9D834D7D64D4B07339B8E98 /* SocketOwner.m */; };
 		EFBC3A9ECDF6DB6140608DE2 /* IOSTorrentTrackersInspector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F1373B78F8FC8ABD1B75C13 /* IOSTorrentTrackersInspector.swift */; };
 		F34C570AE343CB4DC823EFB5 /* IOSBackgroundDownloadService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35862CE528C60EB5E5C36EFA /* IOSBackgroundDownloadService.swift */; };
 		F4C27E305533708EF5D3AB86 /* Security.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 38BAA30A1485BC9D5E62B893 /* Security.framework */; };
 		F78F2D293178C3581F513158 /* IOSMediaPlayerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49ACC0416883A50D1EF1C78A /* IOSMediaPlayerView.swift */; };
+		F82FD8E0D073C94CE271EF64 /* SystemConfiguration.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 419D15A3D16AE099B2A029A5 /* SystemConfiguration.framework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -98,6 +108,13 @@
 			proxyType = 1;
 			remoteGlobalIDString = AB913ED30FA1154D3FAFA0EE;
 			remoteInfo = SweepRustArtifacts;
+		};
+		1D3E0E8B4B3B34F29E26247F /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A7E8E02F07F97E64774A4AF5 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = FCD316A85BA791F1833C630E;
+			remoteInfo = SweepWiFiHelper;
 		};
 		65EE7C258E26616BAA146023 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -127,6 +144,16 @@
 			name = "Embed Foundation Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		B4836960AF91BCC87FB3EA78 /* CopyFiles */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = Contents/Library/LaunchDaemons;
+			dstSubfolderSpec = 1;
+			files = (
+				19500C937C7F06F7B4055994 /* me.nikstar.sweep.wifi.plist in CopyFiles */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
@@ -134,21 +161,28 @@
 		034F76CBDB7DC7E5278B203E /* AppPersistenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppPersistenceTests.swift; sourceTree = "<group>"; };
 		0435EF6FED41664B9C2798DA /* IOSSessionStatusBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IOSSessionStatusBar.swift; sourceTree = "<group>"; };
 		071F6DBE6CA57A53CD20707E /* IOSTorrentActivityInspector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IOSTorrentActivityInspector.swift; sourceTree = "<group>"; };
+		08B64AA9A4600082F6898E35 /* WiFiService.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WiFiService.h; sourceTree = "<group>"; };
+		0B0CB806977F10C67948CED3 /* me.nikstar.sweep.wifi.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = me.nikstar.sweep.wifi.plist; sourceTree = "<group>"; };
 		131BD565C4409BDA8970A7F1 /* IOSTorrentRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IOSTorrentRow.swift; sourceTree = "<group>"; };
 		169D2F610D6EFE0EA9EA5C86 /* AppUpdates.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppUpdates.swift; sourceTree = "<group>"; };
 		193A77A37E82D3DE990B59CC /* IOSContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IOSContentView.swift; sourceTree = "<group>"; };
 		1B408060D3E3CB5C56B3A617 /* IOSTorrentPrimaryActions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IOSTorrentPrimaryActions.swift; sourceTree = "<group>"; };
 		1C768342A0B00653E1909911 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		1E715F02C8E5279E2C7A6E15 /* Sweep.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Sweep.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		20E5AC59762AF11784CF2AE1 /* DirectLink.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = DirectLink.m; sourceTree = "<group>"; };
 		2170D7D5E1DE9A57C6877DE6 /* TorrentListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TorrentListView.swift; sourceTree = "<group>"; };
+		2302D28761AFF773D482EDCB /* DirectWiFi.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DirectWiFi.swift; sourceTree = "<group>"; };
 		275B892DB00D6893E87DF9CE /* SweepIOSApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SweepIOSApp.swift; sourceTree = "<group>"; };
 		2885EA9BF5F988F86D8F2D7F /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		2920AEAAEBEDE653480289FC /* IOSLiveActivityService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IOSLiveActivityService.swift; sourceTree = "<group>"; };
-		2ADED88DFFC7D0D5293C377C /* sweep */ = {isa = PBXFileReference; lastKnownFileType = folder; name = sweep; path = .; sourceTree = SOURCE_ROOT; };
+		294E10A553E0696CC4053966 /* SocketOwnerTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SocketOwnerTests.m; sourceTree = "<group>"; };
+		2B58691A0498C4B3418AD611 /* sweep-direct-wifi */ = {isa = PBXFileReference; lastKnownFileType = folder; name = "sweep-direct-wifi"; path = .; sourceTree = SOURCE_ROOT; };
 		2C826FEFE14648185ECE544D /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		327F2196E59BC4B6BD68F7BB /* IOSAddTorrentSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IOSAddTorrentSheet.swift; sourceTree = "<group>"; };
 		35862CE528C60EB5E5C36EFA /* IOSBackgroundDownloadService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IOSBackgroundDownloadService.swift; sourceTree = "<group>"; };
 		38BAA30A1485BC9D5E62B893 /* Security.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Security.framework; path = System/Library/Frameworks/Security.framework; sourceTree = SDKROOT; };
+		3AFB2F4C63A330697428471B /* SocketOwner.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SocketOwner.h; sourceTree = "<group>"; };
+		419D15A3D16AE099B2A029A5 /* SystemConfiguration.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SystemConfiguration.framework; path = System/Library/Frameworks/SystemConfiguration.framework; sourceTree = SDKROOT; };
 		4796DCD769973A3113B4295E /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		49ACC0416883A50D1EF1C78A /* IOSMediaPlayerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IOSMediaPlayerView.swift; sourceTree = "<group>"; };
 		4C61406C6F91B25AC424B2DD /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
@@ -160,10 +194,13 @@
 		5F1373B78F8FC8ABD1B75C13 /* IOSTorrentTrackersInspector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IOSTorrentTrackersInspector.swift; sourceTree = "<group>"; };
 		5FD102098775082BC04F9CF9 /* SweepCoreTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SweepCoreTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		6191FCF7D7E019574D399A77 /* IOSTorrentOptionsInspector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IOSTorrentOptionsInspector.swift; sourceTree = "<group>"; };
+		623AD062A5CB927BF3662E74 /* SweepWiFiHelper */ = {isa = PBXFileReference; includeInIndex = 0; path = SweepWiFiHelper; sourceTree = BUILT_PRODUCTS_DIR; };
+		65547A1D161259FA2D39136A /* DirectLink.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = DirectLink.h; sourceTree = "<group>"; };
 		692C50023C27F14D08B8F9A1 /* AppStartupTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStartupTests.swift; sourceTree = "<group>"; };
 		6B11DE283104B5AACAF8815C /* IOSOpenInPresenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IOSOpenInPresenter.swift; sourceTree = "<group>"; };
 		6BD9A07B80CFAA4D1D8AD378 /* Sweep_iOS.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Sweep_iOS.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		6CD1D298556F1FD84F62ADF3 /* AppIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = wrapper.icon; path = AppIcon.icon; sourceTree = "<group>"; };
+		6E1DF67702E5AD2DC0CF3FE0 /* vmnet.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = vmnet.framework; path = System/Library/Frameworks/vmnet.framework; sourceTree = SDKROOT; };
 		6E8D80BB3EAC6640C921EED9 /* IOSTorrentInspectorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IOSTorrentInspectorView.swift; sourceTree = "<group>"; };
 		7436925E4BEB0B1DC88185C4 /* SweepDownloadLiveActivityWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SweepDownloadLiveActivityWidget.swift; sourceTree = "<group>"; };
 		755BC53DD047F991FC6DA390 /* IOSTorrentFilesInspector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IOSTorrentFilesInspector.swift; sourceTree = "<group>"; };
@@ -176,7 +213,9 @@
 		8B6E0A3B239F72062BF939B9 /* CoreFoundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreFoundation.framework; path = System/Library/Frameworks/CoreFoundation.framework; sourceTree = SDKROOT; };
 		975579290E7E7A3DC7DAAB3E /* SweepLiveActivityExtension.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = SweepLiveActivityExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		97D5317B586197FEB2947826 /* IOSTorrentInfoInspector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IOSTorrentInfoInspector.swift; sourceTree = "<group>"; };
+		9E10FE4DD67BAFDDC23DD1E8 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = System/Library/Frameworks/Foundation.framework; sourceTree = SDKROOT; };
 		A5E1498FACE23FDE2E8078D3 /* AppIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = wrapper.icon; path = AppIcon.icon; sourceTree = "<group>"; };
+		A9D834D7D64D4B07339B8E98 /* SocketOwner.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SocketOwner.m; sourceTree = "<group>"; };
 		ACCBBDD31948C776A77AD66D /* TorrentFilesInspector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TorrentFilesInspector.swift; sourceTree = "<group>"; };
 		B3F17CB43E1A23510040DA0F /* TorrentActivityInspector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TorrentActivityInspector.swift; sourceTree = "<group>"; };
 		C0D50F7F08FCE2BF7AEFCB89 /* TorrentInspectorPanelPresenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TorrentInspectorPanelPresenter.swift; sourceTree = "<group>"; };
@@ -190,6 +229,7 @@
 		EC7DA44B71E17BB508D7805C /* TorrentStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TorrentStoreTests.swift; sourceTree = "<group>"; };
 		F4F8144C9CB2D86DE3006667 /* ClassicAppIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = wrapper.icon; path = ClassicAppIcon.icon; sourceTree = "<group>"; };
 		F8D4F8175E3B333CFC2CBE9D /* TorrentFileLocationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TorrentFileLocationTests.swift; sourceTree = "<group>"; };
+		FD148FCC41D8E9B5E672509E /* main.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = main.m; sourceTree = "<group>"; };
 		FD6F1B2A7C9C2EAFAFEFC5F5 /* IOSExecutionHealthView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IOSExecutionHealthView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -204,6 +244,16 @@
 				BD6ACD299CCE223057F7AB96 /* SweepRQBitBridge in Frameworks */,
 				D49818FD5319CF3B1A56EAC3 /* Security.framework in Frameworks */,
 				49A01D17B1835427A0151790 /* CoreFoundation.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		1DDA4103C196E2C7E9E2968A /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				860E7829C85254819FE1F8E4 /* vmnet.framework in Frameworks */,
+				F82FD8E0D073C94CE271EF64 /* SystemConfiguration.framework in Frameworks */,
+				4D90FEE5CE38CC5477B23E92 /* Foundation.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -244,10 +294,32 @@
 			children = (
 				9B318B044F06D106954FB34B /* Packages */,
 				9C78CCC06C2E82366D9F8126 /* Sources */,
+				2944ABA6A3C342F2898E3FCD /* Support */,
 				65439C873AE54D44ACC198F7 /* Tests */,
 				3D5B43C792902C0284030788 /* Frameworks */,
 				998FD1C8BAF561312301DCA7 /* Products */,
 			);
+			sourceTree = "<group>";
+		};
+		2828858A7155F3A9C9A69C8A /* SweepWiFiHelper */ = {
+			isa = PBXGroup;
+			children = (
+				65547A1D161259FA2D39136A /* DirectLink.h */,
+				20E5AC59762AF11784CF2AE1 /* DirectLink.m */,
+				FD148FCC41D8E9B5E672509E /* main.m */,
+				3AFB2F4C63A330697428471B /* SocketOwner.h */,
+				A9D834D7D64D4B07339B8E98 /* SocketOwner.m */,
+				08B64AA9A4600082F6898E35 /* WiFiService.h */,
+			);
+			path = SweepWiFiHelper;
+			sourceTree = "<group>";
+		};
+		2944ABA6A3C342F2898E3FCD /* Support */ = {
+			isa = PBXGroup;
+			children = (
+				8CE126D694205CBFD49C7A5A /* LaunchDaemons */,
+			);
+			path = Support;
 			sourceTree = "<group>";
 		};
 		2970D2188FBB939EBC8EDEDE /* Resources */ = {
@@ -274,7 +346,10 @@
 			isa = PBXGroup;
 			children = (
 				8B6E0A3B239F72062BF939B9 /* CoreFoundation.framework */,
+				9E10FE4DD67BAFDDC23DD1E8 /* Foundation.framework */,
 				38BAA30A1485BC9D5E62B893 /* Security.framework */,
+				419D15A3D16AE099B2A029A5 /* SystemConfiguration.framework */,
+				6E1DF67702E5AD2DC0CF3FE0 /* vmnet.framework */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -283,6 +358,7 @@
 			isa = PBXGroup;
 			children = (
 				B5775A64EE0333B725F8F194 /* SweepCoreTests */,
+				E85EDD1C12CC8DF1C83B4CE2 /* SweepWiFiHelperTests */,
 			);
 			path = Tests;
 			sourceTree = "<group>";
@@ -337,6 +413,7 @@
 				7F80B63B37D4FE59E26F637E /* AddTorrentView.swift */,
 				169D2F610D6EFE0EA9EA5C86 /* AppUpdates.swift */,
 				83C54817B7513419209B220D /* ContentView.swift */,
+				2302D28761AFF773D482EDCB /* DirectWiFi.swift */,
 				4796DCD769973A3113B4295E /* SettingsView.swift */,
 				775FB611A4949E814D2C806F /* SweepApp.swift */,
 				5AC6DA4D0C94091DD2DDF683 /* TorrentActions.swift */,
@@ -356,6 +433,14 @@
 			path = App;
 			sourceTree = "<group>";
 		};
+		8CE126D694205CBFD49C7A5A /* LaunchDaemons */ = {
+			isa = PBXGroup;
+			children = (
+				0B0CB806977F10C67948CED3 /* me.nikstar.sweep.wifi.plist */,
+			);
+			path = LaunchDaemons;
+			sourceTree = "<group>";
+		};
 		998FD1C8BAF561312301DCA7 /* Products */ = {
 			isa = PBXGroup;
 			children = (
@@ -363,6 +448,7 @@
 				1E715F02C8E5279E2C7A6E15 /* Sweep.app */,
 				5FD102098775082BC04F9CF9 /* SweepCoreTests.xctest */,
 				975579290E7E7A3DC7DAAB3E /* SweepLiveActivityExtension.appex */,
+				623AD062A5CB927BF3662E74 /* SweepWiFiHelper */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -370,7 +456,7 @@
 		9B318B044F06D106954FB34B /* Packages */ = {
 			isa = PBXGroup;
 			children = (
-				2ADED88DFFC7D0D5293C377C /* sweep */,
+				2B58691A0498C4B3418AD611 /* sweep-direct-wifi */,
 			);
 			name = Packages;
 			sourceTree = "<group>";
@@ -381,6 +467,7 @@
 				71BC70DA141BFBF59BAA03FE /* SweepIOS */,
 				3606F98B8A2FB925C65E8B6F /* SweepLiveActivityExtension */,
 				B661D399E8C06CE461F27CA7 /* SweepMac */,
+				2828858A7155F3A9C9A69C8A /* SweepWiFiHelper */,
 			);
 			path = Sources;
 			sourceTree = "<group>";
@@ -418,6 +505,14 @@
 			path = SweepMac;
 			sourceTree = "<group>";
 		};
+		E85EDD1C12CC8DF1C83B4CE2 /* SweepWiFiHelperTests */ = {
+			isa = PBXGroup;
+			children = (
+				294E10A553E0696CC4053966 /* SocketOwnerTests.m */,
+			);
+			path = SweepWiFiHelperTests;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -427,11 +522,14 @@
 			buildPhases = (
 				612393840B724F368378D0AF /* Sources */,
 				8D1668B031E02F044FEE94CE /* Resources */,
+				B4836960AF91BCC87FB3EA78 /* CopyFiles */,
 				427E34911CD824ED0D6D9805 /* Frameworks */,
+				8C7E1B609FFCB1C6BF3E2740 /* Embed signed Wi-Fi helper */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				09144C8109B0C2FD3DFCC8C0 /* PBXTargetDependency */,
 				58460491D11992C74828515E /* PBXTargetDependency */,
 			);
 			name = Sweep;
@@ -509,6 +607,24 @@
 			productReference = 5FD102098775082BC04F9CF9 /* SweepCoreTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
+		FCD316A85BA791F1833C630E /* SweepWiFiHelper */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 937205A9C7FFC72E2C3DADAB /* Build configuration list for PBXNativeTarget "SweepWiFiHelper" */;
+			buildPhases = (
+				44D680FE00CEDD48BBC2B22F /* Sources */,
+				1DDA4103C196E2C7E9E2968A /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = SweepWiFiHelper;
+			packageProductDependencies = (
+			);
+			productName = SweepWiFiHelper;
+			productReference = 623AD062A5CB927BF3662E74 /* SweepWiFiHelper */;
+			productType = "com.apple.product-type.tool";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -527,6 +643,10 @@
 						ProvisioningStyle = Automatic;
 					};
 					6BEBADF0736D16804B520D42 = {
+						DevelopmentTeam = 6RX8GEVB43;
+						ProvisioningStyle = Automatic;
+					};
+					FCD316A85BA791F1833C630E = {
 						DevelopmentTeam = 6RX8GEVB43;
 						ProvisioningStyle = Automatic;
 					};
@@ -550,6 +670,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
+				FCD316A85BA791F1833C630E /* SweepWiFiHelper */,
 				171DEA5DD3E9A0D3CC068E28 /* Sweep */,
 				6F3C617DB750B34FF2F6DB21 /* SweepCoreTests */,
 				40420A501246C292C13EF3F4 /* Sweep_iOS */,
@@ -581,6 +702,26 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
+		8C7E1B609FFCB1C6BF3E2740 /* Embed signed Wi-Fi helper */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(BUILT_PRODUCTS_DIR)/SweepWiFiHelper",
+			);
+			name = "Embed signed Wi-Fi helper";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(TARGET_BUILD_DIR)/$(EXECUTABLE_FOLDER_PATH)/SweepWiFiHelper",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -eu\n/usr/bin/ditto \"${SCRIPT_INPUT_FILE_0}\" \"${SCRIPT_OUTPUT_FILE_0}\"\n";
+		};
 		B31B53A9A525BD05ADE8B7E0 /* Build Rust rqbit Bridge */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
@@ -609,12 +750,24 @@
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		44D680FE00CEDD48BBC2B22F /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				98598DF19BF44864924E1C54 /* DirectLink.m in Sources */,
+				EE1747C6CD887C4911E31D93 /* SocketOwner.m in Sources */,
+				42C50A2B1874013293732A11 /* main.m in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		47BFE36EE1EDE10A20FC6D97 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 				E7FAA83BB751263F4BAE4172 /* AppPersistenceTests.swift in Sources */,
 				6775DEC963B08CB30D3ED20E /* AppStartupTests.swift in Sources */,
+				166E598646051FD85AE50797 /* SocketOwner.m in Sources */,
+				1990CD1B6084BB834378F2EC /* SocketOwnerTests.m in Sources */,
 				66EF4B0F6FB03D4CFB26203F /* TorrentDisplayFormatTests.swift in Sources */,
 				BA17E1B75844C3D7B3FAA114 /* TorrentFileLocationTests.swift in Sources */,
 				0D55175C70774209DB139C87 /* TorrentLifecycleTests.swift in Sources */,
@@ -657,6 +810,7 @@
 				13399D2ABC6290FB61C6C36E /* AddTorrentView.swift in Sources */,
 				4DE789D0F7C4A0364E58BA8C /* AppUpdates.swift in Sources */,
 				31F807EE66CEA8022DB12BB2 /* ContentView.swift in Sources */,
+				34E07CBC28993DBEA0EF0747 /* DirectWiFi.swift in Sources */,
 				5BEEBDF749B069C5F2DE40C3 /* SettingsView.swift in Sources */,
 				D9B1E1B909C9EB9465DB5F7C /* SweepApp.swift in Sources */,
 				A2945BECDF9F8CDA5C305E10 /* TorrentActions.swift in Sources */,
@@ -687,6 +841,11 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		09144C8109B0C2FD3DFCC8C0 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = FCD316A85BA791F1833C630E /* SweepWiFiHelper */;
+			targetProxy = 1D3E0E8B4B3B34F29E26247F /* PBXContainerItemProxy */;
+		};
 		58460491D11992C74828515E /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = AB913ED30FA1154D3FAFA0EE /* SweepRustArtifacts */;
@@ -727,6 +886,7 @@
 				PRODUCT_NAME = Sweep;
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SDKROOT = macosx;
+				SWIFT_OBJC_BRIDGING_HEADER = Sources/SweepWiFiHelper/WiFiService.h;
 			};
 			name = Debug;
 		};
@@ -752,6 +912,7 @@
 				PRODUCT_NAME = Sweep;
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SDKROOT = macosx;
+				SWIFT_OBJC_BRIDGING_HEADER = Sources/SweepWiFiHelper/WiFiService.h;
 			};
 			name = Release;
 		};
@@ -852,6 +1013,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				COMBINE_HIDPI_IMAGES = YES;
+				HEADER_SEARCH_PATHS = "$(inherited) $(SRCROOT)/Sources/SweepWiFiHelper";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -988,6 +1150,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				COMBINE_HIDPI_IMAGES = YES;
+				HEADER_SEARCH_PATHS = "$(inherited) $(SRCROOT)/Sources/SweepWiFiHelper";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -1024,11 +1187,51 @@
 			};
 			name = Debug;
 		};
+		DA723008AEA2BCF644EA477A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				DEVELOPMENT_TEAM = 6RX8GEVB43;
+				ENABLE_HARDENED_RUNTIME = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				OTHER_CODE_SIGN_FLAGS = "--identifier me.nikstar.sweep.wifi";
+				PRODUCT_BUNDLE_IDENTIFIER = me.nikstar.sweep.wifi;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+			};
+			name = Debug;
+		};
 		F49BC6DF538C1B56677C5606 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 			};
 			name = Debug;
+		};
+		FC3200B5023F2FDEB91A75D3 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				DEVELOPMENT_TEAM = 6RX8GEVB43;
+				ENABLE_HARDENED_RUNTIME = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				OTHER_CODE_SIGN_FLAGS = "--identifier me.nikstar.sweep.wifi";
+				PRODUCT_BUNDLE_IDENTIFIER = me.nikstar.sweep.wifi;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+			};
+			name = Release;
 		};
 /* End XCBuildConfiguration section */
 
@@ -1074,6 +1277,15 @@
 			buildConfigurations = (
 				F49BC6DF538C1B56677C5606 /* Debug */,
 				B3203E9D973B81BF36001619 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		937205A9C7FFC72E2C3DADAB /* Build configuration list for PBXNativeTarget "SweepWiFiHelper" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				DA723008AEA2BCF644EA477A /* Debug */,
+				FC3200B5023F2FDEB91A75D3 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;

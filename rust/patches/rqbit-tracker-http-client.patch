@@ -1,0 +1,15 @@
+--- a/crates/librqbit/src/session.rs
++++ b/crates/librqbit/src/session.rs
+@@ -658,3 +658,3 @@
+                     if let Some(bd) = opts.bind_device_name.as_ref() {
+-                        b = b.interface(bd);
++                        b = b.no_proxy().interface(bd);
+                     }
+@@ -1578,2 +1578,7 @@
+         self.listen_addr
++    }
++
++    /// Use the same routing and tracker policy for caller-provided compatibility announces.
++    pub fn tracker_http_client(&self) -> Option<&reqwest::Client> {
++        (!self.disable_trackers).then_some(&self.reqwest_client)
+     }

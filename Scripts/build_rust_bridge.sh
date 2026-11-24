@@ -331,6 +331,11 @@ apply_rqbit_patches() {
     "crates/dht/src/dht.rs" \
     "Keep bootstrap alive until session cancellation"
   apply_rqbit_patch_if_missing \
+    "$ROOT_DIR/rust/patches/rqbit-tracker-http-client.patch" \
+    "session-bound compatibility announces" \
+    "crates/librqbit/src/session.rs" \
+    "pub fn tracker_http_client"
+  apply_rqbit_patch_if_missing \
     "$ROOT_DIR/rust/patches/rqbit-peer-encryption.patch" \
     "MSE peer compatibility" \
     "crates/librqbit/src/lib.rs" \

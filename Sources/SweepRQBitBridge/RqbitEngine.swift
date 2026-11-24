@@ -14,16 +14,18 @@ public final class RqbitEngine: TorrentEngine, @unchecked Sendable {
         }
     }
 
-    public init(downloadDirectory: String, stateDirectory: String? = nil) throws {
+    public init(downloadDirectory: String, stateDirectory: String? = nil, bindInterface: String? = nil) throws {
         do {
             let stateDirectory = try stateDirectory ?? FileManager.default.url(
                 for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true
             ).appending(path: "Sweep/Network", directoryHint: .isDirectory).path
-            self.engine = try SweepEngine(downloadDir: downloadDirectory, stateDir: stateDirectory)
+            self.engine = try SweepEngine(downloadDir: downloadDirectory, stateDir: stateDirectory, bindInterface: bindInterface)
         } catch SweepError.Message(message: let message) {
             throw RqbitEngineError(message: message)
         }
     }
+
+    public func cancelNetwork() { engine.cancelNetwork() }
 
     public func list() async throws -> [Torrent] {
         try await mapRqbitError {

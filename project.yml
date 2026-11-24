@@ -44,12 +44,48 @@ aggregateTargets:
           "${SRCROOT}/Scripts/build_rust_bridge.sh"
 
 targets:
+  SweepWiFiHelper:
+    type: tool
+    platform: macOS
+    sources:
+      - Sources/SweepWiFiHelper
+    dependencies:
+      - sdk: vmnet.framework
+      - sdk: SystemConfiguration.framework
+      - sdk: Foundation.framework
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: me.nikstar.sweep.wifi
+        CODE_SIGN_INJECT_BASE_ENTITLEMENTS: NO
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_IDENTITY: Apple Development
+        DEVELOPMENT_TEAM: 6RX8GEVB43
+        ENABLE_HARDENED_RUNTIME: YES
+        OTHER_CODE_SIGN_FLAGS: "--identifier me.nikstar.sweep.wifi"
+        SKIP_INSTALL: YES
   Sweep:
     type: application
     platform: macOS
     sources:
       - Sources/SweepMac
+      - path: Support/LaunchDaemons/me.nikstar.sweep.wifi.plist
+        buildPhase:
+          copyFiles:
+            destination: wrapper
+            subpath: Contents/Library/LaunchDaemons
+    postBuildScripts:
+      - name: Embed signed Wi-Fi helper
+        inputFiles:
+          - $(BUILT_PRODUCTS_DIR)/SweepWiFiHelper
+        outputFiles:
+          - $(TARGET_BUILD_DIR)/$(EXECUTABLE_FOLDER_PATH)/SweepWiFiHelper
+        script: |
+          set -eu
+          /usr/bin/ditto "${SCRIPT_INPUT_FILE_0}" "${SCRIPT_OUTPUT_FILE_0}"
     dependencies:
+      - target: SweepWiFiHelper
+        embed: false
+        link: false
       - target: SweepRustArtifacts
       - package: Sparkle
       - package: SweepPackage
@@ -66,6 +102,7 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: me.nikstar.sweep
+        SWIFT_OBJC_BRIDGING_HEADER: Sources/SweepWiFiHelper/WiFiService.h
         MARKETING_VERSION: "1.1.0"
         CURRENT_PROJECT_VERSION: "6"
         PRODUCT_NAME: Sweep
@@ -87,12 +124,15 @@ targets:
     platform: macOS
     sources:
       - Tests/SweepCoreTests
+      - Tests/SweepWiFiHelperTests
+      - Sources/SweepWiFiHelper/SocketOwner.m
     dependencies:
       - package: SweepPackage
         product: SweepCore
         embed: false
     settings:
       base:
+        HEADER_SEARCH_PATHS: "$(inherited) $(SRCROOT)/Sources/SweepWiFiHelper"
         PRODUCT_BUNDLE_IDENTIFIER: me.nikstar.sweep.core.tests
         PRODUCT_NAME: SweepCoreTests
 

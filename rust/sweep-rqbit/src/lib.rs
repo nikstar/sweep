@@ -265,10 +265,16 @@ impl SweepEngine {
 #[uniffi::export]
 impl SweepEngine {
     #[uniffi::constructor]
-    pub fn new(download_dir: String, state_dir: String) -> Result<Arc<Self>, SweepError> {
+    pub fn new(
+        download_dir: String,
+        state_dir: String,
+        bind_interface: Option<String>,
+    ) -> Result<Arc<Self>, SweepError> {
         Self::with_session_options(
             download_dir,
             SessionOptions {
+                disable_local_service_discovery: bind_interface.is_some(),
+                bind_device_name: bind_interface,
                 dht_config: Some(librqbit::dht::PersistentDhtConfig {
                     config_filename: Some(PathBuf::from(state_dir).join("dht.json")),
                     // Frequent small atomic snapshots survive iOS suspension/termination.
@@ -285,6 +291,14 @@ impl SweepEngine {
                 ..Default::default()
             },
         )
+    }
+
+    /// Called when the system withdraws the interface from a direct-only session.
+    pub fn cancel_network(&self) {
+        self.session.cancellation_token().cancel();
+        for (_, task) in self.pending_adds.lock().unwrap().drain() {
+            task.abort();
+        }
     }
 
     pub async fn add_magnet(
@@ -487,8 +501,7 @@ impl SweepEngine {
             let initial_peers = if start_paused {
                 Vec::new()
             } else {
-                announce_initial_peers_for_torrent(&torrent_bytes, peer_id, session.announce_port())
-                    .await
+                announce_initial_peers_for_torrent(&torrent_bytes, peer_id, &session).await
             };
             let result = add_torrent_to_session(
                 session,
@@ -701,9 +714,11 @@ fn tracker_compatible_peer_id() -> Id20 {
 async fn announce_initial_peers_for_torrent(
     torrent_bytes: &[u8],
     peer_id: Id20,
-    announce_port: Option<u16>,
+    session: &Session,
 ) -> Vec<SocketAddr> {
-    let Some(announce_port) = announce_port else {
+    let (Some(client), Some(announce_port)) =
+        (session.tracker_http_client(), session.announce_port())
+    else {
         return Vec::new();
     };
 
@@ -734,17 +749,10 @@ async fn announce_initial_peers_for_torrent(
         return Vec::new();
     }
 
-    let Ok(client) = reqwest::Client::builder()
-        .timeout(TRACKER_COMPAT_TIMEOUT)
-        .build()
-    else {
-        return Vec::new();
-    };
-
     let mut peers = Vec::new();
     for tracker in trackers {
         if let Ok(mut tracker_peers) = announce_initial_peers(
-            &client,
+            client,
             tracker,
             torrent.info_hash,
             peer_id,
@@ -784,6 +792,7 @@ async fn announce_initial_peers(
 
     let response = client
         .get(url)
+        .timeout(TRACKER_COMPAT_TIMEOUT)
         .header(reqwest::header::USER_AGENT, TRACKER_COMPAT_USER_AGENT)
         .send()
         .await?;

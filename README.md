@@ -15,6 +15,21 @@ From version 1.1.0, choose **Sweep → Check for Updates…** to install a newer
 release. To check periodically, enable **Automatically check for updates** in
 Settings. If you have 1.0, download and install 1.1.0 or later once to get the updater.
 
+## Direct Wi-Fi on macOS
+
+To send torrent traffic over Wi-Fi while other apps use your VPN, open **Sweep
+→ Settings → Network**, enable **Use direct Wi-Fi for torrents**, and choose
+**Relaunch Sweep to Apply**. At first use, approve Sweep’s background helper
+in **System Settings → General → Login Items & Extensions**. macOS remembers
+the approval across relaunches. Turning off the Sweep setting and relaunching
+returns transfers to the system route. You can revoke the helper in System Settings.
+
+Direct mode gives Sweep a separate IPv4 address on the Wi-Fi network. HTTP(S)
+and UDP trackers, DHT, and TCP and uTP peers use this connection and see the
+Wi-Fi network’s public IP. Hostname lookups use the Mac’s existing DNS
+configuration. The Wi-Fi network must grant an additional DHCP lease. If the
+link fails, transfers stop until you reconnect or select system routing.
+
 ## Targets
 
 - `Sweep`: macOS app.

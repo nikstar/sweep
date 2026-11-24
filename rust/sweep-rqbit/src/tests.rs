@@ -788,3 +788,29 @@ fn a_later_metadata_attempt_can_recover_without_manual_resume() {
         assert!(download.pending_adds.lock().unwrap().is_empty());
     });
 }
+
+#[test]
+fn starting_a_torrent_with_trackers_disabled_skips_compatibility_announces() {
+    let fixture = Fixture::new();
+    let engine = SweepEngine::with_session_options(
+        fixture.0.to_string_lossy().into_owned(),
+        SessionOptions {
+            disable_dht: true,
+            disable_trackers: true,
+            disable_local_service_discovery: true,
+            listen: Some(ListenerOptions::default()),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    engine.runtime.block_on(async {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("http://{}/announce", listener.local_addr().unwrap());
+        let torrent = format!("d8:announce{}:{}4:infod6:lengthi1e4:name1:x12:piece lengthi16384e6:pieces20:01234567890123456789ee", url.len(), url);
+        let added = tokio::time::timeout(Duration::from_secs(2), engine.add_torrent_file(
+            torrent.into_bytes(), fixture.0.to_string_lossy().into_owned(), false, false,
+        )).await.unwrap().unwrap();
+        assert_eq!(added.total_bytes, 1);
+        assert!(tokio::time::timeout(Duration::from_millis(100), listener.accept()).await.is_err());
+    });
+}
