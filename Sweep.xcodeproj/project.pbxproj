@@ -871,7 +871,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 7;
+				CURRENT_PROJECT_VERSION = 8;
 				DEVELOPMENT_TEAM = 6RX8GEVB43;
 				ENABLE_HARDENED_RUNTIME = NO;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -880,7 +880,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.2.0;
+				MARKETING_VERSION = 1.2.1;
 				OTHER_LDFLAGS = "$(inherited) $(SRCROOT)/BuildArtifacts/SweepRustFFI.xcframework/macos-arm64_x86_64/libsweep_rqbit.a -liconv";
 				PRODUCT_BUNDLE_IDENTIFIER = me.nikstar.sweep;
 				PRODUCT_NAME = Sweep;
@@ -897,7 +897,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 7;
+				CURRENT_PROJECT_VERSION = 8;
 				DEVELOPMENT_TEAM = 6RX8GEVB43;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -906,7 +906,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.2.0;
+				MARKETING_VERSION = 1.2.1;
 				OTHER_LDFLAGS = "$(inherited) $(SRCROOT)/BuildArtifacts/SweepRustFFI.xcframework/macos-arm64_x86_64/libsweep_rqbit.a -liconv";
 				PRODUCT_BUNDLE_IDENTIFIER = me.nikstar.sweep;
 				PRODUCT_NAME = Sweep;
