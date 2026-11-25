@@ -24,14 +24,26 @@ struct ContentView: View {
                 .help("Add Magnet Link")
             }
 
-            if #available(macOS 26, *) {
-                ToolbarSpacer(.fixed)
-            } else {
-                ToolbarItem { Divider() }
-            }
+            toolbarGroupSeparator
 
             ToolbarItemGroup {
-                Button("Remove from Library", systemImage: "xmark") {
+                Button("Resume", systemImage: "play.fill") {
+                    store.resumeSelectedTorrent()
+                }
+                .disabled(!store.canResumeSelectedTorrent)
+                .help("Resume Selected Torrent")
+
+                Button("Pause", systemImage: "pause.fill") {
+                    store.pauseSelectedTorrent()
+                }
+                .disabled(!store.canPauseSelectedTorrent)
+                .help("Pause Selected Torrent")
+            }
+
+            toolbarGroupSeparator
+
+            ToolbarItemGroup {
+                Button("Remove from Library", systemImage: "minus.circle") {
                     TorrentActions.remove(store.selectedTorrent, in: store)
                 }
                 .disabled(store.selectedTorrent == nil)
@@ -48,24 +60,6 @@ struct ContentView: View {
                 ToolbarSpacer(.flexible)
             } else {
                 ToolbarItem { Spacer() }
-            }
-
-            ToolbarItemGroup {
-                Button("Resume", systemImage: "play.fill") {
-                    store.resumeSelectedTorrent()
-                }
-                .disabled(!store.canResumeSelectedTorrent)
-                .help("Resume Selected Torrent")
-
-                Button("Pause", systemImage: "pause.fill") {
-                    store.pauseSelectedTorrent()
-                }
-                .disabled(!store.canPauseSelectedTorrent)
-                .help("Pause Selected Torrent")
-            }
-
-            if #available(macOS 26, *) {
-                ToolbarSpacer(.fixed)
             }
 
             ToolbarItem {
@@ -105,6 +99,15 @@ struct ContentView: View {
         }
         .task(id: store.isWaitingForEngine) {
             if !store.isWaitingForEngine { store.startPolling() }
+        }
+    }
+
+    @ToolbarContentBuilder
+    private var toolbarGroupSeparator: some ToolbarContent {
+        if #available(macOS 26, *) {
+            ToolbarSpacer(.fixed)
+        } else {
+            ToolbarItem { Divider() }
         }
     }
 
