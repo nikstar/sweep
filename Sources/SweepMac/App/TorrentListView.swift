@@ -403,7 +403,7 @@ private struct DirectWiFiStatus: View {
                     .accessibilityHint(reason)
                 Button("Retry", action: network.start)
             } else {
-                Text("Connecting to direct Wi-Fi…")
+                Text(network.isRefreshingRegistration ? "Refreshing the Wi-Fi helper registration…" : "Connecting to direct Wi-Fi…")
             }
         }
         .foregroundStyle(.secondary)

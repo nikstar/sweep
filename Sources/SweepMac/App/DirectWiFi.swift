@@ -18,11 +18,13 @@ final class MacNetworkSession {
     private(set) var needsApproval = false
     private(set) var connecting = false
     private(set) var mustRelaunch = false
-    @ObservationIgnored private var repairedRegistration = false
     let directAtLaunch: Bool
 
     @ObservationIgnored private var connection: NSXPCConnection?
+    @ObservationIgnored private var startupDeadline: Task<Void, Never>?
     @ObservationIgnored private var engine: RqbitEngine?
+
+    var isRefreshingRegistration: Bool { connecting && connection == nil }
 
     init() {
         directAtLaunch = UserDefaults.standard.bool(forKey: Self.preference)
@@ -47,6 +49,9 @@ final class MacNetworkSession {
             }
         } else {
             needsApproval = false
+            if engine == nil, let connection {
+                failed(connection, reason: nil)
+            }
         }
     }
 
@@ -72,6 +77,12 @@ final class MacNetworkSession {
     }
 
     func start() {
+        // After switching signing identities, macOS can discard the old launch job
+        // and then its cached signing requirement on two successive launch attempts.
+        connect(registrationRepairsRemaining: 2)
+    }
+
+    private func connect(registrationRepairsRemaining: Int) {
         guard directAtLaunch, directRequested, !mustRelaunch, !connecting, store.isWaitingForEngine, connection == nil else { return }
         prepareHelper()
         guard service.status == .enabled else {
@@ -100,16 +111,26 @@ final class MacNetworkSession {
             let nsError = error as NSError
             let staleHelper = nsError.domain == NSCocoaErrorDomain && nsError.code == NSXPCConnectionCodeSigningRequirementFailure
             Task { @MainActor in
-                self?.connectionFailed(client, reason: error.localizedDescription, staleHelper: staleHelper)
+                self?.connectionFailed(client, reason: error.localizedDescription,
+                                       registrationRepairsRemaining: staleHelper ? registrationRepairsRemaining : 0)
             }
         } as? SweepWiFiService
         guard let proxy else {
             failed(client, reason: "Could not connect to the approved Wi-Fi helper.")
             return
         }
+        // The helper reports its own DHCP failure after 18 seconds. A stale launchd job
+        // can leave the XPC request queued indefinitely without ever starting the helper.
+        startupDeadline = Task { [weak self, weak client] in
+            do { try await Task.sleep(for: .seconds(30)) } catch { return }
+            self?.connectionFailed(client, reason: "The Wi-Fi helper didn’t respond. Retry to reconnect.",
+                                   registrationRepairsRemaining: registrationRepairsRemaining)
+        }
         proxy.openLink { @Sendable [weak self, weak client] name, error in
             Task { @MainActor in
                 guard let self, let client, self.connection === client else { return }
+                self.startupDeadline?.cancel()
+                self.startupDeadline = nil
                 guard let name, if_nametoindex(name) != 0 else {
                     self.failed(client, reason: error ?? "The Wi-Fi interface is unavailable.")
                     return
@@ -151,30 +172,45 @@ final class MacNetworkSession {
         return requirement
     }
 
-    private func connectionFailed(_ client: NSXPCConnection?, reason: String, staleHelper: Bool) {
+    private func connectionFailed(_ client: NSXPCConnection?, reason: String, registrationRepairsRemaining: Int) {
         guard let client, connection === client else { return }
         failed(client, reason: reason)
-        guard staleHelper, !repairedRegistration, service.status == .enabled else { return }
-        repairedRegistration = true
+        refreshApproval()
+        guard registrationRepairsRemaining > 0, directRequested, service.status == .enabled else { return }
         connecting = true
+        message = nil
         service.unregister { @Sendable [weak self] error in
             Task { @MainActor in
                 guard let self else { return }
-                self.connecting = false
-                if let error { self.message = error.localizedDescription; return }
+                if let error {
+                    self.connecting = false
+                    self.message = error.localizedDescription
+                    return
+                }
                 // smd can finish removing the old job just after unregister returns.
                 for delay in [1, 2, 4] {
                     try? await Task.sleep(for: .seconds(delay))
-                    guard self.directRequested, self.connection == nil else { return }
-                    self.start()
-                    if self.needsApproval || self.service.status == .enabled { return }
+                    guard self.directRequested else { break }
+                    self.prepareHelper()
+                    if self.needsApproval { break }
+                    if self.service.status == .enabled {
+                        self.connecting = false
+                        self.connect(registrationRepairsRemaining: registrationRepairsRemaining - 1)
+                        return
+                    }
+                }
+                self.connecting = false
+                if self.directRequested, !self.needsApproval, self.message == nil {
+                    self.message = reason
                 }
             }
         }
     }
 
-    private func failed(_ client: NSXPCConnection?, reason: String) {
+    private func failed(_ client: NSXPCConnection?, reason: String?) {
         guard let client, connection === client else { return }
+        startupDeadline?.cancel()
+        startupDeadline = nil
         connection = nil
         connecting = false
         message = reason
